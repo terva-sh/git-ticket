@@ -295,20 +295,7 @@ func runList(ctx *cmdContext, args []string) error {
 		return err
 	}
 
-	if ctx.g.json {
-		out := make([]*ticketJSON, 0, len(tickets))
-		for _, t := range tickets {
-			out = append(out, newTicketJSON(s, t))
-		}
-		writeJSON(ctx.out, ticketListEnvelope{
-			SchemaVersion: schemaVersion,
-			Kind:          "ticket-list",
-			Tickets:       out,
-		})
-		return nil
-	}
-	writeListHuman(ctx.out, tickets, storeAbbreviations(s))
-	return nil
+	return ctx.writeTicketList(s, tickets, "No tickets match.")
 }
 
 // resolveID turns a user-typed reference into the canonical ID the library
@@ -577,28 +564,125 @@ func runDeps(ctx *cmdContext, args []string) error {
 		return err
 	}
 
-	if ctx.g.json {
-		out := make([]*ticketJSON, 0, len(tickets))
-		for _, t := range tickets {
-			out = append(out, newTicketJSON(s, t))
-		}
-		writeJSON(ctx.out, ticketListEnvelope{
-			SchemaVersion: schemaVersion,
-			Kind:          "ticket-list",
-			Tickets:       out,
-		})
-		return nil
+	// An empty list does not say which way it looked, so the message does.
+	empty := "It depends on nothing."
+	if dependents {
+		empty = "Nothing depends on it."
 	}
-	if len(tickets) == 0 {
-		if dependents {
-			fmt.Fprintln(ctx.out, "Nothing depends on it.")
-		} else {
-			fmt.Fprintln(ctx.out, "It depends on nothing.")
-		}
-		return nil
+	return ctx.writeTicketList(s, tickets, empty)
+}
+
+// runSearch looks through the title, the body sections, and the references,
+// per plan section 8. The frontmatter beyond the title is deliberately not
+// searched, so looking for "task" does not return every ticket of that type.
+func runSearch(ctx *cmdContext, args []string) error {
+	var regex bool
+	rest, err := ctx.parseFlags("search", args, func(f *flag.FlagSet) {
+		f.BoolVar(&regex, "regex", false, "read the query as an RE2 regular expression")
+	})
+	if err != nil {
+		return err
 	}
-	writeListHuman(ctx.out, tickets, storeAbbreviations(s))
-	return nil
+	if len(rest) != 1 {
+		return usageErr("search takes one query; quote it if it has spaces")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	tickets, err := s.Search(context.Background(), ticket.Query{Text: rest[0], Regex: regex})
+	if err != nil {
+		return err
+	}
+	return ctx.writeTicketList(s, tickets, "Nothing matches.")
+}
+
+// runReady lists what could be started now: status ready, no live claim, and
+// every dependency satisfied, per plan section 8.
+func runReady(ctx *cmdContext, args []string) error {
+	rest, err := ctx.parseFlags("ready", args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) > 0 {
+		return usageErr("ready takes no arguments")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	tickets, err := s.Ready(context.Background())
+	if err != nil {
+		return err
+	}
+	return ctx.writeTicketList(s, tickets, "Nothing is ready to pick up.")
+}
+
+// runFiles finds the tickets that recorded a reference to a path.
+//
+// This reads what agents wrote and is only as complete as they were. It is
+// advisory and is not derived from Git history, which the help text says too.
+func runFiles(ctx *cmdContext, args []string) error {
+	rest, err := ctx.parseFlags("files", args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("files takes one repository-relative path")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	tickets, err := s.Files(context.Background(), rest[0])
+	if err != nil {
+		return err
+	}
+	return ctx.writeTicketList(s, tickets, "No ticket recorded a reference to that path.")
+}
+
+// runNote, runComment, and runSummary each take an ID and one piece of text.
+// The first two append; a summary replaces, per plan section 9, because it is
+// one statement of where the ticket landed and Notes is already the log.
+func runNote(ctx *cmdContext, args []string) error {
+	return runTextEntry(ctx, "note", args, "noted on",
+		func(text string) ticket.Mutation { return ticket.AppendNote{Text: text} })
+}
+
+func runComment(ctx *cmdContext, args []string) error {
+	return runTextEntry(ctx, "comment", args, "commented on",
+		func(text string) ticket.Mutation { return ticket.AppendComment{Text: text} })
+}
+
+func runSummary(ctx *cmdContext, args []string) error {
+	return runTextEntry(ctx, "summary", args, "summary set on",
+		func(text string) ticket.Mutation { return ticket.SetSummary{Text: text} })
+}
+
+func runTextEntry(ctx *cmdContext, name string, args []string, verb string,
+	build func(string) ticket.Mutation) error {
+	rest, err := ctx.parseFlags(name, args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 2 {
+		// Text starting with a dash looks like a flag, and -- is how a caller
+		// says it is not.
+		return usageErr("%s takes a ticket ID and the text; put text starting with a dash after --", name)
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := ctx.applyTo(s, rest[0], build(rest[1]))
+	if err != nil {
+		return err
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s %s", verb, res.Ticket.ID))
 }
 
 // flagsGiven reports which flags were actually typed, as opposed to which hold
@@ -1019,11 +1103,31 @@ func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human 
 	return nil
 }
 
-func writeListHuman(w io.Writer, tickets []*ticket.Ticket, short map[string]string) {
-	if len(tickets) == 0 {
-		fmt.Fprintln(w, "No tickets match.")
-		return
+// writeTicketList reports a read that answers with tickets. Every such command
+// emits the same kind, and each supplies its own line for an empty answer,
+// because "nothing" means something different to search and to ready.
+func (ctx *cmdContext) writeTicketList(s *ticket.Store, tickets []*ticket.Ticket, empty string) error {
+	if ctx.g.json {
+		out := make([]*ticketJSON, 0, len(tickets))
+		for _, t := range tickets {
+			out = append(out, newTicketJSON(s, t))
+		}
+		writeJSON(ctx.out, ticketListEnvelope{
+			SchemaVersion: schemaVersion,
+			Kind:          "ticket-list",
+			Tickets:       out,
+		})
+		return nil
 	}
+	if len(tickets) == 0 {
+		fmt.Fprintln(ctx.out, empty)
+		return nil
+	}
+	writeListHuman(ctx.out, tickets, storeAbbreviations(s))
+	return nil
+}
+
+func writeListHuman(w io.Writer, tickets []*ticket.Ticket, short map[string]string) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for _, t := range tickets {
 		id, ok := short[t.ID]

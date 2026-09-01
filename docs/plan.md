@@ -463,7 +463,10 @@ is not an operation the API offers.
 - `status`, `claim`, `release`
 - `link` and `unlink` for dependencies and references
 - `ac` and `dod` to add, check, and uncheck criteria items
-- `note`, `comment`, `summary` to append
+- `note` and `comment` to append
+- `summary` to set. It replaces rather than appends, because a summary is one
+  statement of where the ticket landed and a log of those is what `Notes` and
+  `Comments` already are
 - `archive`, `unarchive`
 
 Each returns the resulting ticket, its new revision, and the paths changed.

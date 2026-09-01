@@ -83,14 +83,20 @@ func commands() []command {
 		{"update", "change a ticket's fields", "ID [flags]", runUpdate},
 		{"show", "print one ticket", "ID", runShow},
 		{"list", "print the tickets that match", "[filters]", runList},
+		{"ready", "print what could be picked up now", "", runReady},
+		{"search", "search titles, body sections, and references", "QUERY [--regex]", runSearch},
 		{"status", "move a ticket through the lifecycle", "ID STATUS [--reason R]", runStatus},
 		{"claim", "record that you are working a ticket", "ID [--expires-in D] [--force]", runClaim},
 		{"release", "drop your claim on a ticket", "ID", runRelease},
 		{"link", "add a dependency or a reference", "ID --depends-on OTHER | --ref R", runLink},
 		{"unlink", "remove a dependency or a reference", "ID --depends-on OTHER | --ref R", runUnlink},
 		{"deps", "print what a ticket waits on", "ID [--transitive] [--dependents]", runDeps},
+		{"files", "print tickets that recorded a reference to a path", "PATH", runFiles},
 		{"ac", "edit the acceptance criteria", "ID --add T | --check N | --uncheck N", runAC},
 		{"dod", "edit the definition of done", "ID --add T | --check N | --uncheck N", runDoD},
+		{"note", "append a note", "ID TEXT", runNote},
+		{"comment", "append a comment", "ID TEXT", runComment},
+		{"summary", "set the summary, replacing it", "ID TEXT", runSummary},
 		{"archive", "archive a ticket, moving its file", "ID [--reason R]", runArchive},
 		{"unarchive", "restore an archived ticket to ready", "ID", runUnarchive},
 		{"check", "validate every ticket in the store", "[--strict]", runCheck},
@@ -379,5 +385,10 @@ Global flags are accepted before or after the command:
   --lock-timeout D       how long to wait for the store lock
 
 An ID may be abbreviated to any unique prefix of at least four characters.
+
+files reports the references that agents recorded, so it is only as complete as
+they were. It is advisory and is not derived from Git history.
+
+Text that starts with a dash goes after a bare --, which ends the flags.
 `)
 }

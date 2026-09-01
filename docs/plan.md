@@ -439,6 +439,28 @@ V1 has no sync command. Publishing happens through ordinary `git commit`,
 `push`, `fetch`, and `merge`. A later sync helper may be worth evaluating, but
 it must never silently push, merge, switch branches, or rewrite a worktree.
 
+### 7.4 The Git commands this code runs
+
+The rule above is a promise about code that runs inside someone else's
+repository, and since `v0.2.0` a host can embed the command surface, so the
+promise now travels into binaries this project does not build. Prose cannot hold
+it. This is the enumerated list, and a test holds the source to it.
+
+| Command | What reads it |
+|---|---|
+| `rev-parse` | the repository root for path resolution, the common Git directory for the lock, and `HEAD` for the commit a claim records |
+| `symbolic-ref` | the branch a claim records. It fails on a detached HEAD, and that is what tells the two apart |
+
+Both only read. Every call goes through one helper per package, `runGit` in
+`ticket` and `readGit` in `cli`, and `TestGitCommandsAreReadOnly` asserts three
+things: no `exec.Command` in non-test code names a binary other than `git`,
+every one of those calls sits in one of the helpers, and every helper call names
+a command from this table. A fourth call site added tomorrow has to pass all
+three, and a new helper fails the second rather than slipping past the third.
+
+Test code is exempt and runs `git init` freely, because a fixture repository is
+not a user's repository.
+
 ## 8. Query surface
 
 - `list` with filters on status, type, priority, label, assignee, and milestone.

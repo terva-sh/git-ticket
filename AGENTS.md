@@ -161,6 +161,12 @@ The library reaches no network and runs no Git command that writes. No fetch,
 push, merge, commit, or branch switch. Publishing is the user's ordinary Git
 workflow, and a helper that does it for them is out of scope for v1.
 
+`TestGitCommandsAreReadOnly` enforces that, against the command table in plan
+7.4. Every git call goes through one helper per package, `runGit` in `ticket`
+and `readGit` in `cli`, and running a command the table does not list fails the
+suite. To add one, add the row and its reason to 7.4 first. Test code is exempt
+and runs `git init` freely.
+
 ## Gotchas
 
 CI actions resolve against this Forgejo instance, not GitHub. A bare

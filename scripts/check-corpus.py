@@ -25,7 +25,7 @@ CROCKFORD = set("0123456789ABCDEFGHJKMNPQRSTVWXYZ")
 
 # Section 5.1, in the order the renderer must emit.
 ORDER = [
-    "schema", "id", "title", "type", "status", "priority", "labels",
+    "schema", "id", "title", "type", "status", "status_reason", "priority", "labels",
     "assignees", "milestone", "parent", "dependencies", "references",
     "claim", "archive", "created_at", "updated_at", "created_by",
     "updated_by", "extensions",

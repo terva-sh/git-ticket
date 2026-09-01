@@ -4,6 +4,7 @@ id: TKT-01K3ZZFCP0VJKES58GZG0QDHG0
 title: Cycle member A, waits on B
 type: task
 status: ready
+status_reason: null
 priority: normal
 labels: []
 assignees: []

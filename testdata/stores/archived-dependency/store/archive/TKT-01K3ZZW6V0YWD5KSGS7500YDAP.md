@@ -4,6 +4,7 @@ id: TKT-01K3ZZW6V0YWD5KSGS7500YDAP
 title: Archived out of ready, so it satisfies nothing
 type: task
 status: archived
+status_reason: null
 priority: normal
 labels: []
 assignees: []

@@ -4,6 +4,7 @@ id: TKT-01K3ZZ67Q0PT427VFD1F4WFWSH
 title: Can the daemon survive a provider outage
 type: spike
 status: blocked
+status_reason: the staging provider account is suspended, so the outage cannot be reproduced
 priority: normal
 labels: []
 assignees: []
@@ -33,7 +34,6 @@ Status `blocked`, type `spike`.
 Blocked 2026-09-02: the staging provider account is suspended, so there is no
 way to produce the outage this spike has to observe.
 
-Section 6.2 requires a `--reason` on the way into `blocked`, but 5.1 defines no
-frontmatter field to hold one. This fixture records it as a `Notes` entry, which
-is the only place in the format that can carry it today. See the note in
-section 15.
+This is the pair 6.2 requires. `status_reason` carries the current reason, which
+a query can read back, and this note carries the history, which survives the
+transition that clears the field.

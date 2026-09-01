@@ -4,6 +4,7 @@ id: TKT-01K400J5Z097ND5C86DFD1W4KZ
 title: In progress with nobody holding it
 type: task
 status: in-progress
+status_reason: null
 priority: normal
 labels: []
 assignees: []

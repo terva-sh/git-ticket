@@ -4,6 +4,7 @@ id: TKT-01K40091005G7KY9JBW0WB8543
 title: Ticket carrying a type outside the set
 type: incident
 status: ready
+status_reason: null
 priority: normal
 labels: []
 assignees: []

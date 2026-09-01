@@ -4,6 +4,7 @@ id: TKT-01K3ZYKXS09X59847ZSQW9BH5D
 title: Measure cold start before optimizing it
 type: spike
 status: ready
+status_reason: null
 priority: normal
 labels: []
 assignees: []

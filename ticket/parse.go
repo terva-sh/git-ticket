@@ -15,7 +15,7 @@ import (
 // knownFields are the top-level frontmatter keys this version defines, in the
 // order plan 5.1 renders them. Anything else is preserved as an unknown field.
 var knownFields = []string{
-	"schema", "id", "title", "type", "status", "priority",
+	"schema", "id", "title", "type", "status", "status_reason", "priority",
 	"labels", "assignees", "milestone", "parent", "dependencies",
 	"references", "claim", "archive",
 	"created_at", "updated_at", "created_by", "updated_by", "extensions",
@@ -147,6 +147,8 @@ func decodeFields(t *Ticket, root *yaml.Node) error {
 			t.Type, err = scalarString(val, key)
 		case "status":
 			t.Status, err = scalarString(val, key)
+		case "status_reason":
+			t.StatusReason, err = optionalString(val, key)
 		case "priority":
 			t.Priority, err = scalarString(val, key)
 		case "labels":

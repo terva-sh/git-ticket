@@ -4,6 +4,7 @@ id: TKT-01K3ZZ2JH000GHB4EE6SNRE6MD
 title: Refresh fails when the clock jumps backward
 type: bug
 status: ready
+status_reason: null
 priority: high
 labels:
   - auth

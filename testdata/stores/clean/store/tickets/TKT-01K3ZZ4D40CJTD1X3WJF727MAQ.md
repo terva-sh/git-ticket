@@ -4,6 +4,7 @@ id: TKT-01K3ZZ4D40CJTD1X3WJF727MAQ
 title: Delete the vendored copy of the old client
 type: chore
 status: in-progress
+status_reason: null
 priority: normal
 labels: []
 assignees:

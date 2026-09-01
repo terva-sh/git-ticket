@@ -4,6 +4,7 @@ id: TKT-01K400CP600KMW1PW7WZQBQY0J
 title: Child of an epic that is not in the store
 type: task
 status: ready
+status_reason: null
 priority: normal
 labels: []
 assignees: []

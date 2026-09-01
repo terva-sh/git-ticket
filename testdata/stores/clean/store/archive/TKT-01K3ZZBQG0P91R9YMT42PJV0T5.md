@@ -4,6 +4,7 @@ id: TKT-01K3ZZBQG0P91R9YMT42PJV0T5
 title: Crash on a malformed provider response
 type: bug
 status: archived
+status_reason: null
 priority: urgent
 labels: []
 assignees: []

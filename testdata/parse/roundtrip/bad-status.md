@@ -4,6 +4,7 @@ id: TKT-01K3ZYNRC014P7KT7R1SASWG2B
 title: Ticket carrying a status outside the set
 type: task
 status: frobnicate
+status_reason: null
 priority: normal
 labels: []
 assignees: []

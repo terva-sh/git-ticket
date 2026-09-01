@@ -4,6 +4,7 @@ id: TKT-01K3ZZ9WX0B36630AHHYZV97D9
 title: Pin the provider SDK to a known version
 type: task
 status: done
+status_reason: null
 priority: normal
 labels: []
 assignees:

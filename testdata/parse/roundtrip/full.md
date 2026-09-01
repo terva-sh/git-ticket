@@ -4,6 +4,7 @@ id: TKT-01K3ZYG8K0Y52AD43XRGM4T7WZ
 title: Rotate the signing key without downtime
 type: epic
 status: in-progress
+status_reason: null
 priority: urgent
 labels:
   - auth

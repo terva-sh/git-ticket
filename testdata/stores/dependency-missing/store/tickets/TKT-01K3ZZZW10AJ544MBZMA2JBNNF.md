@@ -4,6 +4,7 @@ id: TKT-01K3ZZZW10AJ544MBZMA2JBNNF
 title: Waits on a ticket that is not in the store
 type: task
 status: ready
+status_reason: null
 priority: normal
 labels: []
 assignees: []

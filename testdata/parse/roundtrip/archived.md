@@ -4,6 +4,7 @@ id: TKT-01K3ZYSDJ0C9FYEK5D8R0BBT5Q
 title: Drop the legacy config loader
 type: chore
 status: archived
+status_reason: null
 priority: normal
 labels: []
 assignees: []

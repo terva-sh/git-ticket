@@ -159,11 +159,16 @@ type Body struct {
 
 // Ticket is one parsed ticket file.
 type Ticket struct {
-	Schema       int
-	ID           string
-	Title        string
-	Type         string
-	Status       string
+	Schema int
+	ID     string
+	Title  string
+	Type   string
+	Status string
+	// StatusReason is the reason 6.2 requires for entering blocked and for
+	// reopening from done. It holds the current reason only: a transition that
+	// requires a reason overwrites it and any other transition clears it. The
+	// history lives in Notes.
+	StatusReason *string
 	Priority     string
 	Labels       []string
 	Assignees    []string

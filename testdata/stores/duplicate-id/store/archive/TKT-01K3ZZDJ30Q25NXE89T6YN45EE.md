@@ -4,6 +4,7 @@ id: TKT-01K3ZZDJ30Q25NXE89T6YN45EE
 title: Same ID in two places, archived copy
 type: task
 status: archived
+status_reason: null
 priority: normal
 labels: []
 assignees: []

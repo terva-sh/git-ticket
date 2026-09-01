@@ -29,6 +29,7 @@ func renderFrontmatter(b *strings.Builder, t *Ticket) {
 	m.addString("title", t.Title)
 	m.addString("type", t.Type)
 	m.addString("status", t.Status)
+	m.addStringPtr("status_reason", t.StatusReason)
 	m.addString("priority", t.Priority)
 	m.addStringSeq("labels", t.Labels)
 	m.addStringSeq("assignees", t.Assignees)

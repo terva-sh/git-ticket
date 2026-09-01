@@ -4,6 +4,7 @@ id: TKT-01K3ZZMWF0K6YY0T5F5N4YTZY8
 title: Parent cycle member, child of the other
 type: epic
 status: ready
+status_reason: null
 priority: normal
 labels: []
 assignees: []

@@ -134,6 +134,7 @@ id: TKT-01K3ZYEE00HV9ZDBB8BEASXBBG
 title: Add token refresh handling
 type: task
 status: ready
+status_reason: null
 priority: high
 labels:
   - auth
@@ -160,6 +161,12 @@ extensions: {}
 
 `type` is one of `task`, `bug`, `chore`, `spike`, `epic`. `priority` is one of
 `low`, `normal`, `high`, `urgent`.
+
+`status_reason` holds the reason 6.2 requires when a ticket enters `blocked` or
+reopens from `done`. It is the current reason and not a history: a transition
+that requires a reason overwrites it, and any other transition clears it. The
+field answers "why is this blocked now", which a tool can act on. `Notes`
+answers "what happened to this ticket", which a person reads.
 
 `references` carry a typed stable identifier and an optional repository-relative
 path. The core preserves namespaces such as `idea:`, `proposal:`, `plan:`,
@@ -264,6 +271,18 @@ be at least four characters of the ULID to be considered, which stops a typo
 from resolving by accident. An ambiguous prefix returns `ambiguous_id` and lists
 the candidates. This is git's rule for object hashes and users already know it.
 
+A `references` path resolves against the root of the Git repository holding the
+store, found with `git rev-parse --show-toplevel`. Repository-relative is the
+only root that survives a clone: an absolute path breaks as soon as the
+repository is checked out somewhere else, and a store-relative path would mean
+two different things for `.tickets/` and for a `--store` override. It is also
+how a person already writes a path, `docs/plan.md` rather than `../docs/plan.md`.
+
+When `--store` or `GIT_TICKET_STORE` points outside any repository there is no
+such root, and `check` skips path resolution rather than guessing one. It
+reports no `reference_path_unresolved` finding at all in that case, because a
+finding measured against a guessed root is noise the user cannot act on.
+
 ## 6. Status and lifecycle
 
 ### 6.1 The status set
@@ -300,7 +319,15 @@ Anything else returns `invalid_transition` naming the permitted targets.
 
 A `--reason` is required for a transition into `blocked` and for reopening from
 `done` to `in-progress`. Both are cases where a later reader needs to know why,
-and neither has a dedicated command to make the intent obvious.
+and neither has a dedicated command to make the intent obvious. It is accepted,
+but not required, on every other transition.
+
+The reason lands in two places. It is written to `status_reason`, where a query
+can read it back, and appended to `Notes` with the actor and the timestamp,
+where it survives the transition that clears the field. One place would have
+cost one of the two: a field alone forgets why the ticket was blocked last
+month, and a note alone cannot answer why it is blocked now without a human
+reading prose.
 
 `archived` is not reachable through `git ticket status`, because archiving also
 moves the file. `status ID archived` is refused with a pointer to `git ticket
@@ -519,13 +546,17 @@ Warnings:
 |---|---|
 | `dependency_archived_incomplete` | a live ticket depends on an archived ticket whose `from_status` is not `done` |
 | `claim_expired` | a claim is past its `expires_at` |
-| `reference_path_unresolved` | a `references` path does not resolve |
+| `reference_path_unresolved` | a `references` path does not resolve against the repository root, per 5.5 |
 | `label_unknown` | a label is outside the `config.yml` allowlist |
 | `in_progress_unclaimed` | a ticket is `in-progress` with no claim |
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
 a parse failure would be noise.
+
+`reference_path_unresolved` is the one check that depends on where the store
+sits. A store outside a Git repository has no root to resolve against, so the
+check is skipped there and reports nothing, per 5.5.
 
 ## 12. Interfaces
 
@@ -701,16 +732,13 @@ Concurrency:
 5. What tool discovery the stdio adapter should expose.
 6. When Backlog.md import and a local view are worth building.
 7. The compatibility policy for the Go module after the first stable schema.
-8. Where a `blocked` reason lives. 6.2 requires `--reason` on the way into
-   `blocked` and on reopening from `done`, but 5.1 defines no field to hold it,
-   so today it can only land in `Notes` as prose no tool can read back. Either
-   accept that and say so, or add a field and pay for it at the schema level.
-9. What a `references` path resolves against. 5.1 says `check` resolves it "far
-   enough to report a broken link", which is not enough to implement:
-   repository root and store parent differ as soon as `--store` points outside
-   the repository, and a store used from two clones would disagree. Until this
-   is settled `reference_path_unresolved` has no fixture, because writing one
-   would invent the answer.
+Two questions carried the numbers 8 and 9 here and are now settled. Where a
+`blocked` reason lives is answered by `status_reason` in 5.1 and 6.2: the field
+holds the current reason and `Notes` keeps the history. What a `references` path
+resolves against is answered in 5.5: the root of the Git repository holding the
+store, and no finding at all when the store sits outside one. Both were decided
+during Phase 1, before any reader had shipped, so adding `status_reason` to
+schema 1 cost no compatibility.
 
 ## 16. References
 

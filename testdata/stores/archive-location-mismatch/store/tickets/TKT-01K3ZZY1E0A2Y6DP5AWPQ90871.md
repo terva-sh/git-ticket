@@ -4,6 +4,7 @@ id: TKT-01K3ZZY1E0A2Y6DP5AWPQ90871
 title: Archived status sitting in the live directory
 type: task
 status: archived
+status_reason: null
 priority: normal
 labels: []
 assignees: []

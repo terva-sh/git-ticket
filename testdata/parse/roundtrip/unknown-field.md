@@ -4,6 +4,7 @@ id: TKT-01K3ZYJ360Q7ESC30QAD2SMY0H
 title: Cache the provider model list
 type: chore
 status: ready
+status_reason: null
 priority: low
 labels: []
 assignees: []

@@ -4,6 +4,7 @@ id: TKT-01K3ZZ0QY0AK2WSW7K0PMT2MMX
 title: Sketch the offline token story
 type: task
 status: draft
+status_reason: null
 priority: low
 labels: []
 assignees: []

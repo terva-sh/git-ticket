@@ -514,6 +514,86 @@ Stable codes, which callers may switch on:
 `dependency_cycle`, `claim_conflict`, `parse_error`, `merge_conflict`,
 `schema_unsupported`, `lock_timeout`, `validation_failed`.
 
+A path in `pathsChanged`, and the `path` of a ticket, is relative to the
+repository root when the store sits inside one, and absolute otherwise.
+
+### 10.1 A ticket
+
+The `ticket` kind carries one ticket under a `ticket` key, and `ticket-list`
+carries an array of the same objects under `tickets`.
+
+```json
+{
+  "id": "TKT-01K3ZYG8K0Y52AD43XRGM4T7WZ",
+  "revision": "sha256:…",
+  "path": ".tickets/tickets/TKT-01K3ZYG8K0Y52AD43XRGM4T7WZ.md",
+  "schema": 1,
+  "title": "Rotate the signing key without downtime",
+  "type": "epic",
+  "status": "in-progress",
+  "statusReason": null,
+  "priority": "urgent",
+  "labels": ["auth"],
+  "assignees": ["human:sothr"],
+  "milestone": "v1.2",
+  "parent": null,
+  "dependencies": [],
+  "references": [{ "ref": "proposal:git-ticket", "path": "docs/plan.md" }],
+  "claim": null,
+  "archive": null,
+  "createdAt": "2026-08-31T12:00:00Z",
+  "updatedAt": "2026-08-31T12:06:00Z",
+  "createdBy": { "id": "human:sothr", "name": "Drew Short" },
+  "updatedBy": { "id": "agent:terva/session-123", "name": "Mieli" },
+  "extensions": {},
+  "unknown": {},
+  "body": {
+    "description": "The signing key has never been rotated…",
+    "acceptanceCriteria": "- [x] The verifier accepts either key\n- [ ] New tokens use the newer key",
+    "definitionOfDone": "",
+    "implementationPlan": "",
+    "notes": "",
+    "comments": "",
+    "summary": "",
+    "extra": [{ "heading": "Risks", "text": "…" }]
+  },
+  "checklists": {
+    "acceptanceCriteria": [
+      { "index": 1, "checked": true, "text": "The verifier accepts either key" },
+      { "index": 2, "checked": false, "text": "New tokens use the newer key" }
+    ],
+    "definitionOfDone": []
+  }
+}
+```
+
+The frontmatter fields keep their names in camel case. `revision` and `path` are
+computed rather than stored, per 7.1. `unknown` holds the top-level fields this
+version does not define, per 5.4, which are preserved on write whether or not a
+consumer understands them.
+
+`body` holds every section exactly as it appears in the file, one type for all of
+them, so nothing a person wrote by hand is dropped on the way out.
+`checklists` is derived from `body` by reading the `- [ ]` and `- [x]` lines of
+the two checkbox sections. The derivation runs one way only: `body` is the
+document and `checklists` is a view of it, so the two cannot disagree and there
+is no question which one wins.
+
+`index` is the number `ac` and `dod` take. It counts from one, over checkbox
+lines only, so a consumer never computes it from an array position. A checklist
+section that also holds prose keeps that prose in `body` and leaves the indexes
+unmoved.
+
+### 10.2 Exit statuses
+
+Zero when the command did what it was asked, and one otherwise. A check that
+found errors, an unknown flag, and a stale revision all exit one. An exit status
+has room for one bit, and the codes above have more to say, so a caller that
+needs to tell those apart reads the code from the error envelope.
+
+`check --strict` promotes warnings to errors, so a store carrying only warnings
+exits zero without it and one with it.
+
 ## 11. Validation
 
 `check` runs offline, is safe in CI, and separates errors from warnings. It
@@ -595,7 +675,17 @@ git ticket schema
 ```
 
 Global flags: `--json`, `--store PATH`, `--if-revision R`, `--actor ID`,
-`--lock-timeout D`.
+`--lock-timeout D`. They are accepted before or after the subcommand, because
+`git ticket --json list` and `git ticket list --json` are both what a person
+types.
+
+The store is found in this order: `--store`, then `GIT_TICKET_STORE`, then
+discovery walking up from the current directory to the Git root. `config.yml`
+has no say, because it lives inside a store and cannot name one.
+
+A `--store` or `GIT_TICKET_STORE` that names a directory holding no store is
+`store_not_found`, and never a fall back to discovery. Searching elsewhere after
+being told where to look is how a tool writes to the wrong store.
 
 `instructions` prints an agent workflow block for pasting into a project's
 `AGENTS.md` or equivalent. `init` may write that block to a new file, and must
@@ -728,22 +818,24 @@ Concurrency:
 
 ## 15. Deferred questions
 
-1. The exact precedence between `--store`, `GIT_TICKET_STORE`, and
-   `config.yml`.
-2. How a caller renews an existing claim rather than replacing it.
-3. Whether custom statuses are worth the cost, decided after a real workflow
+1. How a caller renews an existing claim rather than replacing it.
+2. Whether custom statuses are worth the cost, decided after a real workflow
    asks for one.
-4. Whether a later release adds sync helpers around ordinary Git commands.
-5. What tool discovery the stdio adapter should expose.
-6. When Backlog.md import and a local view are worth building.
-7. The compatibility policy for the Go module after the first stable schema.
-Two questions carried the numbers 8 and 9 here and are now settled. Where a
-`blocked` reason lives is answered by `status_reason` in 5.1 and 6.2: the field
-holds the current reason and `Notes` keeps the history. What a `references` path
-resolves against is answered in 5.5: the root of the Git repository holding the
-store, and no finding at all when the store sits outside one. Both were decided
-during Phase 1, before any reader had shipped, so adding `status_reason` to
-schema 1 cost no compatibility.
+3. Whether a later release adds sync helpers around ordinary Git commands.
+4. What tool discovery the stdio adapter should expose.
+5. When Backlog.md import and a local view are worth building.
+6. The compatibility policy for the Go module after the first stable schema.
+
+Three questions have left this list, and the numbers have closed up behind them.
+Where a `blocked` reason lives is answered by `status_reason` in 5.1 and 6.2:
+the field holds the current reason and `Notes` keeps the history. What a
+`references` path resolves against is answered in 5.5: the root of the Git
+repository holding the store, and no finding at all when the store sits outside
+one. Both were decided during Phase 1, before any reader had shipped, so adding
+`status_reason` to schema 1 cost no compatibility. The precedence between
+`--store`, `GIT_TICKET_STORE`, and `config.yml` is answered in 12.1, at the
+start of Phase 2, because the CLI is the first thing that had to resolve a
+store.
 
 ## 16. References
 

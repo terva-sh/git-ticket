@@ -23,16 +23,33 @@ The agent workflow block lives at `internal/cli/instructions.md`, embedded with
 the binary has, because prose telling a reader to run something that does not
 exist is worse than no prose.
 
-Both Phase 2 exit criteria are met. The scripted end-to-end run is
-`TestLifecycle` in `internal/cli/lifecycle_test.go`. For the other, this
-repository keeps its own tickets in `.tickets/` and `.forgejo/workflows/ci.yml`
-runs `git ticket check --strict` over them.
+One Phase 2 exit criterion is met and one is not. The scripted end-to-end run is
+`TestLifecycle` in `internal/cli/lifecycle_test.go`. The other, `git ticket
+check` green in this repository's own CI, is not met, because CI is red.
+
+`.forgejo/workflows/ci.yml` fails before it runs a single one of its steps. The
+runner resolves `actions/checkout@v4` against
+`https://git.local.sothr.com/actions/checkout` and gets a 404: that instance
+points `DEFAULT_ACTIONS_URL` at itself and does not mirror the GitHub actions.
+`actions/setup-go@v5` would fail the same way. Container images do come from a
+local mirror at `container.local.sothr.com/library/`, so the registry is
+mirrored even though the actions are not. `TKT-01M1F9AB` tracks the fix and is
+the one ticket that is `ready`.
+
+Everything the workflow actually runs passes locally: gofmt, vet,
+`go test ./...`, and `check --strict`. The failure is in reaching those steps,
+not in the steps.
+
+"With no network" in that exit criterion describes `check` itself, per section
+11: the command performs no network access. It is not a requirement that the CI
+job run without network, which is why fetching `yaml.v3` from the proxy is fine.
 
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
 
-The repository is local only, on `main`, with no remote, so CI has never
-actually run. Every step in it passes locally.
+`origin` is `ssh://git@git.local.sothr.com:2222/terva-sh/git-ticket.git`, and
+`main` tracks it. `v0.1.0` is pushed. There is no public mirror, which is
+deferred question 7: `go.mod` declares a path that nothing serves.
 
 ## Commands
 

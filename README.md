@@ -276,7 +276,7 @@ repository and before `init`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | Done, tagged `v0.1.0`. All 24 commands, and both exit criteria met |
+| 2 | Standalone CLI with `--json` | All 24 commands, tagged `v0.1.0`. CI is red: the runner cannot resolve `actions/checkout` |
 | 3 | Terva integration | Unblocked by `v0.1.0`. Tracked in terva |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 

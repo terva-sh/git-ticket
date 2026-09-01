@@ -432,8 +432,13 @@ it must never silently push, merge, switch branches, or rewrite a worktree.
 
 ## 8. Query surface
 
-- `list` with filters on status, type, priority, label, assignee, and milestone
-- `ready`: status `ready`, no live claim, and every dependency satisfied per 6.3
+- `list` with filters on status, type, priority, label, assignee, and milestone.
+  Within one filter the values are alternatives and across filters they all have
+  to hold. Archived tickets are left out unless the caller asks for them, by
+  filtering on the `archived` status or by asking for them outright, because a
+  list of work is about work that is still live
+- `ready`: status `ready`, no live claim, and every dependency satisfied per 6.3.
+  Only direct dependencies are read, so a dependency cycle cannot make this loop
 - `show` for one complete ticket
 - `search` over title, description, acceptance criteria, definition of done,
   notes, comments, summary, and references. Case-insensitive substring by

@@ -961,6 +961,17 @@ Concurrency:
 4. What tool discovery the stdio adapter should expose.
 5. When Backlog.md import and a local view are worth building.
 6. The compatibility policy for the Go module after the first stable schema.
+7. How a caller reads the parent hierarchy back. Section 8 filters `list` on
+   status, type, priority, label, assignee, and milestone, and `deps` walks
+   `dependencies` rather than `parent`, so nothing lists the children of an
+   epic. The field is settable in 12.1 and validated in 11 by `parent_missing`
+   and `parent_cycle`, which makes this a hole rather than a decision: the
+   format records a hierarchy it cannot show. Filing this repository's own
+   Phase 3 epic is what found it. A `--parent` filter on `list` is the obvious
+   answer and probably the right one, but `show` rendering children, and
+   `deps --children`, are both defensible and the choice affects the JSON
+   contract in 10.1.
+
 Six questions have left this list, and the numbers have closed up behind them.
 
 Two were settled during Phase 1, before any reader had shipped, so adding

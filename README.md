@@ -307,8 +307,14 @@ The module path is settled too, by publishing rather than by argument. `go.mod`
 declares `github.com/terva-sh/git-ticket`, a public mirror serves that path, and
 so the import path a consumer writes is the one that was already there.
 
-What remains is deferred rather than open: six questions in plan section 15,
+What remains is deferred rather than open: seven questions in plan section 15,
 filed as tickets in `.tickets/`. Run `git ticket list` to see them.
+
+The seventh arrived the way the useful ones do. Filing this repository's own
+Phase 3 epic, with four slices under it, turned up a hole: the format validates
+a parent hierarchy it gives no way to walk. `list` does not filter on `parent`,
+and `deps` reads `dependencies`, so on an epic it reports that it depends on
+nothing, which is true and useless.
 
 ## Reading order
 

@@ -1,0 +1,266 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+
+	"github.com/terva-sh/git-ticket/ticket"
+)
+
+// The JSON contract of plan section 10. Absent scalars are null and absent
+// collections are [], always present rather than omitted, so a consumer never
+// has to tell missing from empty. That rule is why so many fields here are
+// pointers and why every slice is built with make rather than left nil.
+
+const schemaVersion = 1
+
+type ticketEnvelope struct {
+	SchemaVersion int         `json:"schemaVersion"`
+	Kind          string      `json:"kind"`
+	Ticket        *ticketJSON `json:"ticket"`
+}
+
+type ticketListEnvelope struct {
+	SchemaVersion int           `json:"schemaVersion"`
+	Kind          string        `json:"kind"`
+	Tickets       []*ticketJSON `json:"tickets"`
+}
+
+type mutationEnvelope struct {
+	SchemaVersion int             `json:"schemaVersion"`
+	Kind          string          `json:"kind"`
+	Ticket        *mutationTicket `json:"ticket"`
+	PathsChanged  []string        `json:"pathsChanged"`
+}
+
+// mutationTicket is the identity of what changed. A caller that wants the whole
+// ticket back asks for it with show, which is the operation that returns one.
+type mutationTicket struct {
+	ID       string `json:"id"`
+	Revision string `json:"revision"`
+}
+
+type errorEnvelope struct {
+	SchemaVersion int       `json:"schemaVersion"`
+	Kind          string    `json:"kind"`
+	Error         errorBody `json:"error"`
+}
+
+type errorBody struct {
+	Code    string            `json:"code"`
+	Message string            `json:"message"`
+	Details map[string]string `json:"details"`
+}
+
+type ticketJSON struct {
+	ID           string          `json:"id"`
+	Revision     string          `json:"revision"`
+	Path         *string         `json:"path"`
+	Schema       int             `json:"schema"`
+	Title        string          `json:"title"`
+	Type         string          `json:"type"`
+	Status       string          `json:"status"`
+	StatusReason *string         `json:"statusReason"`
+	Priority     string          `json:"priority"`
+	Labels       []string        `json:"labels"`
+	Assignees    []string        `json:"assignees"`
+	Milestone    *string         `json:"milestone"`
+	Parent       *string         `json:"parent"`
+	Dependencies []string        `json:"dependencies"`
+	References   []referenceJSON `json:"references"`
+	Claim        *claimJSON      `json:"claim"`
+	Archive      *archiveJSON    `json:"archive"`
+	CreatedAt    *string         `json:"createdAt"`
+	UpdatedAt    *string         `json:"updatedAt"`
+	CreatedBy    *actorJSON      `json:"createdBy"`
+	UpdatedBy    *actorJSON      `json:"updatedBy"`
+	Extensions   map[string]any  `json:"extensions"`
+	Unknown      map[string]any  `json:"unknown"`
+	Body         bodyJSON        `json:"body"`
+	Checklists   checklistsJSON  `json:"checklists"`
+}
+
+type referenceJSON struct {
+	Ref  string  `json:"ref"`
+	Path *string `json:"path"`
+}
+
+type actorJSON struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type claimJSON struct {
+	Actor     string  `json:"actor"`
+	Branch    *string `json:"branch"`
+	Worktree  *string `json:"worktree"`
+	Commit    *string `json:"commit"`
+	ClaimedAt *string `json:"claimedAt"`
+	ExpiresAt *string `json:"expiresAt"`
+}
+
+type archiveJSON struct {
+	ArchivedAt *string `json:"archivedAt"`
+	FromStatus *string `json:"fromStatus"`
+	Reason     *string `json:"reason"`
+}
+
+// bodyJSON is every section exactly as it appears in the file, one type for all
+// of them, so nothing a person wrote by hand is dropped on the way out.
+type bodyJSON struct {
+	Preamble           string        `json:"preamble"`
+	Description        string        `json:"description"`
+	AcceptanceCriteria string        `json:"acceptanceCriteria"`
+	DefinitionOfDone   string        `json:"definitionOfDone"`
+	ImplementationPlan string        `json:"implementationPlan"`
+	Notes              string        `json:"notes"`
+	Comments           string        `json:"comments"`
+	Summary            string        `json:"summary"`
+	Extra              []sectionJSON `json:"extra"`
+}
+
+type sectionJSON struct {
+	Heading string `json:"heading"`
+	Text    string `json:"text"`
+}
+
+// checklistsJSON is derived from bodyJSON and never the other way round, so the
+// two cannot disagree about what a ticket says.
+type checklistsJSON struct {
+	AcceptanceCriteria []checklistItemJSON `json:"acceptanceCriteria"`
+	DefinitionOfDone   []checklistItemJSON `json:"definitionOfDone"`
+}
+
+// checklistItemJSON carries the index rather than leaving it to be counted from
+// an array position, because the number `ac --check N` takes counts checkbox
+// lines only and a section may hold other prose.
+type checklistItemJSON struct {
+	Index   int    `json:"index"`
+	Checked bool   `json:"checked"`
+	Text    string `json:"text"`
+}
+
+func newTicketJSON(s *ticket.Store, t *ticket.Ticket) *ticketJSON {
+	out := &ticketJSON{
+		ID:           t.ID,
+		Revision:     t.Revision,
+		Path:         optionalString(displayPath(s, t.Path)),
+		Schema:       t.Schema,
+		Title:        t.Title,
+		Type:         t.Type,
+		Status:       t.Status,
+		StatusReason: copyString(t.StatusReason),
+		Priority:     t.Priority,
+		Labels:       stringSlice(t.Labels),
+		Assignees:    stringSlice(t.Assignees),
+		Milestone:    copyString(t.Milestone),
+		Parent:       copyString(t.Parent),
+		Dependencies: stringSlice(t.Dependencies),
+		References:   make([]referenceJSON, 0, len(t.References)),
+		CreatedAt:    timestamp(&t.CreatedAt),
+		UpdatedAt:    timestamp(&t.UpdatedAt),
+		CreatedBy:    actor(t.CreatedBy),
+		UpdatedBy:    actor(t.UpdatedBy),
+		Extensions:   t.ExtensionsMap(),
+		Unknown:      t.UnknownMap(),
+		Body: bodyJSON{
+			Preamble:           t.Body.Preamble,
+			Description:        t.Body.Description,
+			AcceptanceCriteria: t.Body.AcceptanceCriteria,
+			DefinitionOfDone:   t.Body.DefinitionOfDone,
+			ImplementationPlan: t.Body.ImplementationPlan,
+			Notes:              t.Body.Notes,
+			Comments:           t.Body.Comments,
+			Summary:            t.Body.Summary,
+			Extra:              make([]sectionJSON, 0, len(t.Body.Extra)),
+		},
+		Checklists: checklistsJSON{
+			AcceptanceCriteria: checklist(t.Body.AcceptanceCriteria),
+			DefinitionOfDone:   checklist(t.Body.DefinitionOfDone),
+		},
+	}
+	for _, r := range t.References {
+		out.References = append(out.References, referenceJSON{Ref: r.Ref, Path: copyString(r.Path)})
+	}
+	for _, s := range t.Body.Extra {
+		out.Body.Extra = append(out.Body.Extra, sectionJSON{Heading: s.Heading, Text: s.Text})
+	}
+	if c := t.Claim; c != nil {
+		out.Claim = &claimJSON{
+			Actor:     c.Actor,
+			Branch:    copyString(c.Branch),
+			Worktree:  copyString(c.Worktree),
+			Commit:    copyString(c.Commit),
+			ClaimedAt: timestamp(c.ClaimedAt),
+			ExpiresAt: timestamp(c.ExpiresAt),
+		}
+	}
+	if a := t.Archive; a != nil {
+		out.Archive = &archiveJSON{
+			ArchivedAt: timestamp(a.ArchivedAt),
+			FromStatus: copyString(a.FromStatus),
+			Reason:     copyString(a.Reason),
+		}
+	}
+	return out
+}
+
+// checklist is the derived view: the checkbox lines of a section, numbered the
+// way ac and dod number them.
+func checklist(text string) []checklistItemJSON {
+	items := ticket.Checklist(text)
+	out := make([]checklistItemJSON, 0, len(items))
+	for i, item := range items {
+		out = append(out, checklistItemJSON{Index: i + 1, Checked: item.Checked, Text: item.Text})
+	}
+	return out
+}
+
+func timestamp(t *ticket.Timestamp) *string {
+	if t == nil || (t.Raw == "" && t.Time.IsZero()) {
+		return nil
+	}
+	s := t.String()
+	return &s
+}
+
+func actor(a *ticket.Actor) *actorJSON {
+	if a == nil {
+		return nil
+	}
+	return &actorJSON{ID: a.ID, Name: a.Name}
+}
+
+func copyString(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := *s
+	return &v
+}
+
+func optionalString(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// stringSlice returns a slice that marshals as [] rather than null.
+func stringSlice(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
+}
+
+func writeJSON(w io.Writer, v any) {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	// The encoder writes to a stream this package owns. A failure here is a
+	// broken stdout, which the caller finds out about anyway.
+	if err := enc.Encode(v); err != nil {
+		fmt.Fprintf(io.Discard, "%v", err)
+	}
+}

@@ -73,7 +73,10 @@ func (s *Store) lock() (*storeLock, error) {
 		return nil, &Error{Code: CodeLockTimeout, Message: "cannot open the lock file: " + err.Error(), Err: err}
 	}
 
-	timeout := s.config.Lock.Timeout.Duration()
+	timeout := s.lockTimeout
+	if timeout <= 0 {
+		timeout = s.config.Lock.Timeout.Duration()
+	}
 	if timeout <= 0 {
 		timeout = DefaultLockTimeout
 	}

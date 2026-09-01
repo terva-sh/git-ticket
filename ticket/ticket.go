@@ -202,6 +202,35 @@ type Ticket struct {
 // authoritative when it disagrees with the directory, per plan 6.3.
 func (t *Ticket) Archived() bool { return t.Status == StatusArchived }
 
+// ExtensionsMap decodes the extensions mapping into plain Go values, for a
+// consumer that speaks JSON rather than YAML nodes. It returns an empty map
+// when the ticket carries no extensions.
+func (t *Ticket) ExtensionsMap() map[string]any { return decodeNodeMap(t.Extensions) }
+
+// UnknownMap decodes the top-level fields this version does not define, keyed
+// by their field names. They are preserved on write either way, per plan 5.4;
+// this is only how a consumer reads them.
+func (t *Ticket) UnknownMap() map[string]any {
+	out := map[string]any{}
+	for _, u := range t.Unknown {
+		var v any
+		if u.Value != nil {
+			_ = u.Value.Decode(&v)
+		}
+		out[u.Key] = v
+	}
+	return out
+}
+
+func decodeNodeMap(n *yaml.Node) map[string]any {
+	out := map[string]any{}
+	if n == nil || n.Kind != yaml.MappingNode {
+		return out
+	}
+	_ = n.Decode(&out)
+	return out
+}
+
 // SatisfiesDependency reports whether a ticket depending on t may proceed: t is
 // done, or archived from done, per plan 6.3.
 func (t *Ticket) SatisfiesDependency() bool {

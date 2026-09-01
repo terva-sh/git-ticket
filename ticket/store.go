@@ -44,6 +44,9 @@ type Store struct {
 	// answer is computed once.
 	lockFile string
 	lockOnce sync.Once
+
+	// lockTimeout overrides config.yml when it is not zero.
+	lockTimeout time.Duration
 }
 
 // OpenOptions carries what a caller may need to override. The zero value is
@@ -60,6 +63,9 @@ type OpenOptions struct {
 	// NoRoot declares that there is no repository root, so reference paths are
 	// not resolved at all.
 	NoRoot bool
+	// LockTimeout overrides how long acquisition waits before returning
+	// lock_timeout. Zero means the value in config.yml.
+	LockTimeout time.Duration
 }
 
 // Open opens the store at path, which is the .tickets directory itself.
@@ -88,6 +94,7 @@ func OpenWith(path string, opts OpenOptions) (*Store, error) {
 		s.rootOnce.Do(func() {})
 	}
 
+	s.lockTimeout = opts.LockTimeout
 	s.config = DefaultConfig()
 	data, err := os.ReadFile(filepath.Join(abs, configFile))
 	switch {

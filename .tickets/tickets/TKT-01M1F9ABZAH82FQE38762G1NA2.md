@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1F9ABZAH82FQE38762G1NA2
 title: "Fix CI: the runner cannot resolve actions/checkout"
 type: bug
-status: in-progress
+status: done
 status_reason: null
 priority: high
 labels:
@@ -15,16 +15,10 @@ dependencies: []
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md
-claim:
-  actor: agent:terva/mieli
-  branch: main
-  worktree: /Users/drewshort/Workspace/git.local.sothr.com/terva-sh/git-ticket
-  commit: 1affff3e3dd66c4a2125c3a6f06225b0c98c3f03
-  claimed_at: 2026-09-01T20:11:47Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-01T20:07:10Z
-updated_at: 2026-09-01T20:11:47Z
+updated_at: 2026-09-01T20:24:23Z
 created_by:
   id: human:sothr
   name: ""
@@ -43,3 +37,11 @@ The first push turned CI red. It fails before running a single step of the workf
 **agent:terva/mieli** at 2026-09-01T20:11:47Z
 
 Read the sibling repositories for the house convention. terva/.forgejo/workflows/ci.yml is the reference: Actions-Mirrors/forgejo-actions-checkout@v6, Go from container.local.sothr.com/library/golang:1.25-alpine rather than setup-go, apk add git first, explicit go mod download. The registry mirror is curated and does not carry library/node, so an arbitrary image is not safe to assume.
+
+**agent:terva/mieli** at 2026-09-01T20:24:23Z
+
+Run 4 (task 14762) is green on 45b73c0: 'ci / Lint and Test (push), Successful in 29s'. Runs 1 to 3 on aa25ac77, 864318f and 1affff3 were the pre-fix job and all failed at the checkout. Status read from the API at /repos/terva-sh/git-ticket/commits/SHA/statuses.
+
+## Summary
+
+Fixed by following the instance convention: checkout from the Actions-Mirrors org and Go from the local registry's golang:1.25-alpine image rather than setup-go. Both GitHub spellings resolve against this Forgejo and 404 before any step runs. CI is green on 45b73c0 in 29s, which meets the second Phase 2 exit criterion in plan section 13.

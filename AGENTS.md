@@ -23,15 +23,14 @@ The agent workflow block lives at `internal/cli/instructions.md`, embedded with
 the binary has, because prose telling a reader to run something that does not
 exist is worse than no prose.
 
-One Phase 2 exit criterion is met and one is pending. The scripted end-to-end run
-is `TestLifecycle` in `internal/cli/lifecycle_test.go`. The other, `git ticket
-check` green in this repository's own CI, is not confirmed. The first run was red
-and `.forgejo/workflows/ci.yml` has been rewritten to the instance convention
-below. `TKT-01M1F9AB` stays open until a run actually comes back green, because
-a workflow file is not a green build.
+Both Phase 2 exit criteria are met. The scripted end-to-end run is
+`TestLifecycle` in `internal/cli/lifecycle_test.go`. The other is `git ticket
+check --strict` green in this repository's own CI, which run 4 did on `45b73c0`
+in 29 seconds. Runs 1 through 3 were red, every one of them for the instance
+convention in Gotchas below rather than for anything the workflow runs.
 
-Everything the workflow runs passes locally: gofmt, vet, `go test -race ./...`,
-and `check --strict`.
+`.forgejo/workflows/ci.yml` runs gofmt, vet, `go test -race ./...`, and
+`check --strict` over this repository's own ticket store.
 
 "With no network" in that exit criterion describes `check` itself, per section
 11: the command performs no network access. It is not a requirement that the CI
@@ -49,6 +48,16 @@ deferred question 7: `go.mod` declares a path that nothing serves.
 ```sh
 go test ./...                       # the whole suite
 go build -o git-ticket ./cmd/git-ticket && ./git-ticket check --strict
+```
+
+To read a CI result rather than guess at one, ask the API for the commit's
+statuses. `terva/scripts/pr.sh` holds the token resolver this borrows:
+`$TERVA_FORGE_TOKEN`, or the login block matching the host in
+`~/Library/Application Support/tea/config.yml`.
+
+```sh
+curl -sS -H "Authorization: token $TERVA_FORGE_TOKEN" \
+  https://git.local.sothr.com/api/v1/repos/terva-sh/git-ticket/commits/HEAD_SHA/statuses
 ```
 
 The suite includes the tests that hold the corpus to the plan. Run it after

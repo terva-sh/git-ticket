@@ -1,0 +1,3 @@
+# The README and the CI workflow both build the binary into the repository
+# root, so it lands here on any ordinary day of work.
+/git-ticket

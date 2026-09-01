@@ -23,24 +23,33 @@ The agent workflow block lives at `internal/cli/instructions.md`, embedded with
 the binary has, because prose telling a reader to run something that does not
 exist is worse than no prose.
 
-The exit criterion about a scripted end-to-end run is met by `TestLifecycle` in
-`internal/cli/lifecycle_test.go`. The other, `git ticket check` green in CI,
-needs this repository to keep its own tickets in `.tickets/`, which it does not
-yet do.
+Both Phase 2 exit criteria are met. The scripted end-to-end run is
+`TestLifecycle` in `internal/cli/lifecycle_test.go`. For the other, this
+repository keeps its own tickets in `.tickets/` and `.forgejo/workflows/ci.yml`
+runs `git ticket check --strict` over them.
 
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
 
-The repository is local only, on `main`, with no remote.
+The repository is local only, on `main`, with no remote, so CI has never
+actually run. Every step in it passes locally.
 
 ## Commands
 
 ```sh
-go test ./...
+go test ./...                       # the whole suite
+go build -o git-ticket ./cmd/git-ticket && ./git-ticket check --strict
 ```
 
-That is the whole suite, including the tests that hold the corpus to the plan.
-Run it after touching anything under `testdata/` or section 11 of the plan.
+The suite includes the tests that hold the corpus to the plan. Run it after
+touching anything under `testdata/` or section 11 of the plan.
+
+The second line is what CI runs against this repository's own store. The binary
+is gitignored, because the README tells a reader to build it right there.
+
+This repository uses its own tool. Work that outlives a session belongs in a
+ticket rather than in a comment: `./git-ticket ready` says what is startable,
+and `./git-ticket create --title "..."` files what you found on the way.
 
 ## Layout
 

@@ -276,7 +276,7 @@ repository and before `init`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | All 24 commands work. Dogfooding and CI remain before the phase closes |
+| 2 | Standalone CLI with `--json` | Done. All 24 commands, and both exit criteria met |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
@@ -297,15 +297,14 @@ between `errors` and `warnings`, because those arrays report severity as the
 format defines it. Strictness is a policy on top, visible in `ok` and the exit
 status alone, so `ok` can be false with an empty `errors` array.
 
-Two questions are open from writing the commands. Plan question 15.7: an archive
-reason lives only in the `archive` block, and unarchiving deletes that block, so
-`archive --reason` followed by `unarchive` loses the reason. A status reason is
-written to `Notes` precisely so it survives the field being cleared, which makes
-the gap look unintended rather than decided.
+Writing the commands raised two more, and both are now settled. An archive
+reason goes to `Notes` as well as the `archive` block, per 6.3, because
+`unarchive` deletes the block and a status reason lands in two places for
+exactly that reason. And `update` carries `--type` and `--parent`, per 12.1,
+because every other field `create` sets already had an `update` flag.
 
-Plan question 15.8: `update` carries no `--type` or `--parent`, though `create`
-accepts both and the library already has the mutations. Changing either one
-means editing the file today.
+What remains is deferred rather than open: six questions in plan section 15,
+filed as tickets in `.tickets/`. Run `git ticket list` to see them.
 
 ## Reading order
 

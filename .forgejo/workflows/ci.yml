@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # A formatting difference is a real failure. gofmt -l prints the files it
+      # would change and exits zero either way, so the file list is the test.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./...
+
+      # The second Phase 2 exit criterion. This repository keeps its own tickets
+      # in .tickets/, so check runs against a real store rather than a fixture.
+      # --strict fails on warnings too, which is the point of running it here:
+      # an expired claim or an unclaimed in-progress ticket is worth knowing
+      # about before it becomes normal.
+      - name: check the ticket store
+        run: |
+          go build -o git-ticket ./cmd/git-ticket
+          ./git-ticket check --strict

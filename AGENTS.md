@@ -10,17 +10,18 @@ Phase 0 and Phase 1 are done and their exit criteria hold. The library parses,
 renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
-Phase 2, the standalone CLI in section 12.1, is nearly done. `cmd/git-ticket`
-and `internal/cli` carry 23 of the 24 commands: `init`, `create`, `update`,
-`show`, `list`, `search`, `ready`, `status`, `claim`, `release`, `link`,
-`unlink`, `deps`, `files`, `ac`, `dod`, `note`, `comment`, `summary`,
-`archive`, `unarchive`, `check`, and `schema`, each in a human form and behind
-`--json`. All six JSON kinds of section 10 have a test, and every write honours
-`--if-revision`.
+Phase 2, the standalone CLI in section 12.1, has all 24 commands. `cmd/git-ticket`
+and `internal/cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
+`ready`, `status`, `claim`, `release`, `link`, `unlink`, `deps`, `files`, `ac`,
+`dod`, `note`, `comment`, `summary`, `archive`, `unarchive`, `check`, `schema`,
+and `instructions`, each in a human form and behind `--json`. All seven JSON
+kinds of section 10 have a test, and every write honours `--if-revision`.
 
-What remains in 12.1 is `instructions`. It prints an agent workflow block for a
-project's `AGENTS.md`, and `init` may write that block to a new file without
-ever overwriting a file the user maintains.
+The agent workflow block lives at `internal/cli/instructions.md`, embedded with
+`go:embed`. Edit the Markdown, not a Go string.
+`TestInstructionsNameRealCommands` holds every command and flag it names to what
+the binary has, because prose telling a reader to run something that does not
+exist is worse than no prose.
 
 The exit criterion about a scripted end-to-end run is met by `TestLifecycle` in
 `internal/cli/lifecycle_test.go`. The other, `git ticket check` green in CI,

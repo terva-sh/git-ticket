@@ -78,6 +78,14 @@ type findingCodeJSON struct {
 	Severity string `json:"severity"`
 }
 
+// instructionsEnvelope carries the agent workflow block. The block is prose, so
+// the envelope holds it as one string rather than pretending it has structure.
+type instructionsEnvelope struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	Kind          string `json:"kind"`
+	Text          string `json:"text"`
+}
+
 type errorEnvelope struct {
 	SchemaVersion int       `json:"schemaVersion"`
 	Kind          string    `json:"kind"`

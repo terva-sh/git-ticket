@@ -154,6 +154,7 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		{"a check", []string{"--json", "check"}},
 		{"a failure", []string{"--json", "show", "TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ"}},
 		{"the schema", []string{"--json", "schema"}},
+		{"the instructions", []string{"--json", "instructions"}},
 	} {
 		out := runCLI(t, dir, nil, c.args...).stdout
 		kind, ok := decode(t, out)["kind"].(string)

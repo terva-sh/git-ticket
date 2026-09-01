@@ -130,6 +130,7 @@ git ticket create --title "Refresh fails when the clock jumps backward" \
 git ticket list --status ready --type bug
 git ticket search "clock jump" --type bug
 git ticket ready                  # what could be started right now
+git ticket files auth/verify.go   # which tickets reference this path
 git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
 
 git ticket update TKT-01K3ZZ2J --priority urgent --add-label crypto
@@ -142,7 +143,6 @@ git ticket status TKT-01K3ZZ2J ready
 git ticket claim TKT-01K3ZZ2J     # records your branch and HEAD
 git ticket status TKT-01K3ZZ2J in-progress
 git ticket note TKT-01K3ZZ2J "the skew is 40s, not the 5s we assumed"
-git ticket files TKT-01K3ZZ2J --add auth/verify.go
 git ticket ac TKT-01K3ZZ2J --check 1
 git ticket summary TKT-01K3ZZ2J "Widened the window and pinned the clock source"
 git ticket status TKT-01K3ZZ2J done
@@ -150,6 +150,7 @@ git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 
 git ticket check --strict         # safe in CI: offline, read-only
 git ticket schema                 # the values and codes this binary enforces
+git ticket instructions           # the agent workflow block, for an AGENTS.md
 ```
 
 `release` and `unarchive` undo the two that are undoable, and `dod` edits the
@@ -184,9 +185,11 @@ an agent asks for when it wants work.
 log. `summary` sets. A summary is one statement of where the ticket landed, and
 a log of those is what the other two already are.
 
-`files` records paths a ticket touches, and `--remove` takes one off. It is
-advisory. Nothing derives it from Git history and nothing checks that the path
-exists, so it is a hint for a reader, not a fact about the tree.
+`files PATH` goes the other way, from a path to the tickets that recorded a
+reference to it. A reference is written by `link --ref X --path P`, so `files`
+reports what agents wrote and is only as complete as they were. Nothing derives
+it from Git history, so it is a hint for a reader rather than a fact about the
+tree.
 
 Text that opens with a dash goes after a bare `--`, so
 `git ticket note TKT-01K3ZZ2J -- "--force was the wrong default"` records the
@@ -248,6 +251,17 @@ conflict markers left by a merge. It separates errors from warnings, and
 `ok` is true exactly when the command exited zero, so CI gates on one field
 whether or not it passed `--strict`.
 
+`instructions` prints a workflow block to paste into a project's `AGENTS.md`,
+telling an agent how to find work, claim it, record what it learned, and finish.
+`git ticket init --instructions` writes it to `AGENTS.md` for a new project. It
+refuses when that file already exists rather than touching a file you maintain,
+and it checks before creating the store so a refusal leaves nothing half-built.
+Without the flag, `init` writes no such file.
+
+A test holds the block to the commands and flags this binary actually has, so it
+cannot tell you to run something that does not exist. It caught the first draft
+telling agents to run `git ticket files ID --add PATH`.
+
 `schema` prints what the binary enforces: the statuses, types, and priorities,
 the transition table, every error code, and every check finding paired with its
 severity. Each list is read from the code that enforces it, not copied into the
@@ -262,7 +276,7 @@ repository and before `init`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | 23 of the 24 commands work; `instructions` remains |
+| 2 | Standalone CLI with `--json` | All 24 commands work. Dogfooding and CI remain before the phase closes |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 

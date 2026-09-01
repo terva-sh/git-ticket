@@ -101,7 +101,11 @@ func storeAbbreviations(s *ticket.Store) map[string]string {
 
 // runInit creates a store in the repository, or wherever --store points.
 func runInit(ctx *cmdContext, args []string) error {
-	rest, err := ctx.parseFlags("init", args, nil)
+	var writeInstructions bool
+	rest, err := ctx.parseFlags("init", args, func(fs *flag.FlagSet) {
+		fs.BoolVar(&writeInstructions, "instructions", false,
+			"also write the agent workflow block to "+instructionsFile)
+	})
 	if err != nil {
 		return err
 	}
@@ -119,6 +123,14 @@ func runInit(ctx *cmdContext, args []string) error {
 		root = filepath.Dir(strings.TrimRight(fromEnv, "/"))
 	}
 
+	// Checked before the store is made, so a refusal leaves no half-built
+	// store behind for the user to clean up.
+	if writeInstructions {
+		if err := instructionsFileConflict(root); err != nil {
+			return err
+		}
+	}
+
 	s, err := ticket.Init(root, ticket.InitOptions{
 		Actor: ticket.Actor{ID: ctx.g.actor},
 		Now:   ctx.env.Now,
@@ -131,6 +143,13 @@ func runInit(ctx *cmdContext, args []string) error {
 		filepath.Join(s.Path(), "config.yml"),
 		filepath.Join(s.Path(), "README.md"),
 	}
+	if writeInstructions {
+		path, err := writeInstructionsFile(root)
+		if err != nil {
+			return err
+		}
+		written = append(written, path)
+	}
 	if ctx.g.json {
 		writeJSON(ctx.out, mutationEnvelope{
 			SchemaVersion: schemaVersion,
@@ -141,6 +160,9 @@ func runInit(ctx *cmdContext, args []string) error {
 		return nil
 	}
 	fmt.Fprintf(ctx.out, "Initialized a ticket store at %s\n", displayPath(s, s.Path()))
+	if writeInstructions {
+		fmt.Fprintf(ctx.out, "Wrote %s\n", displayPath(s, filepath.Join(root, instructionsFile)))
+	}
 	fmt.Fprintf(ctx.out, "Commit it, then run `git ticket create --title \"...\"`.\n")
 	return nil
 }
@@ -1115,7 +1137,8 @@ func count(n int, noun string) string {
 // derived, because the kinds are a contract with consumers and not a fact about
 // any Go type in this package.
 var envelopeKinds = []string{
-	"ticket", "ticket-list", "mutation-result", "check-report", "error", "schema",
+	"ticket", "ticket-list", "mutation-result", "check-report", "error",
+	"schema", "instructions",
 }
 
 // runSchema prints the values a consumer would otherwise have to read the plan

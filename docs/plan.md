@@ -486,9 +486,9 @@ Every machine-readable operation emits a versioned envelope on stdout:
 ```
 
 Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, `error`,
-and `schema`. Absent scalars are `null` and absent collections are `[]`, always
-present rather than omitted, so a consumer never has to distinguish missing from
-empty.
+`schema`, and `instructions`. Absent scalars are `null` and absent collections
+are `[]`, always present rather than omitted, so a consumer never has to
+distinguish missing from empty.
 
 A mutation result:
 
@@ -692,6 +692,20 @@ disagree.
 This command reads no store. It answers outside a repository and before `init`,
 because a consumer asks what is legal before it has anything to ask about.
 
+### 10.5 The instructions kind
+
+`instructions` carries the agent workflow block of 12.1 as one string:
+
+```json
+{ "schemaVersion": 1, "kind": "instructions", "text": "## Tickets\n\n…" }
+```
+
+The block is prose, so the envelope holds it whole rather than pretending it has
+structure a consumer would want to walk. In human mode the command prints the
+Markdown alone, because the point of it is `git ticket instructions >> AGENTS.md`.
+
+Like `schema`, it reads no store and answers anywhere.
+
 ## 11. Validation
 
 `check` runs offline, is safe in CI, and separates errors from warnings. It
@@ -752,7 +766,7 @@ check is skipped there and reports nothing, per 5.5.
 ### 12.1 CLI
 
 ```text
-git ticket init
+git ticket init   [--instructions]
 git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M]
 git ticket ready
 git ticket show   ID
@@ -770,7 +784,7 @@ git ticket note   ID TEXT
 git ticket comment ID TEXT
 git ticket summary ID TEXT
 git ticket deps   ID [--transitive] [--dependents]
-git ticket files  PATH
+git ticket files  PATH   # the tickets that reference a path
 git ticket check  [--strict]
 git ticket archive ID [--reason R]
 git ticket unarchive ID
@@ -792,8 +806,16 @@ A `--store` or `GIT_TICKET_STORE` that names a directory holding no store is
 being told where to look is how a tool writes to the wrong store.
 
 `instructions` prints an agent workflow block for pasting into a project's
-`AGENTS.md` or equivalent. `init` may write that block to a new file, and must
-never overwrite a file the user maintains.
+`AGENTS.md` or equivalent, per 10.5. The block tells an agent how to find work,
+claim it, record what it learned, and finish, and it names only commands this
+binary has. A test holds it to that, because prose that tells a reader to run
+something that does not exist is worse than no prose.
+
+`init --instructions` writes the block to `AGENTS.md` at the repository root. It
+refuses when that file already exists, naming `git ticket instructions` so the
+user can append it themselves, and it checks before creating the store so a
+refusal leaves nothing half-built. Without the flag `init` writes no such file.
+That file is one the user maintains, and merging into it is their edit to make.
 
 `schema` prints the values and codes this binary enforces, per 10.4. Like
 `instructions`, it reads no store and answers anywhere.

@@ -149,6 +149,7 @@ git ticket status TKT-01K3ZZ2J done
 git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 
 git ticket check --strict         # safe in CI: offline, read-only
+git ticket schema                 # the values and codes this binary enforces
 ```
 
 `release` and `unarchive` undo the two that are undoable, and `dod` edits the
@@ -247,13 +248,21 @@ conflict markers left by a merge. It separates errors from warnings, and
 `ok` is true exactly when the command exited zero, so CI gates on one field
 whether or not it passed `--strict`.
 
+`schema` prints what the binary enforces: the statuses, types, and priorities,
+the transition table, every error code, and every check finding paired with its
+severity. Each list is read from the code that enforces it, not copied into the
+command, so a value the library accepts and the plan forgot still shows up.
+Write a consumer against `schema` rather than against a hard-coded list, and it
+keeps working when the sets grow. It reads no store, so it answers outside a
+repository and before `init`.
+
 ## Status
 
 | Phase | What | State |
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | 22 of the 24 commands work; `instructions` and `schema` remain |
+| 2 | Standalone CLI with `--json` | 23 of the 24 commands work; `instructions` remains |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 

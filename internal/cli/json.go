@@ -57,6 +57,27 @@ type findingJSON struct {
 	Field  *string `json:"field"`
 }
 
+// schemaEnvelope is what `git ticket schema` emits: the values a consumer would
+// otherwise have to read the plan to learn. Everything in it comes from the
+// code that enforces it, so it cannot drift from what the binary does.
+type schemaEnvelope struct {
+	SchemaVersion int                 `json:"schemaVersion"`
+	Kind          string              `json:"kind"`
+	TicketSchema  int                 `json:"ticketSchema"`
+	Kinds         []string            `json:"kinds"`
+	Statuses      []string            `json:"statuses"`
+	Types         []string            `json:"types"`
+	Priorities    []string            `json:"priorities"`
+	Transitions   map[string][]string `json:"transitions"`
+	ErrorCodes    []string            `json:"errorCodes"`
+	FindingCodes  []findingCodeJSON   `json:"findingCodes"`
+}
+
+type findingCodeJSON struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+}
+
 type errorEnvelope struct {
 	SchemaVersion int       `json:"schemaVersion"`
 	Kind          string    `json:"kind"`

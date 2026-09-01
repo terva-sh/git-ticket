@@ -11,16 +11,16 @@ renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
 Phase 2, the standalone CLI in section 12.1, is nearly done. `cmd/git-ticket`
-and `internal/cli` carry 22 of the 24 commands: `init`, `create`, `update`,
+and `internal/cli` carry 23 of the 24 commands: `init`, `create`, `update`,
 `show`, `list`, `search`, `ready`, `status`, `claim`, `release`, `link`,
 `unlink`, `deps`, `files`, `ac`, `dod`, `note`, `comment`, `summary`,
-`archive`, `unarchive`, and `check`, each in a human form and behind `--json`.
-All five JSON kinds of section 10 have a test, and every write honours
+`archive`, `unarchive`, `check`, and `schema`, each in a human form and behind
+`--json`. All six JSON kinds of section 10 have a test, and every write honours
 `--if-revision`.
 
-What remains in 12.1 is `instructions` and `schema`. `instructions` prints an
-agent workflow block for a project's `AGENTS.md`, and what that block says is a
-content decision. Ask before writing it.
+What remains in 12.1 is `instructions`. It prints an agent workflow block for a
+project's `AGENTS.md`, and `init` may write that block to a new file without
+ever overwriting a file the user maintains.
 
 The exit criterion about a scripted end-to-end run is met by `TestLifecycle` in
 `internal/cli/lifecycle_test.go`. The other, `git ticket check` green in CI,

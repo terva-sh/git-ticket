@@ -485,8 +485,8 @@ Every machine-readable operation emits a versioned envelope on stdout:
 { "schemaVersion": 1, "kind": "ticket-list", "tickets": [] }
 ```
 
-Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, and
-`error`. Absent scalars are `null` and absent collections are `[]`, always
+Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, `error`,
+and `schema`. Absent scalars are `null` and absent collections are `[]`, always
 present rather than omitted, so a consumer never has to distinguish missing from
 empty.
 
@@ -654,6 +654,44 @@ A store with findings is a successful check, not a failed command. The report
 goes to stdout and the exit status is one. An `error` envelope comes back only
 when the check could not run at all, such as `store_not_found`.
 
+### 10.4 The schema kind
+
+`schema` prints what this binary enforces, so a consumer can learn the legal
+values without reading this document or hard-coding them:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "schema",
+  "ticketSchema": 1,
+  "kinds": ["ticket", "ticket-list", "mutation-result", "check-report", "error", "schema"],
+  "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
+  "types": ["task", "bug", "chore", "spike", "epic"],
+  "priorities": ["low", "normal", "high", "urgent"],
+  "transitions": { "draft": ["ready", "archived"] },
+  "errorCodes": ["store_not_found", "usage"],
+  "findingCodes": [{ "code": "duplicate_id", "severity": "error" }]
+}
+```
+
+`schemaVersion` is the envelope version and `ticketSchema` is the `schema` field
+of a ticket file, per 5.1. They are separate numbers because the envelope and
+the file format can move independently.
+
+`transitions` has one entry per status, holding where a ticket in that status
+may go, which is the table in 6.2. `errorCodes` is the section 10 list with the
+CLI's `usage` appended. `findingCodes` pairs each section 11 code with the
+severity that section assigns it, so a consumer reading a report knows whether
+a code it has never seen is an error or a warning.
+
+Every one of those values is read from the code that enforces it rather than
+copied into the command. A status the library accepts and this document forgot
+still appears here, which makes `schema` the answer of record when the two
+disagree.
+
+This command reads no store. It answers outside a repository and before `init`,
+because a consumer asks what is legal before it has anything to ask about.
+
 ## 11. Validation
 
 `check` runs offline, is safe in CI, and separates errors from warnings. It
@@ -698,6 +736,12 @@ Warnings:
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
 a parse failure would be noise.
+
+Severity belongs to the code, not to the condition that raised it. A caller
+reading a report has only the code to go on, so `unknown_field` is an error
+wherever `check` finds it. `git ticket schema` publishes this split, per 10.4,
+and a test holds the published lists to what `check` emits over the fixture
+corpus so the two cannot drift.
 
 `reference_path_unresolved` is the one check that depends on where the store
 sits. A store outside a Git repository has no root to resolve against, so the
@@ -750,6 +794,9 @@ being told where to look is how a tool writes to the wrong store.
 `instructions` prints an agent workflow block for pasting into a project's
 `AGENTS.md` or equivalent. `init` may write that block to a new file, and must
 never overwrite a file the user maintains.
+
+`schema` prints the values and codes this binary enforces, per 10.4. Like
+`instructions`, it reads no store and answers anywhere.
 
 ### 12.2 Library
 

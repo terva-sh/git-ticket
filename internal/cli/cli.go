@@ -100,6 +100,7 @@ func commands() []command {
 		{"archive", "archive a ticket, moving its file", "ID [--reason R]", runArchive},
 		{"unarchive", "restore an archived ticket to ready", "ID", runUnarchive},
 		{"check", "validate every ticket in the store", "[--strict]", runCheck},
+		{"schema", "print the values and codes this binary enforces", "", runSchema},
 	}
 }
 

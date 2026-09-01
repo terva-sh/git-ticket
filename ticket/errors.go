@@ -43,6 +43,36 @@ const (
 	CodeInProgressUnclaimed          = "in_progress_unclaimed"
 )
 
+// OperationCodes lists every code an operation can fail with, per plan section
+// 10, in the order that section lists them. The CLI's own `usage` is not here,
+// because it never comes from this package.
+var OperationCodes = []string{
+	CodeStoreNotFound, CodeStoreExists, CodeTicketNotFound, CodeAmbiguousID,
+	CodeStaleRevision, CodeInvalidTransition, CodeInvalidField,
+	CodeDependencyMissing, CodeDependencyCycle, CodeClaimConflict,
+	CodeParseError, CodeMergeConflict, CodeSchemaUnsupported, CodeLockTimeout,
+	CodeValidationFailed,
+}
+
+// CheckErrorCodes and CheckWarningCodes split the findings of plan section 11
+// by the severity that section assigns them. Severity belongs to the code, not
+// to the call site: a caller reading a report has only the code to go on.
+//
+// TestEveryFindingMatchesItsPublishedSeverity holds these two lists to what
+// Check actually emits over the fixture corpus, so a code that is reclassified
+// in check.go and not here fails the suite rather than making `schema` lie.
+var CheckErrorCodes = []string{
+	CodeDuplicateID, CodeFilenameIDMismatch, CodeParseError, CodeUnknownField,
+	CodeSchemaUnsupported, CodeMergeConflict, CodeDependencyMissing,
+	CodeParentMissing, CodeDependencyCycle, CodeParentCycle, CodeInvalidStatus,
+	CodeInvalidType, CodeInvalidPriority, CodeArchiveLocationMismatch,
+}
+
+var CheckWarningCodes = []string{
+	CodeDependencyArchivedIncomplete, CodeClaimExpired,
+	CodeReferencePathUnresolved, CodeLabelUnknown, CodeInProgressUnclaimed,
+}
+
 // Error is a coded failure. The code is the stable part; the message is for a
 // person and may change.
 type Error struct {

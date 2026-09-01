@@ -1111,6 +1111,96 @@ func count(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
+// envelopeKinds is the list section 10 defines. It is written out rather than
+// derived, because the kinds are a contract with consumers and not a fact about
+// any Go type in this package.
+var envelopeKinds = []string{
+	"ticket", "ticket-list", "mutation-result", "check-report", "error", "schema",
+}
+
+// runSchema prints the values a consumer would otherwise have to read the plan
+// to learn: the enums, the transition table, and every code it may be handed.
+// It reads no store, so it answers before `init` and outside a repository.
+func runSchema(ctx *cmdContext, args []string) error {
+	rest, err := ctx.parseFlags("schema", args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 0 {
+		return usageErr("schema takes no arguments")
+	}
+
+	// The transition table comes from the library rather than a copy here, so
+	// what this prints is what SetStatus will actually allow.
+	transitions := make(map[string][]string, len(ticket.Statuses))
+	for _, s := range ticket.Statuses {
+		to := ticket.PermittedTransitions(s)
+		if to == nil {
+			to = []string{}
+		}
+		transitions[s] = to
+	}
+
+	// usage is the CLI's own and never comes from the library, per section 10,
+	// so it is appended here rather than living in ticket.OperationCodes.
+	errorCodes := append(append([]string{}, ticket.OperationCodes...), codeUsage)
+
+	findings := make([]findingCodeJSON, 0,
+		len(ticket.CheckErrorCodes)+len(ticket.CheckWarningCodes))
+	for _, c := range ticket.CheckErrorCodes {
+		findings = append(findings, findingCodeJSON{Code: c, Severity: "error"})
+	}
+	for _, c := range ticket.CheckWarningCodes {
+		findings = append(findings, findingCodeJSON{Code: c, Severity: "warning"})
+	}
+
+	if ctx.g.json {
+		writeJSON(ctx.out, schemaEnvelope{
+			SchemaVersion: schemaVersion,
+			Kind:          "schema",
+			TicketSchema:  ticket.SchemaVersion,
+			Kinds:         envelopeKinds,
+			Statuses:      ticket.Statuses,
+			Types:         ticket.Types,
+			Priorities:    ticket.Priorities,
+			Transitions:   transitions,
+			ErrorCodes:    errorCodes,
+			FindingCodes:  findings,
+		})
+		return nil
+	}
+
+	fmt.Fprintf(ctx.out, "envelope schema %d, ticket schema %d\n\n", schemaVersion, ticket.SchemaVersion)
+	fmt.Fprintf(ctx.out, "kinds       %s\n", strings.Join(envelopeKinds, " "))
+	fmt.Fprintf(ctx.out, "statuses    %s\n", strings.Join(ticket.Statuses, " "))
+	fmt.Fprintf(ctx.out, "types       %s\n", strings.Join(ticket.Types, " "))
+	fmt.Fprintf(ctx.out, "priorities  %s\n", strings.Join(ticket.Priorities, " "))
+
+	fmt.Fprintln(ctx.out, "\ntransitions")
+	tw := tabwriter.NewWriter(ctx.out, 0, 0, 2, ' ', 0)
+	for _, s := range ticket.Statuses {
+		to := transitions[s]
+		if len(to) == 0 {
+			fmt.Fprintf(tw, "  %s\tnowhere\n", s)
+			continue
+		}
+		fmt.Fprintf(tw, "  %s\t%s\n", s, strings.Join(to, " "))
+	}
+	tw.Flush()
+
+	fmt.Fprintln(ctx.out, "\nerror codes")
+	for _, c := range errorCodes {
+		fmt.Fprintf(ctx.out, "  %s\n", c)
+	}
+
+	fmt.Fprintln(ctx.out, "\ncheck findings")
+	tw = tabwriter.NewWriter(ctx.out, 0, 0, 2, ' ', 0)
+	for _, f := range findings {
+		fmt.Fprintf(tw, "  %s\t%s\n", f.Code, f.Severity)
+	}
+	return tw.Flush()
+}
+
 // writeMutation reports a mutation as the envelope or as one human line.
 func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human string) error {
 	if ctx.g.json {

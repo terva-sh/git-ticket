@@ -53,6 +53,135 @@ func TestCheckStores(t *testing.T) {
 	}
 }
 
+// TestEveryFindingMatchesItsPublishedSeverity keeps CheckErrorCodes and
+// CheckWarningCodes honest. `git ticket schema` publishes them as the severity
+// of each code, and a caller reading a report has only the code to go on, so a
+// code reclassified in check.go and not in errors.go would make that published
+// answer wrong.
+//
+// It walks all three parts of the corpus, because no one part covers section 11
+// alone. The store fixtures reach what needs a whole store, such as
+// duplicate_id and the two cycles. The roundtrip fixtures reach what one
+// readable file can be wrong about, such as an invalid enum. The reject
+// fixtures reach the three codes that mean the file did not parse at all, which
+// Check reports from f.Err rather than from checkTicket. Together they cover all
+// 19 codes, which is what makes the coverage half of this test worth asserting.
+func TestEveryFindingMatchesItsPublishedSeverity(t *testing.T) {
+	sev := map[string]string{}
+	for _, c := range CheckErrorCodes {
+		sev[c] = "error"
+	}
+	for _, c := range CheckWarningCodes {
+		if old, ok := sev[c]; ok {
+			t.Fatalf("%s is published as both %s and warning", c, old)
+		}
+		sev[c] = "warning"
+	}
+
+	cases, err := os.ReadDir(filepath.Join(corpusDir, "stores"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, c := range cases {
+		if !c.IsDir() {
+			continue
+		}
+		dir := filepath.Join(corpusDir, "stores", c.Name())
+		root, err := filepath.Abs(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := OpenWith(filepath.Join(dir, "store"), OpenOptions{Now: fixedClock(), Root: root})
+		if err != nil {
+			t.Fatalf("%s: open store: %v", c.Name(), err)
+		}
+		report, err := s.Check(context.Background())
+		if err != nil {
+			t.Fatalf("%s: check: %v", c.Name(), err)
+		}
+		for _, f := range report.Errors {
+			seen[f.Code] = true
+			if sev[f.Code] != "error" {
+				t.Errorf("%s: check reports %s as an error, published as %q",
+					c.Name(), f.Code, sev[f.Code])
+			}
+		}
+		for _, f := range report.Warnings {
+			seen[f.Code] = true
+			if sev[f.Code] != "warning" {
+				t.Errorf("%s: check reports %s as a warning, published as %q",
+					c.Name(), f.Code, sev[f.Code])
+			}
+		}
+	}
+
+	// The parse fixtures are the other half. checkTicket is called the way
+	// TestCheckParseFixtures calls it: no config and no repository root, since
+	// one file cannot answer the label allowlist or resolve a reference path.
+	for _, path := range fixtures(t, filepath.Join(corpusDir, "parse", "roundtrip")) {
+		name := filepath.Base(path)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tk, err := Parse(data)
+		if err != nil {
+			// A fixture that does not parse is TestCheckParseFixtures' problem.
+			continue
+		}
+		errs, warns := checkTicket(tk, name, DefaultConfig(), "", referenceInstant)
+		for _, f := range errs {
+			seen[f.Code] = true
+			if sev[f.Code] != "error" {
+				t.Errorf("%s: checkTicket reports %s as an error, published as %q",
+					name, f.Code, sev[f.Code])
+			}
+		}
+		for _, f := range warns {
+			seen[f.Code] = true
+			if sev[f.Code] != "warning" {
+				t.Errorf("%s: checkTicket reports %s as a warning, published as %q",
+					name, f.Code, sev[f.Code])
+			}
+		}
+	}
+
+	// A file that does not parse never reaches checkTicket. Check reports the
+	// parse error itself as one error finding and moves on, so the code a
+	// reject fixture produces is an error by construction.
+	for _, path := range fixtures(t, filepath.Join(corpusDir, "parse", "reject")) {
+		name := filepath.Base(path)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = Parse(data); err == nil {
+			t.Errorf("%s: in reject/ but it parses", name)
+			continue
+		}
+		var e *Error
+		if !asTicketError(err, &e) {
+			t.Errorf("%s: error is not a *ticket.Error: %v", name, err)
+			continue
+		}
+		seen[e.Code] = true
+		if sev[e.Code] != "error" {
+			t.Errorf("%s: a parse failure yields %s, published as %q",
+				name, e.Code, sev[e.Code])
+		}
+	}
+
+	// The three parts together cover every code, so anything published and
+	// never emitted is either a code that no longer exists or a gap in the
+	// fixtures. Both are worth failing on.
+	for code := range sev {
+		if !seen[code] {
+			t.Errorf("%s is published but no fixture produces it", code)
+		}
+	}
+}
+
 // TestCheckParseFixtures holds the file-scoped checks to the same corpus. A
 // parse fixture is never checked against its filename, so this exercises
 // checkTicket rather than opening a store: minimal.md is not named after the

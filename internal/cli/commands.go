@@ -5,9 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/terva-sh/git-ticket/ticket"
 )
@@ -234,6 +236,186 @@ func runList(ctx *cmdContext, args []string) error {
 	}
 	writeListHuman(ctx.out, tickets)
 	return nil
+}
+
+// runStatus moves a ticket through the lifecycle of plan 6.2.
+//
+// The transition table lives in the library, so a refusal here is
+// invalid_transition naming where the ticket may go instead.
+func runStatus(ctx *cmdContext, args []string) error {
+	var reason string
+	rest, err := ctx.parseFlags("status", args, func(fs *flag.FlagSet) {
+		fs.StringVar(&reason, "reason", "", "why; required entering blocked and reopening from done")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 2 {
+		return usageErr("status takes a ticket ID and a status, one of %s",
+			strings.Join(ticket.Statuses, ", "))
+	}
+	ref, want := rest[0], rest[1]
+	if !ticket.ValidStatus(want) {
+		return usageErr("%q is not one of %s", want, strings.Join(ticket.Statuses, ", "))
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := ctx.applyTo(s, ref, ticket.SetStatus{Status: want, Reason: reason})
+	if err != nil {
+		return err
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s is now %s", res.Ticket.ID, res.Ticket.Status))
+}
+
+// runClaim records that an actor is working this ticket, per plan 6.4. A claim
+// is metadata and not a status, and it is advisory: it reserves nothing.
+func runClaim(ctx *cmdContext, args []string) error {
+	var (
+		expiresIn time.Duration
+		force     bool
+	)
+	rest, err := ctx.parseFlags("claim", args, func(fs *flag.FlagSet) {
+		fs.DurationVar(&expiresIn, "expires-in", 0, "how long the claim stands; the default is no expiry")
+		fs.BoolVar(&force, "force", false, "take a live claim held by another actor")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("claim takes one ticket ID")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	// Plan 6.4: the branch and worktree when they can be determined, and the
+	// commit the claim was based on.
+	branch, worktree, commit := gitState(ctx.env.Dir)
+	res, err := ctx.applyTo(s, rest[0], ticket.ClaimTicket{
+		Branch:    branch,
+		Worktree:  worktree,
+		Commit:    commit,
+		ExpiresIn: expiresIn,
+		Force:     force,
+	})
+	if err != nil {
+		return err
+	}
+
+	human := fmt.Sprintf("%s claimed by %s", res.Ticket.ID, claimant(res.Ticket))
+	if branch != "" {
+		human += " on " + branch
+	}
+	return ctx.writeMutation(s, res, human)
+}
+
+func claimant(t *ticket.Ticket) string {
+	if t.Claim == nil {
+		return "nobody"
+	}
+	return t.Claim.Actor
+}
+
+// runRelease drops a claim. Releasing an unclaimed ticket succeeds and changes
+// nothing but updated_at, because what the caller asked for is already true.
+func runRelease(ctx *cmdContext, args []string) error {
+	rest, err := ctx.parseFlags("release", args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("release takes one ticket ID")
+	}
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := ctx.applyTo(s, rest[0], ticket.ReleaseClaim{})
+	if err != nil {
+		return err
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s released", res.Ticket.ID))
+}
+
+// runArchive archives a ticket, which also moves its file to archive/. It is
+// its own command rather than a status, because the status alone would leave
+// the file where it was.
+func runArchive(ctx *cmdContext, args []string) error {
+	var reason string
+	rest, err := ctx.parseFlags("archive", args, func(fs *flag.FlagSet) {
+		fs.StringVar(&reason, "reason", "", "why this is being archived")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("archive takes one ticket ID")
+	}
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := ctx.applyTo(s, rest[0], ticket.ArchiveTicket{Reason: reason})
+	if err != nil {
+		return err
+	}
+	from := ""
+	if a := res.Ticket.Archive; a != nil && a.FromStatus != nil {
+		from = ", archived from " + *a.FromStatus
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s archived%s", res.Ticket.ID, from))
+}
+
+// runUnarchive restores an archived ticket to ready and moves the file back.
+func runUnarchive(ctx *cmdContext, args []string) error {
+	rest, err := ctx.parseFlags("unarchive", args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("unarchive takes one ticket ID")
+	}
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := ctx.applyTo(s, rest[0], ticket.UnarchiveTicket{})
+	if err != nil {
+		return err
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s is now %s", res.Ticket.ID, res.Ticket.Status))
+}
+
+// gitState is what a claim records about where the work is happening, per plan
+// 6.4. Every part is best effort: a directory outside a repository has none of
+// it, a repository with no commits yet has no HEAD, and a detached HEAD has no
+// branch name. A claim records what it can and leaves the rest null rather than
+// failing, because the claim is the point and the provenance is a courtesy.
+//
+// Every command here reads. The CLI runs no git command that writes, per the
+// policy in plan 7.3.
+func gitState(dir string) (branch, worktree, commit string) {
+	worktree = readGit(dir, "rev-parse", "--show-toplevel")
+	if worktree == "" {
+		// Outside a repository the other two cannot mean anything either.
+		return "", "", ""
+	}
+	commit = readGit(dir, "rev-parse", "HEAD")
+	// symbolic-ref fails on a detached HEAD, which is what tells the two apart.
+	branch = readGit(dir, "symbolic-ref", "--short", "HEAD")
+	return branch, worktree, commit
+}
+
+func readGit(dir string, args ...string) string {
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // runCheck validates the whole store, per plan section 11.

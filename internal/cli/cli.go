@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -80,6 +81,11 @@ func commands() []command {
 		{"create", "write a new ticket", "--title T [flags]", runCreate},
 		{"show", "print one ticket", "ID", runShow},
 		{"list", "print the tickets that match", "[filters]", runList},
+		{"status", "move a ticket through the lifecycle", "ID STATUS [--reason R]", runStatus},
+		{"claim", "record that you are working a ticket", "ID [--expires-in D] [--force]", runClaim},
+		{"release", "drop your claim on a ticket", "ID", runRelease},
+		{"archive", "archive a ticket, moving its file", "ID [--reason R]", runArchive},
+		{"unarchive", "restore an archived ticket to ready", "ID", runUnarchive},
 		{"check", "validate every ticket in the store", "[--strict]", runCheck},
 	}
 }
@@ -247,6 +253,18 @@ func (ctx *cmdContext) openStore() (*ticket.Store, error) {
 	return ticket.DiscoverWith(ctx.env.Dir, opts)
 }
 
+// applyTo runs one mutation against the ticket named by ref.
+//
+// Every mutation goes through here so that --if-revision reaches all of them.
+// A flag that promises to refuse a stale write has to be wired to every write,
+// because the one it misses is the one a caller trusted it for.
+func (ctx *cmdContext) applyTo(s *ticket.Store, ref string, m ticket.Mutation) (*ticket.Result, error) {
+	return s.Apply(context.Background(), ref, m, ticket.ApplyOptions{
+		IfRevision: ctx.g.ifRevision,
+		Actor:      ctx.actor(s),
+	})
+}
+
 // actor is who the mutation is recorded as. An --actor that names somebody in
 // config.yml picks up their name; anybody else is recorded by ID alone. With no
 // flag the store falls back to the first actor in config.yml.
@@ -277,13 +295,36 @@ func displayPath(s *ticket.Store, path string) string {
 	// those: /var/folders is a link to /private/var/folders. Resolving both
 	// sides puts them back in the same space.
 	resolvedRoot, rerr := filepath.EvalSymlinks(root)
-	resolvedPath, perr := filepath.EvalSymlinks(path)
+	resolvedPath, perr := evalExisting(path)
 	if rerr == nil && perr == nil {
 		if rel, ok := relativeTo(resolvedRoot, resolvedPath); ok {
 			return rel
 		}
 	}
 	return path
+}
+
+// evalExisting resolves symlinks in the deepest part of path that still exists
+// and puts the rest back on the end.
+//
+// EvalSymlinks alone fails on a path that is not there, and a mutation that
+// moves a file reports the old location after deleting it. Archiving did
+// exactly that: the new path came back repository-relative and the old one
+// absolute, in the same pathsChanged array.
+func evalExisting(path string) (string, error) {
+	cur, rest := path, ""
+	for {
+		resolved, err := filepath.EvalSymlinks(cur)
+		if err == nil {
+			return filepath.Join(resolved, rest), nil
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return "", err
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
 }
 
 // relativeTo reports path relative to root, and whether it stayed inside it. A

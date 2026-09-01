@@ -876,6 +876,14 @@ Concurrency:
 4. What tool discovery the stdio adapter should expose.
 5. When Backlog.md import and a local view are worth building.
 6. The compatibility policy for the Go module after the first stable schema.
+7. Whether an archive reason should also be written to `Notes`. A status
+   reason lands in two places on purpose, per 6.2: `status_reason` for a query
+   to read, and a `Notes` entry that survives the next transition clearing the
+   field. An archive reason lands only in the `archive` block, and unarchiving
+   deletes that block, so `archive --reason "shipped in v1.2"` followed by
+   `unarchive` loses the reason with nothing left to say why. Unarchiving
+   already writes a `Notes` entry carrying `from_status`, which makes the gap
+   look unintended rather than decided. Found by the Phase 2 lifecycle test.
 
 Three questions have left this list, and the numbers have closed up behind them.
 Where a `blocked` reason lives is answered by `status_reason` in 5.1 and 6.2:

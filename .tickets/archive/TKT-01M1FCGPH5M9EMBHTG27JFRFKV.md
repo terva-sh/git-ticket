@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1FCGPH5M9EMBHTG27JFRFKV
 title: "Slice 4: add the kanban board"
 type: task
-status: ready
+status: archived
 status_reason: null
 priority: normal
 labels:
@@ -15,9 +15,12 @@ dependencies:
   - TKT-01M1FCGPG9Z1TMEX28AKAAFXB1
 references: []
 claim: null
-archive: null
+archive:
+  archived_at: 2026-09-01T22:03:57Z
+  from_status: ready
+  reason: "Terva owns this work and terva has no store here, so tracking it in git-ticket's ledger would go stale the moment terva starts. The content moved to docs/handoff-terva-phase-3.md, which is the artifact a terva agent works from. Archived rather than cancelled because none of it was rejected: it is being done, elsewhere. Unarchive if the split changes."
 created_at: 2026-09-01T21:03:03Z
-updated_at: 2026-09-01T21:04:21Z
+updated_at: 2026-09-01T22:03:57Z
 created_by:
   id: human:sothr
   name: ""
@@ -36,3 +39,9 @@ This slice is why the whole surface goes core. An extension can own a panel and 
 The board reads through the same library as the tools and must not parse a ticket file itself. Moving a card is a status transition through Store.Apply with the same revision precondition and the same permission class as ticket_transition. A drag is a mutation, and being a mouse gesture does not change its authority.
 
 Deliberately last: what a card should show is cheaper to answer after using the tools than by guessing now.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-01T22:03:57Z
+
+archived from ready: Terva owns this work and terva has no store here, so tracking it in git-ticket's ledger would go stale the moment terva starts. The content moved to docs/handoff-terva-phase-3.md, which is the artifact a terva agent works from. Archived rather than cancelled because none of it was rejected: it is being done, elsewhere. Unarchive if the split changes.

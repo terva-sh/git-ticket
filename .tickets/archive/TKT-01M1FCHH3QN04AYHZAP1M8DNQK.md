@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
 title: "Phase 3: integrate git-ticket into terva"
 type: epic
-status: draft
+status: archived
 status_reason: null
 priority: high
 labels:
@@ -16,14 +16,17 @@ references:
   - ref: proposal:git-ticket
     path: docs/plan.md
 claim: null
-archive: null
+archive:
+  archived_at: 2026-09-01T22:03:57Z
+  from_status: draft
+  reason: "Terva owns this work and terva has no store here, so tracking it in git-ticket's ledger would go stale the moment terva starts. The content moved to docs/handoff-terva-phase-3.md, which is the artifact a terva agent works from. Archived rather than cancelled because none of it was rejected: it is being done, elsewhere. Unarchive if the split changes."
 created_at: 2026-09-01T21:03:30Z
-updated_at: 2026-09-01T21:03:30Z
+updated_at: 2026-09-01T22:03:57Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: human:sothr
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---
@@ -37,3 +40,9 @@ The layer is decided: the whole surface goes core, not extension-first. terva st
 Four slices, each useful alone: the dependency and the command, the read tools, the write tools, the board.
 
 One format limitation found while filing this. Plan 5.5 resolves a references path against this repository root, so these tickets cannot point at terva docs/plans/git-ticket.md by path. They name it in prose instead. Whether a cross-repository reference is worth a scheme is unsettled and not urgent.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-01T22:03:57Z
+
+archived from draft: Terva owns this work and terva has no store here, so tracking it in git-ticket's ledger would go stale the moment terva starts. The content moved to docs/handoff-terva-phase-3.md, which is the artifact a terva agent works from. Archived rather than cancelled because none of it was rejected: it is being done, elsewhere. Unarchive if the split changes.

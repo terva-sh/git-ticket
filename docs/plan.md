@@ -39,9 +39,12 @@ Three properties decide the design:
 ### Scope of this document
 
 Phases 0, 1, 2, and 4 below: the format, the core library, the standalone CLI,
-and the optional stdio adapter. Terva's integration is Phase 3 and lives in
-terva's own repository at `docs/plans/git-ticket.md`, because it is committed
-work for terva rather than for this module.
+and the optional stdio adapter. Terva's integration is Phase 3 and belongs to
+terva, because it is committed work for terva rather than for this module.
+
+This repository does not write into terva's. What it produces instead is
+`docs/handoff-terva-phase-3.md`, a document for a terva agent to work from.
+See the Policy section of `AGENTS.md` for why.
 
 ## 2. Naming
 
@@ -950,9 +953,19 @@ covers create through claim through done through archive.
 
 ### Phase 3: terva integration
 
-Owned by terva, tracked in terva's `docs/plans/git-ticket.md`. It starts once
-Phase 2 tags a release, so that terva builds against a stable module rather than
-a moving one.
+Owned by terva. It starts once Phase 2 tags a release, so that terva builds
+against a stable module rather than a moving one. `v0.1.0` closed Phase 2 and
+`v0.2.0` added the `cli` package terva embeds, so the gate is open.
+
+The git-ticket side of this phase is one artifact,
+`docs/handoff-terva-phase-3.md`, which a terva agent works from. Everything
+else, the command, the tools, the board, and the permission wiring, is built in
+terva by terva.
+
+What this phase can still ask of this repository is a library or format change,
+and the answer goes through the usual route: a plan change first, then code,
+then a tag. The one already visible is deferred question 7, because a board
+that shows an epic's children needs a way to read the hierarchy back.
 
 ### Phase 4: adapters and views
 
@@ -1048,4 +1061,5 @@ field `create` sets already had an `update` flag and the library already had
   [issue #1556](https://github.com/git-bug/git-bug/issues/1556) on locking under
   agent workflows. Rejected as the storage model because the records are not
   ordinary files a human can edit.
-- terva's `docs/plans/git-ticket.md` for Phase 3.
+- `docs/handoff-terva-phase-3.md` for what Phase 3 asks of terva, and what it
+  may ask back of this module.

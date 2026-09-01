@@ -139,8 +139,23 @@ Time-dependent behaviour uses the fixed reference instant
 ## Policy
 
 This repository owns the format, the store, validation, and the CLI. Nothing
-here imports terva. The terva integration is Phase 3 and is tracked in terva's
-own `docs/plans/git-ticket.md`.
+here imports terva. The terva integration is Phase 3 and is terva's to build.
+
+**Do not write into a sibling repository.** Other agents work in those trees
+at the same time you do, and a commit, a branch, or a PR you leave there
+collides with work you cannot see. This applies to `../terva` and to every
+other repository under `terva-sh/`, and it holds even when the change is
+obviously correct and only touches documentation.
+
+When the other side needs something, write a handoff document here and give it
+to the user to carry over. `docs/handoff-terva-phase-3.md` is the worked
+example. Verify the code in a handoff by compiling it against the published
+module, because a wrong field name in a handoff costs the reader more time than
+it saved. Writing that one caught two.
+
+This rule arrived late. terva already holds `docs/plans/git-ticket.md` and PR
+#880 from before it was set, which is exactly the collision it exists to
+prevent. Both are terva's to keep, rewrite, or close.
 
 The library reaches no network and runs no Git command that writes. No fetch,
 push, merge, commit, or branch switch. Publishing is the user's ordinary Git

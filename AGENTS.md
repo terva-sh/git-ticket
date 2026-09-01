@@ -10,15 +10,17 @@ Phase 0 and Phase 1 are done and their exit criteria hold. The library parses,
 renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
-Phase 2, the standalone CLI in section 12.1, is under way. `cmd/git-ticket` and
-`internal/cli` carry `init`, `create`, `update`, `show`, `list`, `status`,
-`claim`, `release`, `link`, `unlink`, `deps`, `ac`, `dod`, `archive`,
-`unarchive`, and `check`, each in a human form and behind `--json`. All five
-JSON kinds of section 10 have a test, and every write honours `--if-revision`.
+Phase 2, the standalone CLI in section 12.1, is nearly done. `cmd/git-ticket`
+and `internal/cli` carry 22 of the 24 commands: `init`, `create`, `update`,
+`show`, `list`, `search`, `ready`, `status`, `claim`, `release`, `link`,
+`unlink`, `deps`, `files`, `ac`, `dod`, `note`, `comment`, `summary`,
+`archive`, `unarchive`, and `check`, each in a human form and behind `--json`.
+All five JSON kinds of section 10 have a test, and every write honours
+`--if-revision`.
 
-That is the lifecycle, the fields, the checklists, and the graph. What remains
-in 12.1 is `search`, `ready`, `note`, `comment`, `summary`, `files`,
-`instructions`, and `schema`.
+What remains in 12.1 is `instructions` and `schema`. `instructions` prints an
+agent workflow block for a project's `AGENTS.md`, and what that block says is a
+content decision. Ask before writing it.
 
 The exit criterion about a scripted end-to-end run is met by `TestLifecycle` in
 `internal/cli/lifecycle_test.go`. The other, `git ticket check` green in CI,

@@ -128,6 +128,8 @@ git ticket init --actor human:you
 git ticket create --title "Refresh fails when the clock jumps backward" \
     --type bug --priority high --label auth
 git ticket list --status ready --type bug
+git ticket search "clock jump" --type bug
+git ticket ready                  # what could be started right now
 git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
 
 git ticket update TKT-01K3ZZ2J --priority urgent --add-label crypto
@@ -139,7 +141,10 @@ git ticket deps TKT-01K3ZZ2J --transitive
 git ticket status TKT-01K3ZZ2J ready
 git ticket claim TKT-01K3ZZ2J     # records your branch and HEAD
 git ticket status TKT-01K3ZZ2J in-progress
+git ticket note TKT-01K3ZZ2J "the skew is 40s, not the 5s we assumed"
+git ticket files TKT-01K3ZZ2J --add auth/verify.go
 git ticket ac TKT-01K3ZZ2J --check 1
+git ticket summary TKT-01K3ZZ2J "Widened the window and pinned the clock source"
 git ticket status TKT-01K3ZZ2J done
 git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 
@@ -162,6 +167,25 @@ its items 1, 2, 3, and editing a box leaves that prose alone.
 `link` takes one of `--depends-on` or `--ref`, and `--path` goes with the
 second, because a path with no reference names nothing. `unlink` is the reverse,
 and removing something that is not there succeeds rather than complaining.
+
+`search` takes a regular expression and matches it against the title and the
+body, and it takes every filter `list` takes, so you narrow by status or type
+and search inside that. `ready` answers one question: which open tickets are
+not blocked and have every dependency closed. That is the queue, and it is what
+an agent asks for when it wants work.
+
+`note`, `comment`, and `summary` write the three text sections of plan section
+9. `note` and `comment` append with a timestamp and an actor, so they read as a
+log. `summary` sets. A summary is one statement of where the ticket landed, and
+a log of those is what the other two already are.
+
+`files` records paths a ticket touches, and `--remove` takes one off. It is
+advisory. Nothing derives it from Git history and nothing checks that the path
+exists, so it is a hint for a reader, not a fact about the tree.
+
+Text that opens with a dash goes after a bare `--`, so
+`git ticket note TKT-01K3ZZ2J -- "--force was the wrong default"` records the
+note rather than failing on an unknown flag.
 
 `deps` walks dependencies, `--transitive` follows the chain, and `--dependents`
 walks it backwards to what is waiting on this ticket. A dependency cycle is a
@@ -220,7 +244,7 @@ whether or not it passed `--strict`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | Lifecycle, fields, checklists, and links work; `search`, `ready`, `note`, `files`, `instructions`, `schema` remain |
+| 2 | Standalone CLI with `--json` | 22 of the 24 commands work; `instructions` and `schema` remain |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 

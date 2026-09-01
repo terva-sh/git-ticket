@@ -1,0 +1,702 @@
+# git-ticket: repository-native work tracking for agents
+
+> Status: **design locked, ready to build.** This document supersedes the terva
+> proposal now archived at `docs/proposals/archive/git-ticket.md`. Every
+> question that blocked the
+> Phase 1 contract is answered here: the staleness token is a content hash, the
+> claim is orthogonal to status, archive moves the file with the status as the
+> authority, and unknown frontmatter fields are a `check` error rather than a
+> read error. What remains open is listed in section 15 and none of it blocks
+> Phase 0.
+>
+> Repository: `github.com/terva-sh/git-ticket` (public release mirror).
+> Go module path: `github.com/terva-sh/git-ticket`. Go 1.22+.
+
+## 1. What this is
+
+A work ledger that lives in the repository it tracks. Tickets are Markdown files
+with YAML frontmatter, committed alongside the code, readable in any editor and
+reviewable in `git diff`. One Go library owns the format. A `git-ticket` binary
+exposes it as `git ticket …`. Terva consumes the same library, and so can
+anything else.
+
+The problem it solves is that a project outlives an agent session. Claude Code,
+Codex, terva, a shell script, and a human editor may each touch one ticket
+during its life. All of them should be operating on the same files, and none of
+them should have to parse another tool's terminal output to do it.
+
+Three properties decide the design:
+
+1. The file is the source of truth. Any index or cache is disposable and must be
+   rebuildable from the files alone.
+2. Hand-editing is supported, not tolerated. A person opening a ticket in vim
+   and changing a line is a first-class operation, and `check` is the safety net
+   that catches damage. This is the reason to accept Markdown's merge behaviour
+   instead of a database.
+3. The tool never claims coordination it does not have. A claim recorded in an
+   unpushed clone is local evidence, not a reservation.
+
+### Scope of this document
+
+Phases 0, 1, 2, and 4 below: the format, the core library, the standalone CLI,
+and the optional stdio adapter. Terva's integration is Phase 3 and lives in
+terva's own repository at `docs/plans/git-ticket.md`, because it is committed
+work for terva rather than for this module.
+
+## 2. Naming
+
+The command is singular. Git's own subcommands are singular even when they
+manage a collection: `git remote`, `git branch`, `git tag`, `git stash`, `git
+worktree`, `git submodule`, `git config`. Only `git notes` breaks the pattern.
+Each operation here acts on one ticket or queries the set, so `git ticket show`,
+`git ticket claim`, and `git ticket list` all read correctly.
+
+Directories stay plural, because they hold many things: the store is `.tickets/`
+and the tickets live in `.tickets/tickets/`. The asymmetry is deliberate. Do not
+"fix" it in either direction.
+
+Terva follows the same rule with a `terva ticket` subcommand and `ticket_*`
+tools, matching the `task_*` tools that the existing `terva-tasks` extension
+already ships.
+
+## 3. Decisions locked
+
+| Decision | Resolution |
+|---|---|
+| Store location | One `.tickets/` per Git root. An explicit override supports odd layouts. V1 does not discover nested stores. |
+| Binary | `git-ticket`, invoked as `git ticket …`. A bare `ticket` alias is deferred. |
+| Staleness token | An opaque `revision`, the SHA-256 of the ticket file bytes. Not stored in the file. |
+| Precondition strictness | Optional in the library and CLI, where omitting it means last write wins under the local lock. Required in terva's tool schema. |
+| Claim | Orthogonal metadata, not a status. Advisory, never exclusive. |
+| Archive | The `archived` status is authoritative. The file move to `.tickets/archive/` is a mechanical consequence. |
+| Unknown top-level fields | `check` errors. Ordinary reads warn and preserve them on write. Hard rejection waits for a schema major bump. |
+| Statuses | Fixed set of seven in v1. Projects use labels for local categories. |
+| History | Git records file provenance. Ticket fields record semantic activity. No separate event log in v1. |
+| Remote operations | None. No fetch, push, merge, branch switch, or commit as a side effect of a mutation. |
+| Ownership | Independent repository and Go module. Library and CLI first, terva second. |
+
+## 4. Store layout
+
+```text
+.tickets/
+├── config.yml
+├── README.md
+├── tickets/
+│   ├── TKT-01JABCDEF0123456789ABCDEF.md
+│   └── TKT-01JXYZGH0123456789ABCDEF.md
+└── archive/
+    └── TKT-01JOLDER0123456789ABCDEF.md
+```
+
+Discovery walks up from the current directory to the Git root and looks for
+`.tickets/`. A `--store` flag or `GIT_TICKET_STORE` overrides it, and an
+override may point outside a repository, in which case the worktree-aware lock
+degrades as described in section 7.2.
+
+Filenames are the ID and nothing else. Backlog.md puts the title in the
+filename; this format does not, because a title change would rename the file,
+break `git log` on the old path, and make ID-to-path resolution depend on
+mutable data.
+
+`README.md` is generated at `init` and explains the store to a human who finds
+it in a diff. It is not read by the tool.
+
+### 4.1 config.yml
+
+```yaml
+schema: 1
+actors:
+  - id: human:sothr
+    name: Drew Short
+labels:
+  - auth
+  - docs
+defaults:
+  type: task
+  priority: normal
+  claim_expiry: null
+lock:
+  timeout: 10s
+```
+
+`labels` is an advisory allowlist: `check` warns about a label outside it and
+never errors. Configuration sets defaults and vocabulary. It cannot add a
+status, change a transition rule, or grant a consumer authority it does not
+otherwise have.
+
+## 5. Ticket format
+
+### 5.1 Frontmatter
+
+```yaml
+schema: 1
+id: TKT-01JABCDEF0123456789ABCDEF
+title: Add token refresh handling
+type: task
+status: ready
+priority: high
+labels:
+  - auth
+assignees:
+  - human:sothr
+milestone: null
+parent: null
+dependencies: []
+references:
+  - ref: proposal:git-ticket
+    path: docs/proposals/git-ticket.md
+claim: null
+archive: null
+created_at: 2026-08-31T12:00:00Z
+updated_at: 2026-08-31T12:00:00Z
+created_by:
+  id: human:sothr
+  name: Drew Short
+updated_by:
+  id: agent:terva/session-123
+  name: Mieli
+extensions: {}
+```
+
+`type` is one of `task`, `bug`, `chore`, `spike`, `epic`. `priority` is one of
+`low`, `normal`, `high`, `urgent`.
+
+`references` carry a typed stable identifier and an optional repository-relative
+path. The core preserves namespaces such as `idea:`, `proposal:`, `plan:`,
+`decision:`, `review:`, `commit:`, `file:`, `url:`, and `ticket:` without
+interpreting the project-specific ones. It resolves `path` far enough to report
+a broken link in `check`.
+
+`extensions` is a namespaced mapping for integration data. It is the only place
+a consumer may write fields the core does not define, and the core never
+interprets its contents.
+
+The claim block, when a ticket is claimed:
+
+```yaml
+claim:
+  actor: agent:terva/session-123
+  branch: feat/token-refresh
+  worktree: /Users/sothr/wt/token-refresh
+  commit: a1b2c3d4e5f6
+  claimed_at: 2026-08-31T12:04:00Z
+  expires_at: null
+```
+
+The archive block, when a ticket is archived:
+
+```yaml
+archive:
+  archived_at: 2026-09-04T09:00:00Z
+  from_status: done
+  reason: shipped in v1.2
+```
+
+`from_status` exists so that archiving does not silently break dependents. See
+section 6.3.
+
+### 5.2 Body sections
+
+Known sections, in this order:
+
+1. `## Description`
+2. `## Acceptance criteria`, a checkbox list
+3. `## Definition of done`, a checkbox list
+4. `## Implementation plan`
+5. `## Notes`
+6. `## Comments`
+7. `## Summary`
+
+`Description` is always emitted. The rest are emitted only when they have
+content. Unknown sections survive a round trip and are appended after the known
+ones in their original relative order.
+
+### 5.3 Deterministic rendering
+
+The renderer must be a pure function of the parsed ticket. Two writers producing
+the same logical ticket must produce identical bytes, or the golden tests and
+the CLI-versus-terva acceptance criterion cannot hold.
+
+- Frontmatter keys in exactly the order listed in 5.1, then any preserved
+  unknown keys in their original order.
+- Block style for non-empty sequences, `[]` for empty ones, `null` for absent
+  scalars.
+- No YAML anchors, aliases, or flow mappings. Quote a string only when YAML
+  requires it.
+- LF line endings and exactly one trailing newline.
+- Checkbox items as `- [ ]` and `- [x]`.
+
+The round-trip guarantee, enforced by test:
+`render(parse(render(t))) == render(t)` for every fixture, and `parse` of a
+supported file loses no content.
+
+`updated_at` and `updated_by` change on every mutation, so every diff shows at
+least those two lines. That is intended: the diff should say who touched the
+ticket and when.
+
+### 5.4 Unknown fields and schema drift
+
+Hard rejection of unknown top-level fields would make an additive v1.1 field
+break a v1.0 reader in the same repository, which is exactly the mixed-speed
+client problem this format has to survive. So:
+
+| Context | Behaviour on an unknown top-level field |
+|---|---|
+| `check` | Error. Exit nonzero. |
+| Ordinary read | Warn on stderr, parse the rest, preserve the field. |
+| Write | Preserve the field in its original position. |
+| `schema` greater than the reader supports | Refuse with `schema_unsupported` and name the version needed. |
+
+A field may only be removed or given a new meaning at a schema major bump.
+Adding a field is a minor change.
+
+### 5.5 IDs and reference resolution
+
+An ID is `TKT-` followed by a 26-character Crockford base32 ULID, uppercase.
+ULIDs need no central counter, so two disconnected agents cannot collide, and
+they sort by creation time, which makes a directory listing chronological for
+free.
+
+Twenty-six characters is too many to type, so any command taking an ID accepts a
+unique case-insensitive prefix, with or without the `TKT-` part. A prefix must
+be at least four characters of the ULID to be considered, which stops a typo
+from resolving by accident. An ambiguous prefix returns `ambiguous_id` and lists
+the candidates. This is git's rule for object hashes and users already know it.
+
+## 6. Status and lifecycle
+
+### 6.1 The status set
+
+```text
+draft
+ready
+in-progress
+blocked
+review
+done
+archived
+```
+
+`claimed` is deliberately absent. Claim metadata already records the actor,
+branch, commit, and expiry, so a `claimed` status would be a second copy of the
+same fact that can disagree with the first in both directions: a ticket in
+`ready` with a live claim, or one in `claimed` with no claim block. Claim is
+orthogonal, and the `ready` query filters on it.
+
+### 6.2 Transitions
+
+| From | Permitted to |
+|---|---|
+| `draft` | `ready`, `archived` |
+| `ready` | `draft`, `in-progress`, `blocked`, `archived` |
+| `in-progress` | `ready`, `blocked`, `review`, `done`, `archived` |
+| `blocked` | `ready`, `in-progress`, `archived` |
+| `review` | `in-progress`, `blocked`, `done`, `archived` |
+| `done` | `in-progress`, `archived` |
+| `archived` | `ready` |
+
+Anything else returns `invalid_transition` naming the permitted targets.
+
+A `--reason` is required for a transition into `blocked` and for reopening from
+`done` to `in-progress`. Both are cases where a later reader needs to know why,
+and neither has a dedicated command to make the intent obvious.
+
+`archived` is not reachable through `git ticket status`, because archiving also
+moves the file. `status ID archived` is refused with a pointer to `git ticket
+archive`. The reverse pair is `git ticket unarchive`, which restores the file to
+`tickets/` and sets the status to `ready`.
+
+### 6.3 Archive and dependency resolution
+
+Archiving sets `status: archived`, records the `archive` block including
+`from_status`, and moves the file to `.tickets/archive/`. The status is
+authoritative. If the two ever disagree, because someone moved a file by hand,
+`check` reports `archive_location_mismatch` and the status wins.
+
+A dependency is satisfied when the depended-on ticket is `done`, or when it is
+`archived` with `from_status: done`. Archiving a ticket that was never done does
+not satisfy anything, and `check` warns when a live ticket depends on one. This
+is why `from_status` is recorded: the ordinary flow is done and then archive,
+and without it every archive would silently block its dependents.
+
+### 6.4 Claims
+
+`git ticket claim` records the actor, the branch and worktree when they can be
+determined, the commit the claim was based on, the time, and an optional expiry
+from `--expires-in` or `defaults.claim_expiry`. There is no default expiry.
+
+Claiming is permitted from `ready`, `in-progress`, `blocked`, and `review`. It
+is refused on `draft`, `done`, and `archived`.
+
+An expired claim makes the ticket eligible for another claim. It does not revoke
+the original agent's work, and it grants no exclusivity to anyone.
+
+Claiming a ticket that already carries a live claim by a different actor returns
+`claim_conflict`. `--force` overrides it and records the displaced claim in
+`Notes`, because taking work from another agent should leave a trace.
+
+## 7. Concurrency
+
+### 7.1 The revision precondition
+
+Every read returns `revision`, the SHA-256 of the ticket file's bytes as they
+sit on disk, formatted `sha256:` followed by 64 lowercase hex characters. It is
+computed, never stored, so there is no field to merge-conflict on and no field a
+hand-editor can forget to bump.
+
+That last point is the reason for the choice. Three things change a ticket
+behind a caller's back: another process in the same checkout, a merge or branch
+switch between read and write, and a person or agent editing the file directly.
+Any token the writer maintains, whether `updated_at` or a monotonic counter,
+fails the third case silently, and a counter additionally has no correct value
+after a merge of two branches that both incremented it. A hash of the bytes
+catches all three and costs nothing, because the file is already being read
+under the lock.
+
+Mutations accept `--if-revision` on the CLI and `ifRevision` in JSON. When it is
+supplied, the store re-reads and re-hashes the file after taking the lock and
+returns `stale_revision` with both the expected and the actual value if they
+differ. When it is omitted, the last write wins under the local lock.
+
+The precondition is optional in the library and CLI so that a person typing
+`git ticket status TKT-01JAB done` at a terminal is not forced into a
+read-then-write dance where no concurrency exists. Terva's tool schema marks it
+required, because agents read before they write anyway and multi-agent is where
+the races actually happen.
+
+A revision is an equality check, not an ordering, and not a merge. It tells a
+caller that it lost a race. Git still resolves the content.
+
+### 7.2 The local lock
+
+One lock guards the whole store. Contention is rare and per-ticket locking would
+complicate the multi-file operations in `check` and `archive` for no gain.
+
+The lock file lives at `<git-common-dir>/git-ticket/store.lock`, found with `git
+rev-parse --git-common-dir`. Putting it under the common Git directory means it
+is shared by every worktree of the repository and is never committed. The
+implementation uses `flock`, which the kernel releases when the holder dies, so
+there is no stale-lock breaker to get wrong.
+
+Acquisition blocks up to `lock.timeout`, default ten seconds, and then returns
+`lock_timeout`. When the store is outside a repository, because of a `--store`
+override, the lock falls back to `<store>/.lock` and the tool documents that
+this does not coordinate separate worktrees.
+
+The write path is: acquire, read, verify the precondition, write a temporary
+file in the same directory, `fsync`, atomically rename over the target, release.
+A failure at any step leaves the original file untouched.
+
+### 7.3 Across clones and worktrees
+
+Separate worktrees that share a Git directory share the lock, so they serialize
+correctly. Separate clones do not, and no local command can change that.
+
+A claim made in a clone becomes visible to another clone only after its commit
+reaches a shared ref and the other clone fetches it. The data model records the
+commit a claim was based on precisely so that output can show how provisional it
+is, and `show` marks a claim whose commit is not an ancestor of any remote-
+tracking ref as unpublished.
+
+V1 has no sync command. Publishing happens through ordinary `git commit`,
+`push`, `fetch`, and `merge`. A later sync helper may be worth evaluating, but
+it must never silently push, merge, switch branches, or rewrite a worktree.
+
+## 8. Query surface
+
+- `list` with filters on status, type, priority, label, assignee, and milestone
+- `ready`: status `ready`, no live claim, and every dependency satisfied per 6.3
+- `show` for one complete ticket
+- `search` over title, description, acceptance criteria, definition of done,
+  notes, comments, summary, and references. Case-insensitive substring by
+  default, `--regex` for RE2
+- `deps` for direct and transitive dependencies, `--dependents` for the reverse
+- `files PATH` for tickets referencing a path. This searches recorded `file:`
+  references and is only as complete as the agents that wrote them. It is
+  advisory and not derived from Git history, and the help text says so
+- `check`, described in section 10
+
+Search reads every file on every call. At the scale this format targets,
+hundreds to a few thousand tickets, that is a few milliseconds and needs no
+index. An index is deferred, and if one is ever added it must be disposable and
+rebuildable from the files.
+
+## 9. Mutation surface
+
+Every mutation changes only the fields the caller named. Full-file replacement
+is not an operation the API offers.
+
+- `init`, `create`, `update`
+- `status`, `claim`, `release`
+- `link` and `unlink` for dependencies and references
+- `ac` and `dod` to add, check, and uncheck criteria items
+- `note`, `comment`, `summary` to append
+- `archive`, `unarchive`
+
+Each returns the resulting ticket, its new revision, and the paths changed.
+
+## 10. JSON contract
+
+Every machine-readable operation emits a versioned envelope on stdout:
+
+```json
+{ "schemaVersion": 1, "kind": "ticket-list", "tickets": [] }
+```
+
+Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, and
+`error`. Absent scalars are `null` and absent collections are `[]`, always
+present rather than omitted, so a consumer never has to distinguish missing from
+empty.
+
+A mutation result:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "mutation-result",
+  "ticket": { "id": "TKT-…", "revision": "sha256:…" },
+  "pathsChanged": [".tickets/tickets/TKT-….md"]
+}
+```
+
+An error leaves stdout empty in human mode and writes the envelope to stdout in
+`--json` mode, with the message on stderr in both, and exits nonzero:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "error",
+  "error": {
+    "code": "stale_revision",
+    "message": "ticket changed since it was read",
+    "details": { "expected": "sha256:…", "actual": "sha256:…" }
+  }
+}
+```
+
+Stable codes, which callers may switch on:
+
+`store_not_found`, `store_exists`, `ticket_not_found`, `ambiguous_id`,
+`stale_revision`, `invalid_transition`, `invalid_field`, `dependency_missing`,
+`dependency_cycle`, `claim_conflict`, `parse_error`, `merge_conflict`,
+`schema_unsupported`, `lock_timeout`, `validation_failed`.
+
+## 11. Validation
+
+`check` runs offline, is safe in CI, and separates errors from warnings. It
+exits nonzero on any error, and `--strict` promotes warnings to errors.
+
+Errors:
+
+- duplicate ticket ID across files
+- filename that disagrees with the `id` field
+- malformed frontmatter or an unparseable body
+- unknown top-level frontmatter field
+- `schema` newer than this binary supports
+- Git conflict markers in a ticket file, reported as `merge_conflict` rather
+  than as a YAML parse failure, because that is what a user needs to be told
+- a `dependencies` or `parent` entry naming a ticket that does not exist
+- a cycle in `dependencies` or in `parent`, checked separately
+- a status value outside the set
+- `archive_location_mismatch`, where the status and the directory disagree
+
+Warnings:
+
+- a live ticket depending on an archived ticket whose `from_status` is not
+  `done`
+- an expired claim
+- a `references` path that does not resolve
+- a label outside `config.yml`
+- a ticket in `in-progress` with no claim
+
+## 12. Interfaces
+
+### 12.1 CLI
+
+```text
+git ticket init
+git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M]
+git ticket ready
+git ticket show   ID
+git ticket search QUERY [--regex]
+git ticket create --title T [--type --priority --label --assignee --parent --depends-on --description]
+git ticket update ID [--title --priority --milestone --add-label --remove-label --assign --unassign]
+git ticket status ID STATUS [--reason R]
+git ticket claim  ID [--expires-in D] [--force]
+git ticket release ID
+git ticket link   ID [--depends-on OTHER | --ref proposal:x [--path P]]
+git ticket unlink ID [--depends-on OTHER | --ref proposal:x]
+git ticket ac     ID [--add TEXT | --check N | --uncheck N]
+git ticket dod    ID [--add TEXT | --check N | --uncheck N]
+git ticket note   ID TEXT
+git ticket comment ID TEXT
+git ticket summary ID TEXT
+git ticket deps   ID [--transitive] [--dependents]
+git ticket files  PATH
+git ticket check  [--strict]
+git ticket archive ID [--reason R]
+git ticket unarchive ID
+git ticket instructions
+git ticket schema
+```
+
+Global flags: `--json`, `--store PATH`, `--if-revision R`, `--actor ID`,
+`--lock-timeout D`.
+
+`instructions` prints an agent workflow block for pasting into a project's
+`AGENTS.md` or equivalent. `init` may write that block to a new file, and must
+never overwrite a file the user maintains.
+
+### 12.2 Library
+
+The API terva and any other consumer builds against:
+
+```go
+package ticket
+
+func Discover(dir string) (*Store, error)
+func Open(path string) (*Store, error)
+func Init(root string, opts InitOptions) (*Store, error)
+
+func (s *Store) Get(ctx context.Context, ref string) (*Ticket, error)
+func (s *Store) List(ctx context.Context, f Filter) ([]*Ticket, error)
+func (s *Store) Search(ctx context.Context, q Query) ([]*Ticket, error)
+func (s *Store) Ready(ctx context.Context) ([]*Ticket, error)
+func (s *Store) Check(ctx context.Context) (*Report, error)
+func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOptions) (*Result, error)
+
+type ApplyOptions struct {
+    IfRevision string // empty means no precondition
+    Actor      Actor
+}
+
+type Result struct {
+    Ticket       *Ticket
+    PathsChanged []string
+}
+```
+
+`Mutation` is a typed set of operations rather than a struct of pointers, so
+"set the title to empty" and "do not touch the title" cannot be confused.
+
+Package layout:
+
+```text
+git-ticket/
+├── cmd/git-ticket/     the binary
+├── ticket/             the public library
+├── internal/cli/       flag parsing and human rendering
+├── testdata/fixtures/  the corpus from Phase 0
+└── docs/plan.md
+```
+
+The library must not import a CLI framework, and nothing in `ticket/` may import
+terva.
+
+### 12.3 Optional stdio adapter
+
+`git-ticket mcp` speaks MCP over stdio against the same library. It is a
+process-local adapter, not a service. It performs no permission decisions of its
+own; the host decides what a caller may do.
+
+## 13. Phases
+
+### Phase 0: format and fixtures
+
+Sections 4 through 11 of this document are the format decision, so what remains
+is the corpus. Build `testdata/fixtures/` covering valid tickets of each type
+and status, invalid frontmatter, an unknown top-level field, an unknown Markdown
+section, a file with conflict markers, a duplicate ID, a dependency cycle, a
+parent cycle, an archived dependency both with and without `from_status: done`,
+an expired claim, and a `schema: 2` file.
+
+Exit criteria: every fixture has an expected `check` result recorded beside it.
+
+### Phase 1: core library
+
+Store discovery and `init`. Parse, render, validate. ULID generation and prefix
+resolution. `List`, `Search`, `Get`, `Ready`, `Check`. Field-level mutation
+through `Apply`, with the revision precondition and the flock-based store lock.
+
+Exit criteria: the round-trip property holds on every fixture, golden tests pin
+the rendered bytes, the fixture corpus produces its recorded `check` results, and
+two concurrent processes writing the same ticket produce one success and one
+`stale_revision`.
+
+### Phase 2: standalone CLI
+
+Every command in 12.1, human output and `--json`, the documented error codes and
+exit statuses, `instructions` and `schema`.
+
+Exit criteria: the JSON contract has a test per kind, `git ticket check` runs
+green in this repository's own CI with no network, and a scripted end-to-end run
+covers create through claim through done through archive.
+
+### Phase 3: terva integration
+
+Owned by terva, tracked in terva's `docs/plans/git-ticket.md`. It starts once
+Phase 2 tags a release, so that terva builds against a stable module rather than
+a moving one.
+
+### Phase 4: adapters and views
+
+The stdio MCP adapter. Import of the useful Backlog.md fields, with no runtime
+dependency on Backlog.md. A local browser or TUI view, and only after the file
+and agent contracts have held through at least one real project. Explicit remote
+helpers evaluated separately, and never as a side effect of a mutation.
+
+## 14. Acceptance criteria
+
+Format:
+
+- a fresh clone can init or discover a store with no network
+- a ticket reads correctly in an ordinary Markdown viewer
+- `git diff` shows the fields a mutation changed and little else
+- parse and render round-trip every fixture without loss
+- two disconnected processes create tickets without an ID collision
+- a `schema` bump produces an actionable message, not a parse error
+
+Contract:
+
+- every operation has a documented, versioned JSON shape
+- a field-level update leaves unrelated fields byte-identical
+- missing dependencies, duplicate IDs, and both cycle kinds fail `check`
+- an invalid transition names the permitted targets
+- conflict markers report as `merge_conflict`
+
+Concurrency:
+
+- two local processes cannot write the store at once
+- a stale `ifRevision` returns a conflict instead of overwriting
+- worktrees sharing a Git directory share the lock
+- the documentation states the cross-clone visibility delay for claims
+- no command performs a remote operation as a side effect
+
+## 15. Deferred questions
+
+1. The exact precedence between `--store`, `GIT_TICKET_STORE`, and
+   `config.yml`.
+2. How a caller renews an existing claim rather than replacing it.
+3. Whether custom statuses are worth the cost, decided after a real workflow
+   asks for one.
+4. Whether a later release adds sync helpers around ordinary Git commands.
+5. What tool discovery the stdio adapter should expose.
+6. When Backlog.md import and a local view are worth building.
+7. The compatibility policy for the Go module after the first stable schema.
+
+## 16. References
+
+- [Backlog.md](https://github.com/MrLesk/Backlog.md) and its
+  [CLI instructions](https://github.com/MrLesk/Backlog.md/blob/main/CLI-INSTRUCTIONS.md),
+  the strongest external Markdown workflow and the source of the acceptance
+  criteria and definition of done fields.
+- [`wedow/ticket`](https://github.com/wedow/ticket), a small Bash and Markdown
+  tracker that showed how little the basic loop needs.
+- [Beads](https://github.com/gastownhall/beads), agent-first, but with a Dolt
+  database as the source of truth and JSONL as an export.
+- [`git-bug`](https://github.com/MichaelMure/git-bug), which stores records in
+  Git objects rather than worktree files, and
+  [issue #1556](https://github.com/git-bug/git-bug/issues/1556) on locking under
+  agent workflows. Rejected as the storage model because the records are not
+  ordinary files a human can edit.
+- terva's `docs/plans/git-ticket.md` for Phase 3.

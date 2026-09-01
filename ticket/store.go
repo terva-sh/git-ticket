@@ -39,6 +39,11 @@ type Store struct {
 	root     string
 	rootOnce sync.Once
 	rootSet  bool
+
+	// lockFile is where the store lock lives. Finding it runs git, so the
+	// answer is computed once.
+	lockFile string
+	lockOnce sync.Once
 }
 
 // OpenOptions carries what a caller may need to override. The zero value is
@@ -281,14 +286,24 @@ func isGitRoot(dir string) bool {
 }
 
 // gitToplevel asks git for the repository root holding dir. It returns an empty
-// string when dir is outside a repository or git is not installed. This is a
-// read-only git command; the library runs no git command that writes.
+// string when dir is outside a repository or git is not installed.
 func gitToplevel(dir string) string {
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	out, err := runGit(dir, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return strings.TrimSpace(out)
+}
+
+// runGit runs a read-only git command in dir. Every git call in this package
+// goes through here, and every one of them only reads: the library runs no git
+// command that writes, per the policy in plan 7.3.
+func runGit(dir string, args ...string) (string, error) {
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }
 
 const storeReadme = `# Tickets

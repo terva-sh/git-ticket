@@ -11,14 +11,19 @@ renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
 Phase 2, the standalone CLI in section 12.1, is under way. `cmd/git-ticket` and
-`internal/cli` exist and carry `init`, `create`, `show`, `list`, and `check`,
-each in a human form and behind `--json`. All five JSON kinds of section 10 now
-have a test. The rest of 12.1 is unwritten: every mutation past `create`.
+`internal/cli` carry `init`, `create`, `show`, `list`, `status`, `claim`,
+`release`, `archive`, `unarchive`, and `check`, each in a human form and behind
+`--json`. All five JSON kinds of section 10 have a test, and every write honours
+`--if-revision`.
 
-One Phase 2 exit criterion is still open, a scripted run from create through
-claim through done through archive, and it needs commands that do not exist yet.
-The other, `git ticket check` green in CI, needs this repository to keep its own
-tickets in `.tickets/`, which it does not yet do.
+That is the whole ticket lifecycle. What remains in 12.1 is the field and body
+surface: `update`, `search`, `ready`, `link`, `unlink`, `ac`, `dod`, `note`,
+`comment`, `summary`, `deps`, `files`, `instructions`, and `schema`.
+
+The exit criterion about a scripted end-to-end run is met by `TestLifecycle` in
+`internal/cli/lifecycle_test.go`. The other, `git ticket check` green in CI,
+needs this repository to keep its own tickets in `.tickets/`, which it does not
+yet do.
 
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
@@ -104,6 +109,13 @@ A path printed to a person goes through `displayPath`, never `filepath.Rel`
 alone. On macOS a temporary directory is reached through `/var`, a symlink to
 `/private/var`, so `git rev-parse --show-toplevel` answers in one name space and
 the store path is in another. `displayPath` retries through `EvalSymlinks`.
+
+`displayPath` handles a path that no longer exists, through `evalExisting`. A
+mutation that moves a file reports the old location after deleting it, and
+`EvalSymlinks` fails on a path that is not there, so archiving used to emit one
+relative and one absolute path in the same `pathsChanged`. A test for this needs
+a real repository, because with no root at all an absolute path is correct and
+the assertion passes for the wrong reason.
 
 A `ticket.Finding` names its file relative to the store, and the `.expected.json`
 sidecars record that form, but every path in the JSON contract is relative to

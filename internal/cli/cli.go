@@ -11,6 +11,7 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/terva-sh/git-ticket/ticket"
@@ -352,13 +353,17 @@ usage: git ticket [--json] [--store PATH] <command> [flags]
 
 commands:
 `)
+	// A tabwriter rather than a fixed pad, because two of these argument
+	// lines are wider than any column width worth hard-coding.
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for _, c := range commands() {
 		line := c.name
 		if c.usage != "" {
 			line += " " + c.usage
 		}
-		fmt.Fprintf(w, "  %-28s %s\n", line, c.summary)
+		fmt.Fprintf(tw, "  %s\t%s\n", line, c.summary)
 	}
+	tw.Flush()
 	fmt.Fprint(w, `
 Global flags are accepted before or after the command:
   --json                 emit the JSON envelope described in the plan

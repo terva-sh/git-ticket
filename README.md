@@ -120,7 +120,8 @@ come from it. It puts the title in the filename, which this format does not.
 go build -o git-ticket ./cmd/git-ticket
 ```
 
-Put that on `PATH` and Git spells it `git ticket`. Five commands work today:
+Put that on `PATH` and Git spells it `git ticket`. A ticket's whole life works
+today:
 
 ```sh
 git ticket init --actor human:you
@@ -128,14 +129,42 @@ git ticket create --title "Refresh fails when the clock jumps backward" \
     --type bug --priority high --label auth
 git ticket list --status ready --type bug
 git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
+
+git ticket status TKT-01K3ZZ2J ready
+git ticket claim TKT-01K3ZZ2J     # records your branch and HEAD
+git ticket status TKT-01K3ZZ2J in-progress
+git ticket status TKT-01K3ZZ2J done
+git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
+
 git ticket check --strict         # safe in CI: offline, read-only
 ```
+
+`release` and `unarchive` undo the two that are undoable.
+
+A status moves along the table in plan 6.2 and refuses anything else, naming
+where the ticket may go instead. Entering `blocked` needs `--reason`, and so
+does reopening from `done`, because a ticket that silently un-finishes makes the
+status mean nothing. The reason goes in `status_reason` for a query to read and
+into `Notes`, which survives the next transition clearing the field.
+
+A claim is advisory. It records who is working, on which branch, from which
+commit, and it reserves nothing. Claiming a ticket somebody else holds is
+`claim_conflict`; `--force` takes it and writes the displaced claim into `Notes`.
+
+`archive` is its own command rather than a status because it also moves the file
+to `.tickets/archive/`, and it records `from_status`. That is what stops an
+archived ticket from silently blocking its dependents: a dependency is satisfied
+by a ticket archived out of `done`, and by nothing else.
 
 Every command takes `--json` and answers with one envelope on stdout. A failure
 exits 1 and puts the reason in an `error` envelope with a stable `code`, so a
 script switches on the code rather than parsing the message. `--store PATH`
 names a store, `GIT_TICKET_STORE` does the same from the environment, and
 without either the store is discovered upward to the Git root.
+
+Every write takes `--if-revision R` and refuses if the ticket moved since you
+read it, answering `stale_revision`. Nothing stores that revision: it is a
+SHA-256 of the file's bytes, so it notices a hand edit too.
 
 `check` validates every ticket against section 11 of the plan: broken
 dependencies, cycles, duplicate IDs, a filename that no longer matches its ID,
@@ -159,7 +188,7 @@ whether or not it passed `--strict`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | Started: `init`, `create`, `show`, `list`, `check` |
+| 2 | Standalone CLI with `--json` | The ticket lifecycle works; `update`, `link`, `ac`, `note`, and the rest of 12.1 remain |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
@@ -179,6 +208,12 @@ Wiring `check` settled a fourth, recorded as 10.3. `--strict` moves no finding
 between `errors` and `warnings`, because those arrays report severity as the
 format defines it. Strictness is a policy on top, visible in `ok` and the exit
 status alone, so `ok` can be false with an empty `errors` array.
+
+The lifecycle commands opened one, recorded as plan question 15.7. An archive
+reason lives only in the `archive` block, and unarchiving deletes that block, so
+`archive --reason` followed by `unarchive` loses the reason. A status reason is
+written to `Notes` precisely so it survives the field being cleared, which makes
+the gap look unintended rather than decided.
 
 ## Reading order
 

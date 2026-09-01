@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -28,16 +29,74 @@ func (l *stringList) Set(v string) error {
 	return nil
 }
 
-// abbrevLen is how much of a ULID a listing shows. It is well past the four
-// characters a prefix needs, so what a person copies out of a listing resolves,
-// and it is short enough that the title still fits on a line.
+// abbrevLen is the fewest characters of a ULID a listing ever shows. Four is
+// the minimum a prefix may be, per 5.5, and eight still looks like an ID.
 const abbrevLen = 8
 
-func abbreviate(id string) string {
-	if len(id) <= len(ticket.IDPrefix)+abbrevLen {
-		return id
+// shortestUnique maps each ID to the fewest characters that still resolve to
+// it, never fewer than abbrevLen.
+//
+// A fixed width cannot do this. A ULID opens with ten characters of timestamp,
+// so two tickets created in the same millisecond are identical that far in, and
+// a listing printing eight shows one abbreviation on two rows. That tells the
+// reader to type something that comes back ambiguous_id. Shortening to what is
+// actually unique is git's rule for object hashes, which 5.5 already invokes
+// for prefixes.
+func shortestUnique(ids []string) map[string]string {
+	bodies := make([]string, 0, len(ids))
+	for _, id := range ids {
+		bodies = append(bodies, ticket.NormalizeRef(id))
 	}
-	return id[:len(ticket.IDPrefix)+abbrevLen]
+	sorted := append([]string{}, bodies...)
+	sort.Strings(sorted)
+
+	// In sorted order the longest prefix an ID shares with any other is shared
+	// with one of its two neighbours, so the pairs are enough.
+	need := make(map[string]int, len(sorted))
+	for i, b := range sorted {
+		n := abbrevLen
+		if i > 0 {
+			n = max(n, commonPrefixLen(b, sorted[i-1])+1)
+		}
+		if i+1 < len(sorted) {
+			n = max(n, commonPrefixLen(b, sorted[i+1])+1)
+		}
+		need[b] = n
+	}
+
+	out := make(map[string]string, len(ids))
+	for i, id := range ids {
+		b := bodies[i]
+		n := min(need[b], len(b))
+		out[id] = ticket.IDPrefix + b[:n]
+	}
+	return out
+}
+
+func commonPrefixLen(a, b string) int {
+	n := 0
+	for n < len(a) && n < len(b) && a[n] == b[n] {
+		n++
+	}
+	return n
+}
+
+// storeAbbreviations shortens against every ticket in the store, archived ones
+// included, because what a listing prints gets pasted into a command that
+// resolves against all of them.
+//
+// A failure here costs only brevity, so it falls back to full IDs rather than
+// failing a read the caller asked for.
+func storeAbbreviations(s *ticket.Store) map[string]string {
+	all, err := s.List(context.Background(), ticket.Filter{IncludeArchived: true})
+	if err != nil {
+		return nil
+	}
+	ids := make([]string, 0, len(all))
+	for _, t := range all {
+		ids = append(ids, t.ID)
+	}
+	return shortestUnique(ids)
 }
 
 // runInit creates a store in the repository, or wherever --store points.
@@ -122,6 +181,16 @@ func runCreate(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
+	// A dependency or a parent may be typed as a prefix, like every other ID
+	// this CLI takes.
+	deps := make([]string, 0, len(dependsOn))
+	for _, d := range dependsOn {
+		id, err := resolveID(s, d)
+		if err != nil {
+			return err
+		}
+		deps = append(deps, id)
+	}
 	opts := ticket.CreateOptions{
 		Title:        title,
 		Type:         kind,
@@ -129,11 +198,15 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Description:  description,
 		Labels:       labels,
 		Assignees:    assignees,
-		Dependencies: dependsOn,
+		Dependencies: deps,
 		Actor:        ctx.actor(s),
 	}
 	if parent != "" {
-		opts.Parent = &parent
+		id, err := resolveID(s, parent)
+		if err != nil {
+			return err
+		}
+		opts.Parent = &id
 	}
 
 	res, err := s.Create(context.Background(), opts)
@@ -234,8 +307,23 @@ func runList(ctx *cmdContext, args []string) error {
 		})
 		return nil
 	}
-	writeListHuman(ctx.out, tickets)
+	writeListHuman(ctx.out, tickets, storeAbbreviations(s))
 	return nil
+}
+
+// resolveID turns a user-typed reference into the canonical ID the library
+// takes.
+//
+// Plan 5.5 says any command taking an ID accepts a unique prefix, and the
+// library's mutations take full IDs, so the CLI is where one becomes the other.
+// Doing it here also means a prefix that names nothing fails with
+// ticket_not_found before any write is attempted.
+func resolveID(s *ticket.Store, ref string) (string, error) {
+	t, err := s.Get(context.Background(), ref)
+	if err != nil {
+		return "", err
+	}
+	return t.ID, nil
 }
 
 // runUpdate changes the fields of a ticket, per plan 12.1.
@@ -270,11 +358,9 @@ func runUpdate(ctx *cmdContext, args []string) error {
 		return usageErr("update takes one ticket ID and at least one flag")
 	}
 
-	// Which flags were given, as opposed to which are empty. --milestone ""
-	// clears the milestone, and no --milestone at all leaves it alone, so the
-	// zero value cannot stand in for absence.
-	given := map[string]bool{}
-	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	// --milestone "" clears the milestone and no --milestone at all leaves it
+	// alone, so the zero value cannot stand in for absence.
+	given := flagsGiven(fs)
 
 	if priority != "" && !ticket.ValidPriority(priority) {
 		return usageErr("%q is not one of %s", priority, strings.Join(ticket.Priorities, ", "))
@@ -346,6 +432,226 @@ func changedFields(given map[string]bool, rmLabels, addLabels, unassign, assign 
 	return out
 }
 
+// runLink adds a dependency or a reference, per plan 12.1.
+func runLink(ctx *cmdContext, args []string) error {
+	var (
+		fs        *flag.FlagSet
+		dependsOn string
+		ref       string
+		path      string
+	)
+	rest, err := ctx.parseFlags("link", args, func(f *flag.FlagSet) {
+		fs = f
+		f.StringVar(&dependsOn, "depends-on", "", "a ticket this one waits on")
+		f.StringVar(&ref, "ref", "", "a typed identifier, such as proposal:git-ticket")
+		f.StringVar(&path, "path", "", "a repository-relative path, with --ref")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("link takes one ticket ID")
+	}
+	given := flagsGiven(fs)
+	op, err := exactlyOne(given, "link", "depends-on", "ref")
+	if err != nil {
+		return err
+	}
+	if given["path"] && op != "ref" {
+		return usageErr("--path goes with --ref, which names the thing the path points at")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+
+	var (
+		m    ticket.Mutation
+		what string
+	)
+	if op == "depends-on" {
+		id, err := resolveID(s, dependsOn)
+		if err != nil {
+			return err
+		}
+		m = ticket.AddDependency{ID: id}
+		what = "depends on " + id
+	} else {
+		m = ticket.AddReference{Ref: ref, Path: clearable(path)}
+		what = "references " + ref
+		if path != "" {
+			what += " at " + path
+		}
+	}
+
+	res, err := ctx.applyTo(s, rest[0], m)
+	if err != nil {
+		return err
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s %s", res.Ticket.ID, what))
+}
+
+// runUnlink removes a dependency or a reference.
+//
+// Removing something that is not there succeeds and changes nothing but
+// updated_at, because what the caller asked for is already true.
+func runUnlink(ctx *cmdContext, args []string) error {
+	var (
+		fs        *flag.FlagSet
+		dependsOn string
+		ref       string
+	)
+	rest, err := ctx.parseFlags("unlink", args, func(f *flag.FlagSet) {
+		fs = f
+		f.StringVar(&dependsOn, "depends-on", "", "a dependency to drop")
+		f.StringVar(&ref, "ref", "", "a reference to drop")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("unlink takes one ticket ID")
+	}
+	op, err := exactlyOne(flagsGiven(fs), "unlink", "depends-on", "ref")
+	if err != nil {
+		return err
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+
+	var m ticket.Mutation
+	what := "no longer references " + ref
+	if op == "depends-on" {
+		// A prefix resolves against what this ticket actually depends on,
+		// rather than against the store. A dependency naming a ticket that no
+		// longer exists is exactly the dependency_missing that check reports,
+		// and unlink is how it gets repaired, so it has to stay removable.
+		t, err := s.Get(context.Background(), rest[0])
+		if err != nil {
+			return err
+		}
+		id := dependsOn
+		if resolved, err := ticket.ResolveRef(dependsOn, t.Dependencies); err == nil {
+			id = resolved
+		}
+		m = ticket.RemoveDependency{ID: id}
+		what = "no longer depends on " + id
+	} else {
+		m = ticket.RemoveReference{Ref: ref}
+	}
+
+	res, err := ctx.applyTo(s, rest[0], m)
+	if err != nil {
+		return err
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s %s", res.Ticket.ID, what))
+}
+
+// runDeps prints what a ticket waits on, or what waits on it.
+func runDeps(ctx *cmdContext, args []string) error {
+	var transitive, dependents bool
+	rest, err := ctx.parseFlags("deps", args, func(f *flag.FlagSet) {
+		f.BoolVar(&transitive, "transitive", false, "follow the graph, not just the direct edges")
+		f.BoolVar(&dependents, "dependents", false, "what waits on this ticket, rather than what it waits on")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("deps takes one ticket ID")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	tickets, err := s.Deps(context.Background(), rest[0], ticket.DepsOptions{
+		Transitive: transitive,
+		Dependents: dependents,
+	})
+	if err != nil {
+		return err
+	}
+
+	if ctx.g.json {
+		out := make([]*ticketJSON, 0, len(tickets))
+		for _, t := range tickets {
+			out = append(out, newTicketJSON(s, t))
+		}
+		writeJSON(ctx.out, ticketListEnvelope{
+			SchemaVersion: schemaVersion,
+			Kind:          "ticket-list",
+			Tickets:       out,
+		})
+		return nil
+	}
+	if len(tickets) == 0 {
+		if dependents {
+			fmt.Fprintln(ctx.out, "Nothing depends on it.")
+		} else {
+			fmt.Fprintln(ctx.out, "It depends on nothing.")
+		}
+		return nil
+	}
+	writeListHuman(ctx.out, tickets, storeAbbreviations(s))
+	return nil
+}
+
+// flagsGiven reports which flags were actually typed, as opposed to which hold
+// a zero value. A zero value is a legal instruction in several places here, so
+// emptiness cannot stand in for absence.
+func flagsGiven(fs *flag.FlagSet) map[string]bool {
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	return given
+}
+
+// exactlyOne picks the single operation a command was given, for a command
+// whose flags are alternatives rather than a set.
+//
+// Two of them names both rather than resolving by precedence: a caller who
+// typed two meant one, and silently picking one writes something nobody asked
+// for.
+func exactlyOne(given map[string]bool, command string, names ...string) (string, error) {
+	var chosen []string
+	for _, n := range names {
+		if given[n] {
+			chosen = append(chosen, n)
+		}
+	}
+	switch len(chosen) {
+	case 1:
+		return chosen[0], nil
+	case 0:
+		return "", usageErr("%s needs one of %s", command, joinFlags(names, "or"))
+	default:
+		return "", usageErr("%s takes one of %s, not %s",
+			command, joinFlags(names, "or"), joinFlags(chosen, "and"))
+	}
+}
+
+// joinFlags renders a list of flag names as prose: "--a, --b, or --c".
+func joinFlags(names []string, conjunction string) string {
+	words := make([]string, 0, len(names))
+	for _, n := range names {
+		words = append(words, "--"+n)
+	}
+	switch len(words) {
+	case 0:
+		return ""
+	case 1:
+		return words[0]
+	case 2:
+		return words[0] + " " + conjunction + " " + words[1]
+	default:
+		return strings.Join(words[:len(words)-1], ", ") + ", " + conjunction + " " + words[len(words)-1]
+	}
+}
+
 // runAC and runDoD are the same command over the two checklist sections of
 // plan 5.2. They differ by which section they edit and by nothing else.
 func runAC(ctx *cmdContext, args []string) error {
@@ -380,31 +686,16 @@ func runChecklist(ctx *cmdContext, name string, section ticket.ChecklistSection,
 	if len(rest) != 1 {
 		return usageErr("%s takes one ticket ID", name)
 	}
-	given := map[string]bool{}
-	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
-
-	// The three are alternatives, so asking for two is a mistake worth naming
-	// rather than resolving by precedence.
-	var chosen []string
-	for _, n := range []string{"add", "check", "uncheck"} {
-		if given[n] {
-			chosen = append(chosen, "--"+n)
-		}
-	}
-	switch len(chosen) {
-	case 0:
-		return usageErr("%s needs one of --add, --check, or --uncheck", name)
-	case 1:
-	default:
-		return usageErr("%s takes one of --add, --check, or --uncheck, not %s",
-			name, strings.Join(chosen, " and "))
+	op, err := exactlyOne(flagsGiven(fs), name, "add", "check", "uncheck")
+	if err != nil {
+		return err
 	}
 
 	var m ticket.Mutation
-	switch {
-	case given["add"]:
+	switch op {
+	case "add":
 		m = ticket.AddChecklistItem{Section: section, Text: add}
-	case given["check"]:
+	case "check":
 		m = ticket.SetChecklistItem{Section: section, Index: check, Checked: true}
 	default:
 		m = ticket.SetChecklistItem{Section: section, Index: uncheck, Checked: false}
@@ -728,14 +1019,18 @@ func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human 
 	return nil
 }
 
-func writeListHuman(w io.Writer, tickets []*ticket.Ticket) {
+func writeListHuman(w io.Writer, tickets []*ticket.Ticket, short map[string]string) {
 	if len(tickets) == 0 {
 		fmt.Fprintln(w, "No tickets match.")
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for _, t := range tickets {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", abbreviate(t.ID), t.Status, t.Priority, t.Title)
+		id, ok := short[t.ID]
+		if !ok {
+			id = t.ID
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", id, t.Status, t.Priority, t.Title)
 	}
 	tw.Flush()
 }

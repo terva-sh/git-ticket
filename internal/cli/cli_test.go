@@ -387,11 +387,12 @@ func TestHumanOutput(t *testing.T) {
 	if list.code != exitOK {
 		t.Fatalf("list: %s", list.stderr)
 	}
-	// A listing abbreviates the ID. What it prints has to resolve, which is
-	// the whole point of accepting a prefix.
-	abbrev := abbreviate(id)
-	if !strings.Contains(list.stdout, abbrev) {
-		t.Errorf("listing does not show the abbreviated ID %s:\n%s", abbrev, list.stdout)
+	// A listing abbreviates the ID. Take what it actually printed rather than
+	// recomputing it, because the property under test is that the text on the
+	// screen resolves.
+	abbrev := strings.Fields(list.stdout)[0]
+	if !strings.HasPrefix(id, abbrev) {
+		t.Errorf("listing shows %q, which is not a prefix of %s", abbrev, id)
 	}
 	if !strings.Contains(list.stdout, "Rotate the signing key") {
 		t.Errorf("listing does not show the title:\n%s", list.stdout)

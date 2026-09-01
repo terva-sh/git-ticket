@@ -277,7 +277,7 @@ repository and before `init`.
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
 | 2 | Standalone CLI with `--json` | Done, tagged `v0.1.0`. All 24 commands, and both exit criteria met |
-| 3 | Terva integration | Unblocked by `v0.1.0`. Tracked in terva |
+| 3 | Terva integration | Started. `v0.2.0` exports the `cli` package terva embeds. Tracked in terva |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
 The two questions that blocked Phase 1 are settled. A `blocked` reason lives in

@@ -884,6 +884,14 @@ Concurrency:
    `unarchive` loses the reason with nothing left to say why. Unarchiving
    already writes a `Notes` entry carrying `from_status`, which makes the gap
    look unintended rather than decided. Found by the Phase 2 lifecycle test.
+8. Whether `update` should also carry `--type` and `--parent`. `create` accepts
+   both and 12.1 lists neither on `update`, so a bug filed that turns out to be
+   a chore, or a ticket that belongs under a different epic, can only be
+   corrected by editing the file. Hand-editing is supported, so this is not a
+   dead end, but every other field `create` sets has an `update` flag. The
+   library already has `SetType` and `SetParent`, and `SetParent` checks that
+   the parent exists and refuses a self-reference, so the work is the flags
+   alone. Found while implementing `update` in Phase 2.
 
 Three questions have left this list, and the numbers have closed up behind them.
 Where a `blocked` reason lives is answered by `status_reason` in 5.1 and 6.2:

@@ -130,16 +130,31 @@ git ticket create --title "Refresh fails when the clock jumps backward" \
 git ticket list --status ready --type bug
 git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
 
+git ticket update TKT-01K3ZZ2J --priority urgent --add-label crypto
+git ticket ac TKT-01K3ZZ2J --add "The verifier accepts either key"
+
 git ticket status TKT-01K3ZZ2J ready
 git ticket claim TKT-01K3ZZ2J     # records your branch and HEAD
 git ticket status TKT-01K3ZZ2J in-progress
+git ticket ac TKT-01K3ZZ2J --check 1
 git ticket status TKT-01K3ZZ2J done
 git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 
 git ticket check --strict         # safe in CI: offline, read-only
 ```
 
-`release` and `unarchive` undo the two that are undoable.
+`release` and `unarchive` undo the two that are undoable, and `dod` edits the
+definition of done exactly as `ac` edits the acceptance criteria.
+
+`update` takes as many flags as you like and applies them as one write. Either
+all of them land or none do, so an update that fails partway leaves a ticket in
+a state somebody typed rather than half of one. An empty value clears a field
+and an absent flag leaves it alone, so `--milestone ""` and no `--milestone` at
+all are different instructions.
+
+The number `ac --check N` takes counts checkbox lines from one, not lines and
+not array positions. A section can hold prose above its list and still number
+its items 1, 2, 3, and editing a box leaves that prose alone.
 
 A status moves along the table in plan 6.2 and refuses anything else, naming
 where the ticket may go instead. Entering `blocked` needs `--reason`, and so
@@ -188,7 +203,7 @@ whether or not it passed `--strict`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | The ticket lifecycle works; `update`, `link`, `ac`, `note`, and the rest of 12.1 remain |
+| 2 | Standalone CLI with `--json` | The lifecycle, fields, and checklists work; `link`, `note`, `deps`, and the rest of 12.1 remain |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
@@ -209,11 +224,15 @@ between `errors` and `warnings`, because those arrays report severity as the
 format defines it. Strictness is a policy on top, visible in `ok` and the exit
 status alone, so `ok` can be false with an empty `errors` array.
 
-The lifecycle commands opened one, recorded as plan question 15.7. An archive
+Two questions are open from writing the commands. Plan question 15.7: an archive
 reason lives only in the `archive` block, and unarchiving deletes that block, so
 `archive --reason` followed by `unarchive` loses the reason. A status reason is
 written to `Notes` precisely so it survives the field being cleared, which makes
 the gap look unintended rather than decided.
+
+Plan question 15.8: `update` carries no `--type` or `--parent`, though `create`
+accepts both and the library already has the mutations. Changing either one
+means editing the file today.
 
 ## Reading order
 

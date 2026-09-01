@@ -238,6 +238,221 @@ func runList(ctx *cmdContext, args []string) error {
 	return nil
 }
 
+// runUpdate changes the fields of a ticket, per plan 12.1.
+//
+// Everything the caller asked for lands as one write, or none of it does. A
+// half-applied update would leave a ticket in a state nobody typed.
+func runUpdate(ctx *cmdContext, args []string) error {
+	var (
+		fs        *flag.FlagSet
+		title     string
+		priority  string
+		milestone string
+		addLabels stringList
+		rmLabels  stringList
+		assign    stringList
+		unassign  stringList
+	)
+	rest, err := ctx.parseFlags("update", args, func(f *flag.FlagSet) {
+		fs = f
+		f.StringVar(&title, "title", "", "a new title")
+		f.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
+		f.StringVar(&milestone, "milestone", "", "a milestone, or empty to clear it")
+		f.Var(&addLabels, "add-label", "a label to add, repeatable")
+		f.Var(&rmLabels, "remove-label", "a label to remove, repeatable")
+		f.Var(&assign, "assign", "an assignee to add, repeatable")
+		f.Var(&unassign, "unassign", "an assignee to remove, repeatable")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("update takes one ticket ID and at least one flag")
+	}
+
+	// Which flags were given, as opposed to which are empty. --milestone ""
+	// clears the milestone, and no --milestone at all leaves it alone, so the
+	// zero value cannot stand in for absence.
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+
+	if priority != "" && !ticket.ValidPriority(priority) {
+		return usageErr("%q is not one of %s", priority, strings.Join(ticket.Priorities, ", "))
+	}
+
+	// Removals run before additions, so --remove-label x --add-label x ends
+	// with the label present whichever order they were typed in.
+	var ms ticket.Mutations
+	if given["title"] {
+		ms = append(ms, ticket.SetTitle{Title: title})
+	}
+	if given["priority"] {
+		ms = append(ms, ticket.SetPriority{Priority: priority})
+	}
+	if given["milestone"] {
+		ms = append(ms, ticket.SetMilestone{Milestone: clearable(milestone)})
+	}
+	for _, l := range rmLabels {
+		ms = append(ms, ticket.RemoveLabel{Label: l})
+	}
+	for _, l := range addLabels {
+		ms = append(ms, ticket.AddLabel{Label: l})
+	}
+	for _, a := range unassign {
+		ms = append(ms, ticket.Unassign{Actor: a})
+	}
+	for _, a := range assign {
+		ms = append(ms, ticket.Assign{Actor: a})
+	}
+	if len(ms) == 0 {
+		return usageErr("update needs something to change; run `git ticket help`")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := ctx.applyTo(s, rest[0], ms)
+	if err != nil {
+		return err
+	}
+	return ctx.writeMutation(s, res, fmt.Sprintf("%s updated: %s",
+		res.Ticket.ID, strings.Join(changedFields(given, rmLabels, addLabels, unassign, assign), ", ")))
+}
+
+// clearable turns an empty flag value into the nil that clears a field.
+func clearable(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
+// changedFields names what an update touched, so the one human line says what
+// happened rather than only that something did.
+func changedFields(given map[string]bool, rmLabels, addLabels, unassign, assign stringList) []string {
+	var out []string
+	for _, name := range []string{"title", "priority", "milestone"} {
+		if given[name] {
+			out = append(out, name)
+		}
+	}
+	if len(rmLabels)+len(addLabels) > 0 {
+		out = append(out, "labels")
+	}
+	if len(unassign)+len(assign) > 0 {
+		out = append(out, "assignees")
+	}
+	return out
+}
+
+// runAC and runDoD are the same command over the two checklist sections of
+// plan 5.2. They differ by which section they edit and by nothing else.
+func runAC(ctx *cmdContext, args []string) error {
+	return runChecklist(ctx, "ac", ticket.AcceptanceCriteria, args)
+}
+
+func runDoD(ctx *cmdContext, args []string) error {
+	return runChecklist(ctx, "dod", ticket.DefinitionOfDone, args)
+}
+
+// runChecklist adds, checks, or unchecks one item.
+//
+// The index counts checkbox lines from one, per plan 10.1, which is not the
+// same as a line number or an array position: a section may hold prose above
+// the list and still number its items 1, 2, 3.
+func runChecklist(ctx *cmdContext, name string, section ticket.ChecklistSection, args []string) error {
+	var (
+		fs      *flag.FlagSet
+		add     string
+		check   int
+		uncheck int
+	)
+	rest, err := ctx.parseFlags(name, args, func(f *flag.FlagSet) {
+		fs = f
+		f.StringVar(&add, "add", "", "append an unchecked item")
+		f.IntVar(&check, "check", 0, "check item N, counting from 1")
+		f.IntVar(&uncheck, "uncheck", 0, "uncheck item N, counting from 1")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("%s takes one ticket ID", name)
+	}
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+
+	// The three are alternatives, so asking for two is a mistake worth naming
+	// rather than resolving by precedence.
+	var chosen []string
+	for _, n := range []string{"add", "check", "uncheck"} {
+		if given[n] {
+			chosen = append(chosen, "--"+n)
+		}
+	}
+	switch len(chosen) {
+	case 0:
+		return usageErr("%s needs one of --add, --check, or --uncheck", name)
+	case 1:
+	default:
+		return usageErr("%s takes one of --add, --check, or --uncheck, not %s",
+			name, strings.Join(chosen, " and "))
+	}
+
+	var m ticket.Mutation
+	switch {
+	case given["add"]:
+		m = ticket.AddChecklistItem{Section: section, Text: add}
+	case given["check"]:
+		m = ticket.SetChecklistItem{Section: section, Index: check, Checked: true}
+	default:
+		m = ticket.SetChecklistItem{Section: section, Index: uncheck, Checked: false}
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := ctx.applyTo(s, rest[0], m)
+	if err != nil {
+		return err
+	}
+
+	if ctx.g.json {
+		return ctx.writeMutation(s, res, "")
+	}
+	// A person who just changed a checklist wants to see the checklist, with
+	// the numbers the next command will take.
+	fmt.Fprintf(ctx.out, "%s  %s\n", res.Ticket.ID, strings.ToLower(string(section)))
+	writeChecklist(ctx.out, sectionText(res.Ticket, section))
+	return nil
+}
+
+func sectionText(t *ticket.Ticket, section ticket.ChecklistSection) string {
+	if section == ticket.DefinitionOfDone {
+		return t.Body.DefinitionOfDone
+	}
+	return t.Body.AcceptanceCriteria
+}
+
+func writeChecklist(w io.Writer, text string) {
+	items := ticket.Checklist(text)
+	if len(items) == 0 {
+		fmt.Fprintln(w, "  (empty)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', 0)
+	for i, item := range items {
+		mark := " "
+		if item.Checked {
+			mark = "x"
+		}
+		fmt.Fprintf(tw, "  %d\t[%s]\t%s\n", i+1, mark, item.Text)
+	}
+	tw.Flush()
+}
+
 // runStatus moves a ticket through the lifecycle of plan 6.2.
 //
 // The transition table lives in the library, so a refusal here is

@@ -11,14 +11,14 @@ renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
 Phase 2, the standalone CLI in section 12.1, is under way. `cmd/git-ticket` and
-`internal/cli` carry `init`, `create`, `show`, `list`, `status`, `claim`,
-`release`, `archive`, `unarchive`, and `check`, each in a human form and behind
-`--json`. All five JSON kinds of section 10 have a test, and every write honours
-`--if-revision`.
+`internal/cli` carry `init`, `create`, `update`, `show`, `list`, `status`,
+`claim`, `release`, `ac`, `dod`, `archive`, `unarchive`, and `check`, each in a
+human form and behind `--json`. All five JSON kinds of section 10 have a test,
+and every write honours `--if-revision`.
 
-That is the whole ticket lifecycle. What remains in 12.1 is the field and body
-surface: `update`, `search`, `ready`, `link`, `unlink`, `ac`, `dod`, `note`,
-`comment`, `summary`, `deps`, `files`, `instructions`, and `schema`.
+That is the lifecycle, the fields, and the checklists. What remains in 12.1 is
+`search`, `ready`, `link`, `unlink`, `note`, `comment`, `summary`, `deps`,
+`files`, `instructions`, and `schema`.
 
 The exit criterion about a scripted end-to-end run is met by `TestLifecycle` in
 `internal/cli/lifecycle_test.go`. The other, `git ticket check` green in CI,
@@ -109,6 +109,12 @@ A path printed to a person goes through `displayPath`, never `filepath.Rel`
 alone. On macOS a temporary directory is reached through `/var`, a symlink to
 `/private/var`, so `git rev-parse --show-toplevel` answers in one name space and
 the store path is in another. `displayPath` retries through `EvalSymlinks`.
+
+A flag whose zero value is a legal instruction needs `fs.Visit`, not a check
+for emptiness. `update --milestone ""` clears the field and no `--milestone` at
+all leaves it alone, and both arrive as an empty string. `runUpdate` and
+`runChecklist` capture the `*flag.FlagSet` in their register closure to read
+which flags were actually given.
 
 `displayPath` handles a path that no longer exists, through `evalExisting`. A
 mutation that moves a file reports the old location after deleting it, and

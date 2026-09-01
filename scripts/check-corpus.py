@@ -172,14 +172,10 @@ def main():
         note(f"sidecars use codes section 11 does not define: {sorted(unknown)}")
 
     uncovered = codes - used
-    # Deferred question 9: nothing says what a references path resolves
-    # against, so a fixture would invent the answer.
-    expected_uncovered = {"reference_path_unresolved"}
-    if uncovered - expected_uncovered:
-        note(f"section 11 codes with no fixture: {sorted(uncovered - expected_uncovered)}")
+    if uncovered:
+        note(f"section 11 codes with no fixture: {sorted(uncovered)}")
 
-    print(f"{len(fixtures)} fixtures, {len(codes)} codes, {len(used & codes)} covered, "
-          f"{len(uncovered)} deferred")
+    print(f"{len(fixtures)} fixtures, {len(codes)} codes, {len(used & codes)} covered")
     for p in problems:
         print(f"  {p}")
     print("corpus OK" if not problems else f"{len(problems)} problem(s)")

@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "reference_path_unresolved",
+      "file": "tickets/TKT-01K400N4B0R7XKPV3M8ZQD5T2E.md",
+      "ticket": "TKT-01K400N4B0R7XKPV3M8ZQD5T2E",
+      "field": "references.path"
+    }
+  ]
+}

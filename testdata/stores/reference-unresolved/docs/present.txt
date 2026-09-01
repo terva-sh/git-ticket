@@ -1,0 +1,10 @@
+The resolvable half of the reference-unresolved fixture.
+
+The case directory stands in for the repository root, so the ticket's
+`docs/present.txt` reference resolves to this file and produces no finding. Its
+`docs/missing.md` reference has nothing to resolve to, and that is the one the
+expectation records.
+
+This file is deliberately not Markdown. Every .md file under testdata/ is a
+ticket fixture, and a stray one here would be checked as a ticket that has no
+frontmatter.

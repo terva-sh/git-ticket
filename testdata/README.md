@@ -19,12 +19,19 @@ testdata/
 └── stores/
     └── <case>/
         ├── store/     a whole store, because the finding spans files
-        └── expected.json
+        ├── expected.json
+        └── ...         anything else stands in for the repository root
 ```
 
 The split is not cosmetic. `duplicate_id`, `dependency_cycle`, and
 `archive_location_mismatch` cannot be expressed in a single file, so they need a
 store. Everything else is cheaper to state and read as one file.
+
+The case directory is the repository root for its store, which is what a
+`references` path resolves against under 5.5. Only `reference-unresolved` uses
+this, with a `docs/present.txt` that resolves beside a `docs/missing.md` that
+does not. A test injects that root rather than running `git rev-parse`, so an
+expectation never depends on where this repository is checked out.
 
 ## Every fixture carries its expectation
 

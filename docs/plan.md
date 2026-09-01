@@ -859,19 +859,55 @@ type Result struct {
 `Mutation` is a typed set of operations rather than a struct of pointers, so
 "set the title to empty" and "do not touch the title" cannot be confused.
 
+A second package, `github.com/terva-sh/git-ticket/cli`, exports the whole
+command surface for a host that wants the commands rather than the library:
+
+```go
+package cli
+
+func Run(args []string, env Env) int
+
+type Env struct {
+    Dir    string
+    Getenv func(string) string
+    Stdout io.Writer
+    Stderr io.Writer
+    Now    func() time.Time // nil means the real clock
+}
+```
+
+That is the entire API: two identifiers behind every command in 12.1, both
+output modes, and the exit statuses in 10.2. `cmd/git-ticket/main.go` is the
+reference caller and does nothing else, so a host embedding the commands runs
+the same code path a person at a terminal does.
+
+It is exported rather than internal because of what the alternative costs. A
+host that cannot import this has to write flag parsing, rendering, and error
+mapping over `ticket` a second time, which is the second parser 12.1 exists to
+prevent, and it drifts from the day it is written. Terva is the first such host
+and the reason this moved; a shell alias or another agent harness gets the same
+benefit. `Env` was already fully injectable before the move, because the tests
+drive `Run` through it.
+
+The two packages answer different questions and a caller usually wants one of
+them, not both. Use `cli` for a command surface, where the result is rendered
+text and an exit status. Use `ticket` for structured values, which is what a
+tool or a UI needs. Terva does both: `terva ticket` calls `cli.Run`, and the
+`ticket_*` tools call the store directly.
+
 Package layout:
 
 ```text
 git-ticket/
-├── cmd/git-ticket/     the binary
+├── cmd/git-ticket/     the binary, and the reference caller for cli
 ├── ticket/             the public library
-├── internal/cli/       flag parsing and human rendering
+├── cli/                the public command surface: flag parsing and rendering
 ├── testdata/fixtures/  the corpus from Phase 0
 └── docs/plan.md
 ```
 
 The library must not import a CLI framework, and nothing in `ticket/` may import
-terva.
+terva. `cli` may import `ticket`, and never the reverse.
 
 ### 12.3 Optional stdio adapter
 

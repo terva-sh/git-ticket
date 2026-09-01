@@ -1,15 +1,20 @@
 // Command git-ticket is the standalone CLI for a git-ticket store. Git finds it
 // on PATH, so `git ticket list` and `git-ticket list` are the same command.
 //
-// Everything it does lives in internal/cli and in the ticket package. This file
-// only supplies the process: the working directory, the environment, the
-// streams, and the exit status.
+// Everything it does lives in the cli and ticket packages. This file only
+// supplies the process: the working directory, the environment, the streams,
+// and the exit status.
+//
+// It is also the reference caller for cli.Run, which is exported so a host can
+// embed the whole command surface. Terva does exactly this for `terva ticket`.
+// Keep this function trivial: anything it grows is something an embedding host
+// silently does not get.
 package main
 
 import (
 	"os"
 
-	"github.com/terva-sh/git-ticket/internal/cli"
+	"github.com/terva-sh/git-ticket/cli"
 )
 
 func main() {

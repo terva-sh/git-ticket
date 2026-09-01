@@ -437,8 +437,10 @@ func TestPathsAreRepositoryRelative(t *testing.T) {
 	}
 }
 
-// corpusDir is the fixture corpus, shared with the ticket package.
-const corpusDir = "../../testdata"
+// corpusDir is the fixture corpus, shared with the ticket package. One level
+// up, because this package sits at the repository root rather than under
+// internal/.
+const corpusDir = "../testdata"
 
 type sidecarFinding struct {
 	Code   string  `json:"code"`
@@ -540,7 +542,7 @@ func TestCheckAgreesWithTheCorpus(t *testing.T) {
 // repoRoot is where this package's tests run from, back up to the repository
 // root. A path in the envelope is relative to that, so joining the two has to
 // name a real file.
-const repoRoot = "../.."
+const repoRoot = ".."
 
 // compareToSidecar holds the emitted findings to the reviewed ones. The sidecar
 // records a store-relative file and the CLI emits a repository-relative one.

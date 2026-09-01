@@ -1,6 +1,17 @@
 // Package cli is the flag parsing and the human rendering for git-ticket.
 // Every decision it makes about the format or the store belongs to the ticket
 // package; this package only turns arguments into calls and results into text.
+//
+// It is exported so a host can embed the whole command surface instead of
+// writing a second one. Run is the only entry point and Env is the only
+// configuration, so `terva ticket list` and `git ticket list` are the same
+// code reached two ways. A host that cannot import this has to reimplement
+// flag parsing, rendering, and error mapping over the ticket package, which is
+// the second parser plan 12.1 exists to prevent. See plan 12.2.
+//
+// For structured values rather than rendered text, import the ticket package
+// directly. Run returns an exit status and writes to Env's streams, which is
+// what a command wants and not what a tool wants.
 package cli
 
 import (

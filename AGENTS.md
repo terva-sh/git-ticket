@@ -11,20 +11,20 @@ renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
 Phase 2, the standalone CLI in section 12.1, has all 24 commands. `cmd/git-ticket`
-and `internal/cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
+and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 `ready`, `status`, `claim`, `release`, `link`, `unlink`, `deps`, `files`, `ac`,
 `dod`, `note`, `comment`, `summary`, `archive`, `unarchive`, `check`, `schema`,
 and `instructions`, each in a human form and behind `--json`. All seven JSON
 kinds of section 10 have a test, and every write honours `--if-revision`.
 
-The agent workflow block lives at `internal/cli/instructions.md`, embedded with
+The agent workflow block lives at `cli/instructions.md`, embedded with
 `go:embed`. Edit the Markdown, not a Go string.
 `TestInstructionsNameRealCommands` holds every command and flag it names to what
 the binary has, because prose telling a reader to run something that does not
 exist is worse than no prose.
 
 Both Phase 2 exit criteria are met. The scripted end-to-end run is
-`TestLifecycle` in `internal/cli/lifecycle_test.go`. The other is `git ticket
+`TestLifecycle` in `cli/lifecycle_test.go`. The other is `git ticket
 check --strict` green in this repository's own CI, which run 4 did on `45b73c0`
 in 29 seconds. Runs 1 through 3 were red, every one of them for the instance
 convention in Gotchas below rather than for anything the workflow runs.
@@ -103,7 +103,7 @@ them. Sections 4 through 11 are the format itself.
 it.
 
 `cmd/git-ticket/` is a thin `main` and holds no decisions. Every choice about
-flags, output, and exit status lives in `internal/cli/`, where the tests can
+flags, output, and exit status lives in `cli/`, where the tests can
 reach it: `Run(args, Env)` takes the directory, the environment, both streams,
 and the clock as arguments rather than reading process state.
 
@@ -170,7 +170,7 @@ sidecars follow. That is intended. The corpus and the spec are one artifact.
 
 The standard library's `flag.Parse` stops at the first non-flag word, so a
 naive parse never sees the `--json` in `git ticket show ID --json`. `parseFlags`
-in `internal/cli/cli.go` loops instead, consuming one positional per pass. Plan
+in `cli/cli.go` loops instead, consuming one positional per pass. Plan
 12.1 requires both orders.
 
 A path printed to a person goes through `displayPath`, never `filepath.Rel`
@@ -210,7 +210,7 @@ the assertion passes for the wrong reason.
 
 A `ticket.Finding` names its file relative to the store, and the `.expected.json`
 sidecars record that form, but every path in the JSON contract is relative to
-the repository root. `findings()` in `internal/cli/json.go` converts. A test
+the repository root. `findings()` in `cli/json.go` converts. A test
 that only matches the path suffix passes either way, so
 `TestCheckAgreesWithTheCorpus` stats the path from the repository root instead.
 

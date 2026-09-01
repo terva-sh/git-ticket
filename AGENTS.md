@@ -12,13 +12,13 @@ precondition.
 
 Phase 2, the standalone CLI in section 12.1, is under way. `cmd/git-ticket` and
 `internal/cli` carry `init`, `create`, `update`, `show`, `list`, `status`,
-`claim`, `release`, `ac`, `dod`, `archive`, `unarchive`, and `check`, each in a
-human form and behind `--json`. All five JSON kinds of section 10 have a test,
-and every write honours `--if-revision`.
+`claim`, `release`, `link`, `unlink`, `deps`, `ac`, `dod`, `archive`,
+`unarchive`, and `check`, each in a human form and behind `--json`. All five
+JSON kinds of section 10 have a test, and every write honours `--if-revision`.
 
-That is the lifecycle, the fields, and the checklists. What remains in 12.1 is
-`search`, `ready`, `link`, `unlink`, `note`, `comment`, `summary`, `deps`,
-`files`, `instructions`, and `schema`.
+That is the lifecycle, the fields, the checklists, and the graph. What remains
+in 12.1 is `search`, `ready`, `note`, `comment`, `summary`, `files`,
+`instructions`, and `schema`.
 
 The exit criterion about a scripted end-to-end run is met by `TestLifecycle` in
 `internal/cli/lifecycle_test.go`. The other, `git ticket check` green in CI,
@@ -109,6 +109,23 @@ A path printed to a person goes through `displayPath`, never `filepath.Rel`
 alone. On macOS a temporary directory is reached through `/var`, a symlink to
 `/private/var`, so `git rev-parse --show-toplevel` answers in one name space and
 the store path is in another. `displayPath` retries through `EvalSymlinks`.
+
+The library takes canonical IDs; the CLI turns what a person typed into one.
+Plan 5.5 says any command taking an ID accepts a unique prefix, so anything
+passing an ID into a mutation goes through `resolveID` first. `create` shipped
+without that and rejected a valid prefix with `dependency_missing`.
+
+`unlink --depends-on` is the exception: it resolves against the ticket's own
+dependency list, not the store. A dependency naming a ticket that does not
+exist is the `dependency_missing` that `check` reports, and `unlink` is the
+repair, so resolving through the store would make it unrepairable.
+
+A listing never abbreviates an ID to a fixed width. A ULID opens with ten
+characters of timestamp, so tickets created in the same millisecond are
+identical that far in and a fixed eight printed the same prefix on several
+rows. `shortestUnique` shortens to what actually resolves across the store.
+For the same reason, a test must not assume ID sort order matches creation
+order within a millisecond: compare as a set.
 
 A flag whose zero value is a legal instruction needs `fs.Visit`, not a check
 for emptiness. `update --milestone ""` clears the field and no `--milestone` at

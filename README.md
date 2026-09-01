@@ -132,6 +132,9 @@ git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
 
 git ticket update TKT-01K3ZZ2J --priority urgent --add-label crypto
 git ticket ac TKT-01K3ZZ2J --add "The verifier accepts either key"
+git ticket link TKT-01K3ZZ2J --depends-on TKT-01K4001C
+git ticket link TKT-01K3ZZ2J --ref proposal:git-ticket --path docs/plan.md
+git ticket deps TKT-01K3ZZ2J --transitive
 
 git ticket status TKT-01K3ZZ2J ready
 git ticket claim TKT-01K3ZZ2J     # records your branch and HEAD
@@ -155,6 +158,20 @@ all are different instructions.
 The number `ac --check N` takes counts checkbox lines from one, not lines and
 not array positions. A section can hold prose above its list and still number
 its items 1, 2, 3, and editing a box leaves that prose alone.
+
+`link` takes one of `--depends-on` or `--ref`, and `--path` goes with the
+second, because a path with no reference names nothing. `unlink` is the reverse,
+and removing something that is not there succeeds rather than complaining.
+
+`deps` walks dependencies, `--transitive` follows the chain, and `--dependents`
+walks it backwards to what is waiting on this ticket. A dependency cycle is a
+state a store can genuinely be in, so the walk terminates on one and reports
+what it found; `check` is where you are told the cycle exists.
+
+Anywhere an ID is taken, a unique prefix works, with or without the `TKT-`
+part, and four characters is the minimum. A listing shortens each ID to the
+fewest characters that still resolve, so what you read off the screen is what
+you can type back.
 
 A status moves along the table in plan 6.2 and refuses anything else, naming
 where the ticket may go instead. Entering `blocked` needs `--reason`, and so
@@ -203,7 +220,7 @@ whether or not it passed `--strict`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | The lifecycle, fields, and checklists work; `link`, `note`, `deps`, and the rest of 12.1 remain |
+| 2 | Standalone CLI with `--json` | Lifecycle, fields, checklists, and links work; `search`, `ready`, `note`, `files`, `instructions`, `schema` remain |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 

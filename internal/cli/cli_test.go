@@ -436,6 +436,269 @@ func TestPathsAreRepositoryRelative(t *testing.T) {
 	}
 }
 
+// corpusDir is the fixture corpus, shared with the ticket package.
+const corpusDir = "../../testdata"
+
+type sidecarFinding struct {
+	Code   string  `json:"code"`
+	File   string  `json:"file"`
+	Ticket *string `json:"ticket"`
+	Field  *string `json:"field"`
+}
+
+type expectation struct {
+	Errors   []sidecarFinding `json:"errors"`
+	Warnings []sidecarFinding `json:"warnings"`
+}
+
+// TestCheckReportKind is the last of the five kinds in plan section 10.
+func TestCheckReportKind(t *testing.T) {
+	dir := newStore(t)
+	createTicket(t, dir)
+
+	got := runCLI(t, dir, nil, "--json", "check")
+	if got.code != exitOK {
+		t.Fatalf("a store this command just wrote should pass: %s%s", got.stdout, got.stderr)
+	}
+	envelope := decode(t, got.stdout)
+	if envelope["kind"] != "check-report" {
+		t.Errorf("kind = %v, want check-report", envelope["kind"])
+	}
+	if envelope["ok"] != true {
+		t.Errorf("ok = %v, want true", envelope["ok"])
+	}
+	for _, key := range []string{"errors", "warnings"} {
+		v, present := envelope[key]
+		if !present {
+			t.Errorf("%q is missing; an absent collection is [] and never omitted", key)
+			continue
+		}
+		if arr, isArray := v.([]any); !isArray || len(arr) != 0 {
+			t.Errorf("%q = %v, want an empty array", key, v)
+		}
+	}
+}
+
+// TestCheckAgreesWithTheCorpus runs the CLI over every fixture store and holds
+// it to the sidecar a person reviewed. It also pins the invariant of plan 10.3
+// that ok is true exactly when the command exited zero.
+func TestCheckAgreesWithTheCorpus(t *testing.T) {
+	cases, err := os.ReadDir(filepath.Join(corpusDir, "stores"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cases {
+		if !c.IsDir() {
+			continue
+		}
+		t.Run(c.Name(), func(t *testing.T) {
+			caseDir := filepath.Join(corpusDir, "stores", c.Name())
+			var exp expectation
+			raw, err := os.ReadFile(filepath.Join(caseDir, "expected.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(raw, &exp); err != nil {
+				t.Fatal(err)
+			}
+
+			got := runCLI(t, caseDir, nil, "--json", "--store", filepath.Join(caseDir, "store"), "check")
+			envelope := decode(t, got.stdout)
+			if envelope["kind"] != "check-report" {
+				t.Fatalf("kind = %v, want check-report", envelope["kind"])
+			}
+
+			// ok mirrors the exit status, whatever the findings are.
+			if ok := envelope["ok"] == true; ok != (got.code == exitOK) {
+				t.Errorf("ok = %v but exit = %d; plan 10.3 makes them the same fact", envelope["ok"], got.code)
+			}
+			// A store with errors fails. Warnings alone do not, without --strict.
+			if want := exitOK; len(exp.Errors) == 0 && got.code != want {
+				t.Errorf("exit = %d, want %d for a store with no errors", got.code, want)
+			}
+			if len(exp.Errors) > 0 && got.code != exitError {
+				t.Errorf("exit = %d, want %d for a store with errors", got.code, exitError)
+			}
+
+			// reference_path_unresolved is the one check that depends on where
+			// the store sits, per plan 11. The library test injects the case
+			// directory as the repository root so the fixture's own
+			// docs/present.txt resolves. The CLI takes the root from git and
+			// finds this repository instead, where neither path exists, so it
+			// reports both references rather than one. Comparing findings here
+			// would assert the checkout layout, not the CLI.
+			if c.Name() == "reference-unresolved" {
+				return
+			}
+			compareToSidecar(t, "errors", exp.Errors, envelope["errors"].([]any))
+			compareToSidecar(t, "warnings", exp.Warnings, envelope["warnings"].([]any))
+		})
+	}
+}
+
+// repoRoot is where this package's tests run from, back up to the repository
+// root. A path in the envelope is relative to that, so joining the two has to
+// name a real file.
+const repoRoot = "../.."
+
+// compareToSidecar holds the emitted findings to the reviewed ones. The sidecar
+// records a store-relative file and the CLI emits a repository-relative one.
+func compareToSidecar(t *testing.T, label string, want []sidecarFinding, got []any) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Errorf("%s: got %d findings, want %d\n%v", label, len(got), len(want), got)
+		return
+	}
+	for i, w := range want {
+		g := got[i].(map[string]any)
+		if g["code"] != w.Code {
+			t.Errorf("%s[%d] code = %v, want %v", label, i, g["code"], w.Code)
+		}
+		file, _ := g["file"].(string)
+		if !strings.HasSuffix(file, w.File) {
+			t.Errorf("%s[%d] file = %q, want it to end with %q", label, i, file, w.File)
+		}
+		if filepath.IsAbs(file) {
+			t.Errorf("%s[%d] file = %q, want it relative to the repository root", label, i, file)
+		}
+		// The path has to name the file from the repository root, which is
+		// what makes it useful to a person or an editor. A suffix match alone
+		// would still pass if the CLI forgot to convert the store-relative
+		// path the library reports.
+		if _, err := os.Stat(filepath.Join(repoRoot, file)); err != nil {
+			t.Errorf("%s[%d] file = %q, which does not resolve from the repository root: %v",
+				label, i, file, err)
+		}
+		if !sameOptional(g["ticket"], w.Ticket) {
+			t.Errorf("%s[%d] ticket = %v, want %v", label, i, g["ticket"], derefOr(w.Ticket))
+		}
+		if !sameOptional(g["field"], w.Field) {
+			t.Errorf("%s[%d] field = %v, want %v", label, i, g["field"], derefOr(w.Field))
+		}
+	}
+}
+
+func sameOptional(got any, want *string) bool {
+	if want == nil {
+		return got == nil
+	}
+	return got == *want
+}
+
+func derefOr(s *string) any {
+	if s == nil {
+		return nil
+	}
+	return *s
+}
+
+// TestCheckStrictChangesTheVerdictNotTheArrays is the decision recorded in plan
+// 10.3: --strict is a policy on top of the report, so a promoted warning stays
+// a warning and only ok and the exit status move.
+func TestCheckStrictChangesTheVerdictNotTheArrays(t *testing.T) {
+	// label-unknown carries one warning and no errors, which is the case the
+	// flag exists for.
+	store := filepath.Join(corpusDir, "stores", "label-unknown", "store")
+
+	lenient := runCLI(t, ".", nil, "--json", "--store", store, "check")
+	if lenient.code != exitOK {
+		t.Errorf("exit = %d, want %d: a warning alone does not fail", lenient.code, exitOK)
+	}
+	lenientEnvelope := decode(t, lenient.stdout)
+	if lenientEnvelope["ok"] != true {
+		t.Errorf("ok = %v, want true", lenientEnvelope["ok"])
+	}
+
+	strict := runCLI(t, ".", nil, "--json", "--store", store, "check", "--strict")
+	if strict.code != exitError {
+		t.Errorf("exit = %d, want %d under --strict", strict.code, exitError)
+	}
+	strictEnvelope := decode(t, strict.stdout)
+	if strictEnvelope["ok"] != false {
+		t.Errorf("ok = %v, want false under --strict", strictEnvelope["ok"])
+	}
+
+	// The finding did not move, and errors is still empty. ok false with an
+	// empty errors array is exactly the strict run of a store with warnings.
+	if errs := strictEnvelope["errors"].([]any); len(errs) != 0 {
+		t.Errorf("--strict moved a finding into errors: %v", errs)
+	}
+	if warns := strictEnvelope["warnings"].([]any); len(warns) != 1 {
+		t.Errorf("warnings = %v, want the one finding to stay put", warns)
+	}
+	if !equalJSON(lenientEnvelope["warnings"], strictEnvelope["warnings"]) {
+		t.Error("--strict changed the warnings array; it should change the verdict only")
+	}
+}
+
+func equalJSON(a, b any) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return string(x) == string(y)
+}
+
+// TestCheckThatCannotRunIsAnError separates the two failures that both exit
+// one: a store that fails the check, and a check that could not happen.
+func TestCheckThatCannotRunIsAnError(t *testing.T) {
+	dir := t.TempDir() // no store here
+
+	got := runCLI(t, dir, nil, "--json", "check")
+	if got.code != exitError {
+		t.Fatalf("exit = %d, want %d", got.code, exitError)
+	}
+	envelope := decode(t, got.stdout)
+	if envelope["kind"] != "error" {
+		t.Errorf("kind = %v, want error: the check could not run at all", envelope["kind"])
+	}
+	if code := envelope["error"].(map[string]any)["code"]; code != "store_not_found" {
+		t.Errorf("code = %v, want store_not_found", code)
+	}
+}
+
+func TestCheckHumanOutput(t *testing.T) {
+	clean := newStore(t)
+	createTicket(t, clean)
+	got := runCLI(t, clean, nil, "check")
+	if got.code != exitOK {
+		t.Fatalf("check: %s", got.stderr)
+	}
+	if !strings.Contains(got.stdout, "No problems found.") {
+		t.Errorf("a clean store says nothing to a person: %q", got.stdout)
+	}
+
+	// A store with a finding prints it, and the findings go to stdout because
+	// the command succeeded at checking. Only the verdict is no.
+	broken := filepath.Join(corpusDir, "stores", "parent-missing", "store")
+	got = runCLI(t, ".", nil, "--store", broken, "check")
+	if got.code != exitError {
+		t.Errorf("exit = %d, want %d", got.code, exitError)
+	}
+	for _, want := range []string{"error", "parent_missing", "1 error"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("the report does not mention %q:\n%s", want, got.stdout)
+		}
+	}
+
+	// Under --strict a person is told why a store of warnings failed, since
+	// the report itself shows no errors.
+	warned := filepath.Join(corpusDir, "stores", "label-unknown", "store")
+	got = runCLI(t, ".", nil, "--store", warned, "check", "--strict")
+	if !strings.Contains(got.stdout, "--strict") {
+		t.Errorf("a strict failure does not say why:\n%s", got.stdout)
+	}
+}
+
+func TestCheckTakesNoArguments(t *testing.T) {
+	dir := newStore(t)
+	got := runCLI(t, dir, nil, "--json", "check", "TKT-01K3ZZ2JH000GHB4EE6SNRE6MD")
+	if got.code != exitError {
+		t.Fatalf("exit = %d, want %d", got.code, exitError)
+	}
+	if code := decode(t, got.stdout)["error"].(map[string]any)["code"]; code != codeUsage {
+		t.Errorf("code = %v, want %s", code, codeUsage)
+	}
+}
+
 // TestHelpAndNoArguments covers the two invocations that are not a command.
 func TestHelpAndNoArguments(t *testing.T) {
 	dir := t.TempDir()
@@ -444,7 +707,7 @@ func TestHelpAndNoArguments(t *testing.T) {
 	if help.code != exitOK {
 		t.Errorf("help exited %d", help.code)
 	}
-	for _, want := range []string{"init", "create", "show", "list", "--json"} {
+	for _, want := range []string{"init", "create", "show", "list", "check", "--json"} {
 		if !strings.Contains(help.stdout, want) {
 			t.Errorf("help does not mention %q", want)
 		}

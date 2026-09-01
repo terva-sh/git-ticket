@@ -120,7 +120,7 @@ come from it. It puts the title in the filename, which this format does not.
 go build -o git-ticket ./cmd/git-ticket
 ```
 
-Put that on `PATH` and Git spells it `git ticket`. Four commands work today:
+Put that on `PATH` and Git spells it `git ticket`. Five commands work today:
 
 ```sh
 git ticket init --actor human:you
@@ -128,6 +128,7 @@ git ticket create --title "Refresh fails when the clock jumps backward" \
     --type bug --priority high --label auth
 git ticket list --status ready --type bug
 git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
+git ticket check --strict         # safe in CI: offline, read-only
 ```
 
 Every command takes `--json` and answers with one envelope on stdout. A failure
@@ -136,13 +137,29 @@ script switches on the code rather than parsing the message. `--store PATH`
 names a store, `GIT_TICKET_STORE` does the same from the environment, and
 without either the store is discovered upward to the Git root.
 
+`check` validates every ticket against section 11 of the plan: broken
+dependencies, cycles, duplicate IDs, a filename that no longer matches its ID,
+conflict markers left by a merge. It separates errors from warnings, and
+`--strict` makes a warning fail the run too. A store with findings still gets a
+`check-report`, not an `error`, because the check ran fine and the answer is no:
+
+```json
+{ "schemaVersion": 1, "kind": "check-report", "ok": false,
+  "errors": [{ "code": "dependency_missing", "file": ".tickets/tickets/TKT-….md",
+               "ticket": "TKT-…", "field": "dependencies" }],
+  "warnings": [] }
+```
+
+`ok` is true exactly when the command exited zero, so CI gates on one field
+whether or not it passed `--strict`.
+
 ## Status
 
 | Phase | What | State |
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | Started: `init`, `create`, `show`, `list` |
+| 2 | Standalone CLI with `--json` | Started: `init`, `create`, `show`, `list`, `check` |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
@@ -157,6 +174,11 @@ error rather than a reason to go looking elsewhere, per 12.1. Exit statuses are
 Git's: 0 or 1, with the detail in the error code, per 10.2. A ticket's JSON
 carries every body section as raw text and derives `checklists` from it, each
 item numbered the way `ac --check N` counts, per 10.1.
+
+Wiring `check` settled a fourth, recorded as 10.3. `--strict` moves no finding
+between `errors` and `warnings`, because those arrays report severity as the
+format defines it. Strictness is a policy on top, visible in `ok` and the exit
+status alone, so `ok` can be false with an empty `errors` array.
 
 ## Reading order
 

@@ -80,6 +80,7 @@ func commands() []command {
 		{"create", "write a new ticket", "--title T [flags]", runCreate},
 		{"show", "print one ticket", "ID", runShow},
 		{"list", "print the tickets that match", "[filters]", runList},
+		{"check", "validate every ticket in the store", "[--strict]", runCheck},
 	}
 }
 
@@ -128,6 +129,11 @@ func Run(args []string, env Env) int {
 		}
 		ctx := &cmdContext{g: g, env: env, out: env.Stdout}
 		if err := c.run(ctx, argv); err != nil {
+			// A command that already said its piece exits nonzero without
+			// an error envelope on top of it.
+			if errors.Is(err, errReported) {
+				return exitError
+			}
 			return fail(env, g, err)
 		}
 		return exitOK
@@ -177,6 +183,13 @@ func (ctx *cmdContext) parseFlags(name string, args []string, register func(*fla
 	}
 	return append(positional, literal...), nil
 }
+
+// errReported means the command ran, wrote its own output, and the verdict is
+// no. check returns it for a store with findings: the report is already on
+// stdout and exiting one is that verdict, not a sign the command could not run.
+// Plan 10.3 draws the line there, which is why such a store gets a check-report
+// and never an error envelope.
+var errReported = errors.New("the command reported its own failure")
 
 // usageError is an argument the CLI could not make sense of, as opposed to a
 // store or a ticket refusing the operation.

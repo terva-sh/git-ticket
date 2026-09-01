@@ -236,6 +236,83 @@ func runList(ctx *cmdContext, args []string) error {
 	return nil
 }
 
+// runCheck validates the whole store, per plan section 11.
+//
+// A store with findings is a successful check whose answer is no. The report
+// goes to stdout either way and the status is one, so CI gates on the status
+// while a person still sees what is wrong.
+func runCheck(ctx *cmdContext, args []string) error {
+	var strict bool
+	rest, err := ctx.parseFlags("check", args, func(fs *flag.FlagSet) {
+		fs.BoolVar(&strict, "strict", false, "count a warning as a failure")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) > 0 {
+		return usageErr("check takes no arguments; it validates the whole store")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	report, err := s.Check(context.Background())
+	if err != nil {
+		return err
+	}
+
+	// --strict moves no finding between the arrays. It changes the verdict
+	// only, per plan 10.3.
+	ok := report.OK() && (!strict || len(report.Warnings) == 0)
+
+	if ctx.g.json {
+		writeJSON(ctx.out, newCheckEnvelope(s, report, ok))
+	} else {
+		writeCheckHuman(ctx.out, s, report, strict)
+	}
+	if !ok {
+		return errReported
+	}
+	return nil
+}
+
+func writeCheckHuman(w io.Writer, s *ticket.Store, r *ticket.Report, strict bool) {
+	if len(r.Errors) == 0 && len(r.Warnings) == 0 {
+		fmt.Fprintln(w, "No problems found.")
+		return
+	}
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	line := func(severity string, f ticket.Finding) {
+		field := f.Field
+		if field == "" {
+			field = "-"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			severity, f.Code, displayPath(s, filepath.Join(s.Path(), f.File)), field, f.Message)
+	}
+	for _, f := range r.Errors {
+		line("error", f)
+	}
+	for _, f := range r.Warnings {
+		line("warning", f)
+	}
+	tw.Flush()
+
+	fmt.Fprintf(w, "\n%s, %s\n", count(len(r.Errors), "error"), count(len(r.Warnings), "warning"))
+	if strict && len(r.Errors) == 0 && len(r.Warnings) > 0 {
+		fmt.Fprintln(w, "Failing because --strict counts a warning as a failure.")
+	}
+}
+
+func count(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
 // writeMutation reports a mutation as the envelope or as one human line.
 func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human string) error {
 	if ctx.g.json {

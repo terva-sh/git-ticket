@@ -518,8 +518,15 @@ Stable codes, which callers may switch on:
 value outside its set. It never comes from the library, which is why it names no
 store condition.
 
-A path in `pathsChanged`, and the `path` of a ticket, is relative to the
-repository root when the store sits inside one, and absolute otherwise.
+Every path in the envelope is relative to the repository root when the store
+sits inside one, and absolute otherwise. That covers `pathsChanged`, the `path`
+of a ticket, and the `file` of a check finding.
+
+The library reports a finding's file relative to the store instead, because a
+`Report` describes a store and may be produced where no repository root is
+known. The fixture sidecars in `testdata/` record that store-relative form. The
+CLI converts on the way out, so a consumer sees one path convention across every
+kind rather than having to know which layer produced the value.
 
 ### 10.1 A ticket
 
@@ -597,6 +604,46 @@ needs to tell those apart reads the code from the error envelope.
 
 `check --strict` promotes warnings to errors, so a store carrying only warnings
 exits zero without it and one with it.
+
+### 10.3 A check report
+
+The `check-report` kind carries the findings of section 11:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "check-report",
+  "ok": false,
+  "errors": [
+    {
+      "code": "dependency_missing",
+      "file": ".tickets/tickets/TKT-01K3ZZ67Q0PT427VFD1F4WFWSH.md",
+      "ticket": "TKT-01K3ZZ67Q0PT427VFD1F4WFWSH",
+      "field": "dependencies"
+    }
+  ],
+  "warnings": []
+}
+```
+
+A finding carries `code`, `file`, `ticket`, and `field`. `ticket` is null when
+the file did not parse far enough to know its ID, and `field` is null when the
+finding is about the file rather than one field. Findings are ordered by file,
+then code, then field, so two reports of the same store compare directly instead
+of having to be treated as sets.
+
+`ok` mirrors the exit status: it is true exactly when the command exited zero.
+A caller therefore gates on one field, and never has to reconstruct the verdict
+from the arrays and the flags it passed.
+
+`--strict` does not move a finding. The two arrays report severity as section 11
+defines it, whatever the caller asked for, and strictness is a policy on top
+that shows up in `ok` and the exit status alone. So `ok` may be false with an
+empty `errors` array, and that is the strict run of a store carrying warnings.
+
+A store with findings is a successful check, not a failed command. The report
+goes to stdout and the exit status is one. An `error` envelope comes back only
+when the check could not run at all, such as `store_not_found`.
 
 ## 11. Validation
 

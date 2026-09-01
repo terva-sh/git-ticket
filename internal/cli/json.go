@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"github.com/terva-sh/git-ticket/ticket"
 )
@@ -39,6 +40,21 @@ type mutationEnvelope struct {
 type mutationTicket struct {
 	ID       string `json:"id"`
 	Revision string `json:"revision"`
+}
+
+type checkEnvelope struct {
+	SchemaVersion int           `json:"schemaVersion"`
+	Kind          string        `json:"kind"`
+	OK            bool          `json:"ok"`
+	Errors        []findingJSON `json:"errors"`
+	Warnings      []findingJSON `json:"warnings"`
+}
+
+type findingJSON struct {
+	Code   string  `json:"code"`
+	File   string  `json:"file"`
+	Ticket *string `json:"ticket"`
+	Field  *string `json:"field"`
 }
 
 type errorEnvelope struct {
@@ -202,6 +218,40 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket) *ticketJSON {
 			FromStatus: copyString(a.FromStatus),
 			Reason:     copyString(a.Reason),
 		}
+	}
+	return out
+}
+
+// newCheckEnvelope converts a report for the wire. ok is the verdict rather
+// than a count of errors: under --strict a warning fails the run, and plan 10.3
+// makes ok true exactly when the command exits zero, so one field answers the
+// question a caller is asking.
+//
+// --strict moves no finding between the arrays. The two arrays report severity
+// as section 11 defines it, whatever the caller asked for.
+func newCheckEnvelope(s *ticket.Store, r *ticket.Report, ok bool) checkEnvelope {
+	return checkEnvelope{
+		SchemaVersion: schemaVersion,
+		Kind:          "check-report",
+		OK:            ok,
+		Errors:        findings(s, r.Errors),
+		Warnings:      findings(s, r.Warnings),
+	}
+}
+
+// findings converts each file to the repository-relative form the rest of the
+// contract uses. The library reports a finding's file relative to the store,
+// because a report describes a store and may be made where no repository root
+// is known, so the conversion belongs here. Plan section 10 says so.
+func findings(s *ticket.Store, in []ticket.Finding) []findingJSON {
+	out := make([]findingJSON, 0, len(in))
+	for _, f := range in {
+		out = append(out, findingJSON{
+			Code:   f.Code,
+			File:   displayPath(s, filepath.Join(s.Path(), f.File)),
+			Ticket: optionalString(f.Ticket),
+			Field:  optionalString(f.Field),
+		})
 	}
 	return out
 }

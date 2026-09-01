@@ -11,11 +11,14 @@ renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
 Phase 2, the standalone CLI in section 12.1, is under way. `cmd/git-ticket` and
-`internal/cli` exist and carry `init`, `create`, `show`, and `list`, each in a
-human form and behind `--json`. The rest of 12.1 is unwritten, and `check` in
-particular, so the `check-report` JSON kind has no test. Both Phase 2 exit
-criteria are still open: `git ticket check` green in this repository's own CI,
-and a scripted run from create through claim through done through archive.
+`internal/cli` exist and carry `init`, `create`, `show`, `list`, and `check`,
+each in a human form and behind `--json`. All five JSON kinds of section 10 now
+have a test. The rest of 12.1 is unwritten: every mutation past `create`.
+
+One Phase 2 exit criterion is still open, a scripted run from create through
+claim through done through archive, and it needs commands that do not exist yet.
+The other, `git ticket check` green in CI, needs this repository to keep its own
+tickets in `.tickets/`, which it does not yet do.
 
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
@@ -101,6 +104,18 @@ A path printed to a person goes through `displayPath`, never `filepath.Rel`
 alone. On macOS a temporary directory is reached through `/var`, a symlink to
 `/private/var`, so `git rev-parse --show-toplevel` answers in one name space and
 the store path is in another. `displayPath` retries through `EvalSymlinks`.
+
+A `ticket.Finding` names its file relative to the store, and the `.expected.json`
+sidecars record that form, but every path in the JSON contract is relative to
+the repository root. `findings()` in `internal/cli/json.go` converts. A test
+that only matches the path suffix passes either way, so
+`TestCheckAgreesWithTheCorpus` stats the path from the repository root instead.
+
+`reference_path_unresolved` is the one check whose result depends on where the
+store sits. The library tests inject the fixture's case directory as the root;
+the CLI takes the root from git and gets this repository. The two disagree about
+the `reference-unresolved` fixture on purpose, and the CLI corpus test skips
+comparing its findings for that reason.
 
 Adding a frontmatter field means editing every fixture that carries one, because
 5.3 renders an absent scalar as `null` rather than omitting it. The round-trip

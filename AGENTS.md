@@ -23,22 +23,15 @@ The agent workflow block lives at `internal/cli/instructions.md`, embedded with
 the binary has, because prose telling a reader to run something that does not
 exist is worse than no prose.
 
-One Phase 2 exit criterion is met and one is not. The scripted end-to-end run is
-`TestLifecycle` in `internal/cli/lifecycle_test.go`. The other, `git ticket
-check` green in this repository's own CI, is not met, because CI is red.
+One Phase 2 exit criterion is met and one is pending. The scripted end-to-end run
+is `TestLifecycle` in `internal/cli/lifecycle_test.go`. The other, `git ticket
+check` green in this repository's own CI, is not confirmed. The first run was red
+and `.forgejo/workflows/ci.yml` has been rewritten to the instance convention
+below. `TKT-01M1F9AB` stays open until a run actually comes back green, because
+a workflow file is not a green build.
 
-`.forgejo/workflows/ci.yml` fails before it runs a single one of its steps. The
-runner resolves `actions/checkout@v4` against
-`https://git.local.sothr.com/actions/checkout` and gets a 404: that instance
-points `DEFAULT_ACTIONS_URL` at itself and does not mirror the GitHub actions.
-`actions/setup-go@v5` would fail the same way. Container images do come from a
-local mirror at `container.local.sothr.com/library/`, so the registry is
-mirrored even though the actions are not. `TKT-01M1F9AB` tracks the fix and is
-the one ticket that is `ready`.
-
-Everything the workflow actually runs passes locally: gofmt, vet,
-`go test ./...`, and `check --strict`. The failure is in reaching those steps,
-not in the steps.
+Everything the workflow runs passes locally: gofmt, vet, `go test -race ./...`,
+and `check --strict`.
 
 "With no network" in that exit criterion describes `check` itself, per section
 11: the command performs no network access. It is not a requirement that the CI
@@ -121,6 +114,18 @@ push, merge, commit, or branch switch. Publishing is the user's ordinary Git
 workflow, and a helper that does it for them is out of scope for v1.
 
 ## Gotchas
+
+CI actions resolve against this Forgejo instance, not GitHub. A bare
+`uses: actions/checkout@v4` is fetched from `git.local.sothr.com/actions/checkout`
+and 404s before a single step runs, which is how the first version of
+`.forgejo/workflows/ci.yml` died. Use the public mirrors:
+`Actions-Mirrors/forgejo-actions-checkout@v6`. Go comes from the local registry
+image `container.local.sothr.com/library/golang:1.25-alpine` rather than
+`actions/setup-go`, which fails the same way for the same reason. That registry
+mirror is curated, so do not assume an arbitrary `library/*` image exists. On
+alpine, `-race` needs cgo: `apk add --no-cache gcc musl-dev`. The sibling
+repositories are the reference, and `terva/.forgejo/workflows/ci.yml` is the
+fullest example.
 
 `go:embed` silently skips any path whose name starts with `.` or `_`. That is
 why store fixtures live under `store/` and not `.tickets/`. The realistic name

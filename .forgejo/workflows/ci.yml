@@ -1,3 +1,17 @@
+# Forgejo CI: gofmt, vet, the test suite with the race detector, and
+# `git ticket check --strict` over this repository's own ticket store. That
+# last step is the second Phase 2 exit criterion in docs/plan.md section 13.
+#
+# Conventions follow the instance's other repositories, and the first version
+# of this file followed none of them and was red on its first run. Two rules
+# matter here. Actions resolve against this Forgejo, not GitHub, so they come
+# from the public Actions-Mirrors org: a bare `actions/checkout@v4` is fetched
+# from git.local.sothr.com/actions/checkout and 404s before any step runs. And
+# Go comes from the local registry's golang image rather than `setup-go`, which
+# would fail the same way for the same reason.
+#
+# The registry mirror is curated: golang:1.25-alpine is proven by the other
+# repositories here. Do not assume an arbitrary library/* image is present.
 name: ci
 
 on:
@@ -5,40 +19,49 @@ on:
     branches: [main]
   pull_request:
 
+# Nothing here writes to the repository.
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: Lint and Test
     runs-on: docker
+    container:
+      image: container.local.sothr.com/library/golang:1.25-alpine
     steps:
-      - uses: actions/checkout@v4
+      - name: Install dependencies
+        # git for the checkout. gcc and musl-dev are cgo, which -race needs on
+        # alpine; without them the race step fails to link rather than failing
+        # a test, which reads as a broken toolchain rather than a missing one.
+        run: apk add --no-cache git gcc musl-dev
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - name: Checkout Code
+        uses: Actions-Mirrors/forgejo-actions-checkout@v6
 
-      # A formatting difference is a real failure. gofmt -l prints the files it
-      # would change and exits zero either way, so the file list is the test.
-      - name: gofmt
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "these files are not gofmt clean:"
-            echo "$unformatted"
-            exit 1
-          fi
+      - name: Download modules
+        # Explicit, so a network problem fails here with a clear message rather
+        # than inside the first step that happens to compile something.
+        run: go mod download
 
-      - name: vet
+      - name: gofmt check
+        # gofmt -l exits zero whether or not it printed anything, so the file
+        # list is the test. tee sends it to the log as well as the check.
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+
+      - name: go vet
         run: go vet ./...
 
-      - name: test
-        run: go test ./...
+      - name: go test (race)
+        # The suite is seconds, so there is no reason to run the cheap version.
+        # It builds the real binary and drives it end to end through TestLifecycle.
+        run: go test -race ./...
 
-      # The second Phase 2 exit criterion. This repository keeps its own tickets
-      # in .tickets/, so check runs against a real store rather than a fixture.
-      # --strict fails on warnings too, which is the point of running it here:
-      # an expired claim or an unclaimed in-progress ticket is worth knowing
-      # about before it becomes normal.
       - name: check the ticket store
+        # This repository keeps its own tickets in .tickets/, so check runs
+        # against a real store rather than a fixture. --strict fails on warnings
+        # too: an expired claim, or a ticket in-progress with nobody holding it,
+        # is how a store starts to drift.
         run: |
           go build -o git-ticket ./cmd/git-ticket
           ./git-ticket check --strict

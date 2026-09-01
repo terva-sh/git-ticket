@@ -39,10 +39,16 @@ job run without network, which is why fetching `yaml.v3` from the proxy is fine.
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
 
-`origin` is the internal Forgejo and `main` tracks it. `v0.1.0` is pushed there.
-A public mirror now exists at `github.com/terva-sh/git-ticket`, which settles
+There are two remotes. `origin` is the internal Forgejo and `main` tracks it.
+`github` is the public mirror at `github.com/terva-sh/git-ticket`, which settles
 the module path: `go.mod` already declared it, so nothing changes. Plan 12.2
-holds the rule.
+holds the rule. `main` and `v0.1.0` are on both, at identical SHAs.
+
+Push to both, and push `origin` first so CI has a chance to say no:
+
+```sh
+git push && git push github main --follow-tags
+```
 
 The mirror is a plain `git push`, not a built tree: same commits, same tags, one
 history. That works because the prose never names the internal hosts. Write "the

@@ -363,6 +363,10 @@ func (m ReleaseClaim) apply(t *Ticket, env mutEnv) error {
 // from_status is what keeps archiving from silently blocking dependents: a
 // dependency is satisfied by a ticket archived out of done, and by nothing
 // else.
+//
+// A reason lands in the archive block and in Notes, per plan 6.3, for the same
+// reason a status reason does: UnarchiveTicket deletes the block, and without
+// the note nothing would say why the ticket was ever closed out.
 type ArchiveTicket struct{ Reason string }
 
 func (m ArchiveTicket) apply(t *Ticket, env mutEnv) error {
@@ -378,6 +382,9 @@ func (m ArchiveTicket) apply(t *Ticket, env mutEnv) error {
 	}
 	t.Status = StatusArchived
 	t.StatusReason = nil
+	if m.Reason != "" {
+		appendNote(&t.Body, env, fmt.Sprintf("archived from %s: %s", from, m.Reason))
+	}
 	return nil
 }
 

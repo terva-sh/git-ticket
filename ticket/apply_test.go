@@ -305,6 +305,12 @@ func TestArchiveMovesTheFileAndRecordsFromStatus(t *testing.T) {
 	if res.Ticket.Archive == nil || res.Ticket.Archive.FromStatus == nil || *res.Ticket.Archive.FromStatus != StatusDone {
 		t.Fatalf("from_status = %+v, want done", res.Ticket.Archive)
 	}
+	if res.Ticket.Archive.Reason == nil || *res.Ticket.Archive.Reason != "shipped in v1.2" {
+		t.Errorf("archive reason = %v, want the reason given", res.Ticket.Archive.Reason)
+	}
+	if !strings.Contains(res.Ticket.Body.Notes, "shipped in v1.2") {
+		t.Error("the archive reason did not reach Notes")
+	}
 	// Archived out of done, so it still satisfies a dependency.
 	if !res.Ticket.SatisfiesDependency() {
 		t.Error("a ticket archived out of done should still satisfy a dependency")
@@ -317,6 +323,12 @@ func TestArchiveMovesTheFileAndRecordsFromStatus(t *testing.T) {
 	}
 	if res.Ticket.Archive != nil {
 		t.Error("the archive block outlived the archive")
+	}
+	// Plan 6.3, and the whole point of writing the reason twice. Unarchiving
+	// deletes the block, so the Notes entry is the only thing left that says
+	// why the ticket was ever closed out.
+	if !strings.Contains(res.Ticket.Body.Notes, "shipped in v1.2") {
+		t.Error("unarchiving lost the archive reason")
 	}
 	if _, err := os.Stat(filepath.Join(s.TicketsDir(), tk.ID+".md")); err != nil {
 		t.Errorf("the file did not come back to tickets/: %v", err)

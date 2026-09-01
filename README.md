@@ -160,6 +160,10 @@ a state somebody typed rather than half of one. An empty value clears a field
 and an absent flag leaves it alone, so `--milestone ""` and no `--milestone` at
 all are different instructions.
 
+Every field `create` sets, `update` can change, `--type` and `--parent`
+included. A bug that turns out to be a chore, and a ticket that belongs under a
+different epic, are fixable without opening the file.
+
 The number `ac --check N` takes counts checkbox lines from one, not lines and
 not array positions. A section can hold prose above its list and still number
 its items 1, 2, 3, and editing a box leaves that prose alone.
@@ -211,6 +215,11 @@ commit, and it reserves nothing. Claiming a ticket somebody else holds is
 to `.tickets/archive/`, and it records `from_status`. That is what stops an
 archived ticket from silently blocking its dependents: a dependency is satisfied
 by a ticket archived out of `done`, and by nothing else.
+
+An `archive --reason` lands in the archive block and in `Notes`, the same two
+places a status reason lands. `unarchive` deletes the block, so without the note
+a ticket archived as "shipped in v1.2" and then restored would keep nothing that
+says why it was ever closed out.
 
 Every command takes `--json` and answers with one envelope on stdout. A failure
 exits 1 and puts the reason in an `error` envelope with a stable `code`, so a

@@ -341,6 +341,12 @@ Archiving sets `status: archived`, records the `archive` block including
 authoritative. If the two ever disagree, because someone moved a file by hand,
 `check` reports `archive_location_mismatch` and the status wins.
 
+An archive reason lands in two places, like a status reason and for the same
+reason. It goes in the `archive` block for a query to read, and into a `Notes`
+entry that outlives the block. `unarchive` deletes the block, so without the
+note a ticket archived as "shipped in v1.2" and then unarchived keeps nothing
+that says why it was ever closed out.
+
 A dependency is satisfied when the depended-on ticket is `done`, or when it is
 `archived` with `from_status: done`. Archiving a ticket that was never done does
 not satisfy anything, and `check` warns when a live ticket depends on one. This
@@ -708,7 +714,7 @@ git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
 git ticket create --title T [--type --priority --label --assignee --parent --depends-on --description]
-git ticket update ID [--title --priority --milestone --add-label --remove-label --assign --unassign]
+git ticket update ID [--title --type --priority --milestone --parent --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
 git ticket release ID
@@ -879,33 +885,23 @@ Concurrency:
 4. What tool discovery the stdio adapter should expose.
 5. When Backlog.md import and a local view are worth building.
 6. The compatibility policy for the Go module after the first stable schema.
-7. Whether an archive reason should also be written to `Notes`. A status
-   reason lands in two places on purpose, per 6.2: `status_reason` for a query
-   to read, and a `Notes` entry that survives the next transition clearing the
-   field. An archive reason lands only in the `archive` block, and unarchiving
-   deletes that block, so `archive --reason "shipped in v1.2"` followed by
-   `unarchive` loses the reason with nothing left to say why. Unarchiving
-   already writes a `Notes` entry carrying `from_status`, which makes the gap
-   look unintended rather than decided. Found by the Phase 2 lifecycle test.
-8. Whether `update` should also carry `--type` and `--parent`. `create` accepts
-   both and 12.1 lists neither on `update`, so a bug filed that turns out to be
-   a chore, or a ticket that belongs under a different epic, can only be
-   corrected by editing the file. Hand-editing is supported, so this is not a
-   dead end, but every other field `create` sets has an `update` flag. The
-   library already has `SetType` and `SetParent`, and `SetParent` checks that
-   the parent exists and refuses a self-reference, so the work is the flags
-   alone. Found while implementing `update` in Phase 2.
+Five questions have left this list, and the numbers have closed up behind them.
 
-Three questions have left this list, and the numbers have closed up behind them.
-Where a `blocked` reason lives is answered by `status_reason` in 5.1 and 6.2:
-the field holds the current reason and `Notes` keeps the history. What a
-`references` path resolves against is answered in 5.5: the root of the Git
-repository holding the store, and no finding at all when the store sits outside
-one. Both were decided during Phase 1, before any reader had shipped, so adding
-`status_reason` to schema 1 cost no compatibility. The precedence between
-`--store`, `GIT_TICKET_STORE`, and `config.yml` is answered in 12.1, at the
-start of Phase 2, because the CLI is the first thing that had to resolve a
-store.
+Two were settled during Phase 1, before any reader had shipped, so adding
+`status_reason` to schema 1 cost no compatibility. Where a `blocked` reason
+lives is answered by `status_reason` in 5.1 and 6.2: the field holds the
+current reason and `Notes` keeps the history. What a `references` path resolves
+against is answered in 5.5: the root of the Git repository holding the store,
+and no finding at all when the store sits outside one.
+
+Three were settled during Phase 2, because building the CLI is what forced
+them. The precedence between `--store`, `GIT_TICKET_STORE`, and `config.yml` is
+answered in 12.1: the CLI is the first thing that had to resolve a store.
+Whether an archive reason also goes to `Notes` is answered in 6.3, and it does,
+on the same argument that puts a status reason there. Whether `update` carries
+`--type` and `--parent` is answered by 12.1 listing both, because every other
+field `create` sets already had an `update` flag and the library already had
+`SetType` and `SetParent`.
 
 ## 16. References
 

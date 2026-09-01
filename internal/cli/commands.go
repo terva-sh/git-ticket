@@ -321,8 +321,10 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	var (
 		fs        *flag.FlagSet
 		title     string
+		kind      string
 		priority  string
 		milestone string
+		parent    string
 		addLabels stringList
 		rmLabels  stringList
 		assign    stringList
@@ -331,8 +333,10 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	rest, err := ctx.parseFlags("update", args, func(f *flag.FlagSet) {
 		fs = f
 		f.StringVar(&title, "title", "", "a new title")
+		f.StringVar(&kind, "type", "", "task, bug, chore, spike, or epic")
 		f.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
 		f.StringVar(&milestone, "milestone", "", "a milestone, or empty to clear it")
+		f.StringVar(&parent, "parent", "", "the epic or ticket this belongs to, or empty to clear it")
 		f.Var(&addLabels, "add-label", "a label to add, repeatable")
 		f.Var(&rmLabels, "remove-label", "a label to remove, repeatable")
 		f.Var(&assign, "assign", "an assignee to add, repeatable")
@@ -352,12 +356,18 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	if priority != "" && !ticket.ValidPriority(priority) {
 		return usageErr("%q is not one of %s", priority, strings.Join(ticket.Priorities, ", "))
 	}
+	if kind != "" && !ticket.ValidType(kind) {
+		return usageErr("%q is not one of %s", kind, strings.Join(ticket.Types, ", "))
+	}
 
 	// Removals run before additions, so --remove-label x --add-label x ends
 	// with the label present whichever order they were typed in.
 	var ms ticket.Mutations
 	if given["title"] {
 		ms = append(ms, ticket.SetTitle{Title: title})
+	}
+	if given["type"] {
+		ms = append(ms, ticket.SetType{Type: kind})
 	}
 	if given["priority"] {
 		ms = append(ms, ticket.SetPriority{Priority: priority})
@@ -377,7 +387,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	for _, a := range assign {
 		ms = append(ms, ticket.Assign{Actor: a})
 	}
-	if len(ms) == 0 {
+	if len(ms) == 0 && !given["parent"] {
 		return usageErr("update needs something to change; run `git ticket help`")
 	}
 
@@ -385,6 +395,22 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	// A parent is resolved last because it is the one field whose value has to
+	// be looked up in the store, and a person types it as a prefix like any
+	// other ID. An empty --parent clears it and resolves nothing.
+	if given["parent"] {
+		var to *string
+		if parent != "" {
+			id, err := resolveID(s, parent)
+			if err != nil {
+				return err
+			}
+			to = &id
+		}
+		ms = append(ms, ticket.SetParent{Parent: to})
+	}
+
 	res, err := ctx.applyTo(s, rest[0], ms)
 	if err != nil {
 		return err
@@ -405,7 +431,7 @@ func clearable(v string) *string {
 // happened rather than only that something did.
 func changedFields(given map[string]bool, rmLabels, addLabels, unassign, assign stringList) []string {
 	var out []string
-	for _, name := range []string{"title", "priority", "milestone"} {
+	for _, name := range []string{"title", "type", "priority", "milestone", "parent"} {
 		if given[name] {
 			out = append(out, name)
 		}

@@ -82,6 +82,65 @@ func TestUpdateTellsEmptyFromAbsent(t *testing.T) {
 	}
 }
 
+// TestUpdateChangesTypeAndParent covers the two flags plan 15.8 asked about.
+// A bug that turns out to be a chore, and a ticket that belongs under a
+// different epic, are both correctable without hand-editing the file.
+func TestUpdateChangesTypeAndParent(t *testing.T) {
+	dir := newStore(t)
+	epic := makeTicket(t, dir, "Authentication")
+	id := ticketID(t, createTicket(t, dir, "--type", "bug"))
+
+	if got := runCLI(t, dir, nil, "update", id, "--type", "chore", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("update --type: %s", got.stderr)
+	}
+	if k := showTicket(t, dir, id)["type"]; k != "chore" {
+		t.Errorf("type = %v, want chore", k)
+	}
+
+	// The parent goes through resolveID like every other ID the CLI takes, so
+	// the TKT- part is optional. A short prefix would work too, but it is not
+	// worth a test that flakes: two tickets made in the same millisecond share
+	// the first ten characters of their ULID and differ only by chance after.
+	if got := runCLI(t, dir, nil, "update", id, "--parent", epic[4:], "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("update --parent: %s", got.stderr)
+	}
+	if p := showTicket(t, dir, id)["parent"]; p != epic {
+		t.Errorf("parent = %v, want the canonical %s", p, epic)
+	}
+
+	// An empty --parent clears it, the same rule --milestone follows.
+	if got := runCLI(t, dir, nil, "update", id, "--parent", "", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("update --parent \"\": %s", got.stderr)
+	}
+	if p := showTicket(t, dir, id)["parent"]; p != nil {
+		t.Errorf("parent = %v, want null after an explicit clear", p)
+	}
+}
+
+// TestUpdateRefusesABadParent leaves the two refusals to the library, and
+// checks the CLI reports the codes rather than swallowing them.
+func TestUpdateRefusesABadParent(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir))
+
+	got := runCLI(t, dir, nil, "--json", "update", id, "--parent", id, "--actor", "human:sothr")
+	if got.code != exitError {
+		t.Fatal("a ticket should not be able to parent itself")
+	}
+	if code := errCode(t, got); code != "parent_cycle" {
+		t.Errorf("code = %v, want parent_cycle", code)
+	}
+
+	got = runCLI(t, dir, nil, "--json", "update", id,
+		"--parent", "TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ", "--actor", "human:sothr")
+	if got.code != exitError {
+		t.Fatal("a parent that is not in the store should be refused")
+	}
+	if code := errCode(t, got); code != "ticket_not_found" {
+		t.Errorf("code = %v, want ticket_not_found", code)
+	}
+}
+
 // TestUpdateNeedsSomethingToChange refuses a write that would say nothing,
 // rather than bumping updated_at for no reason.
 func TestUpdateNeedsSomethingToChange(t *testing.T) {
@@ -109,6 +168,14 @@ func TestUpdateValidatesPriorityBeforeTheStore(t *testing.T) {
 	got := runCLI(t, dir, nil, "--json", "update", id, "--priority", "frobnicate", "--actor", "human:sothr")
 	if got.code != exitError {
 		t.Fatal("an invalid priority should be refused")
+	}
+	if code := errCode(t, got); code != codeUsage {
+		t.Errorf("code = %v, want %s", code, codeUsage)
+	}
+
+	got = runCLI(t, dir, nil, "--json", "update", id, "--type", "frobnicate", "--actor", "human:sothr")
+	if got.code != exitError {
+		t.Fatal("an invalid type should be refused")
 	}
 	if code := errCode(t, got); code != codeUsage {
 		t.Errorf("code = %v, want %s", code, codeUsage)

@@ -8,7 +8,7 @@ import (
 )
 
 // The corpus lives at the repository root rather than under this package,
-// because it is shared with the CLI and with scripts/check-corpus.py.
+// because the CLI in Phase 2 tests against the same fixtures.
 const corpusDir = "../testdata"
 
 // expectation is a fixture sidecar, the recorded answer for one fixture. Every

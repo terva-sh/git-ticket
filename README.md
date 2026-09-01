@@ -119,14 +119,15 @@ come from it. It puts the title in the filename, which this format does not.
 | Phase | What | State |
 |---|---|---|
 | 0 | Format and fixtures | Done |
-| 1 | Core library: parse, render, validate, query, `Apply` | Next |
-| 2 | Standalone CLI with `--json` | Not started |
+| 1 | Core library: parse, render, validate, query, `Apply` | Done |
+| 2 | Standalone CLI with `--json` | Next |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
-Two questions are open and recorded in section 15 of the plan rather than
-guessed at: where a `blocked` reason is stored, and what a `references` path
-resolves against. Both affect Phase 1.
+The two questions that blocked Phase 1 are settled. A `blocked` reason lives in
+the `status_reason` field and in `Notes`, per plan 5.1 and 6.2. A `references`
+path resolves against the root of the Git repository holding the store, and is
+not checked at all when the store sits outside one, per plan 5.5.
 
 ## Reading order
 
@@ -137,5 +138,6 @@ resolves against. Both affect Phase 1.
 3. [`AGENTS.md`](AGENTS.md) is the standing rules for working in this
    repository.
 
-`python3 scripts/check-corpus.py` from the repository root checks the corpus
-against the plan. It is scaffolding, and Phase 1's Go tests replace it.
+`go test ./...` runs everything, including the tests that hold the fixture
+corpus to the plan: every code in section 11 has a fixture, and every fixture
+reproduces the findings recorded beside it.

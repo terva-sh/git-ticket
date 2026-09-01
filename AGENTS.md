@@ -6,11 +6,13 @@ design of record, not background reading.
 
 ## State
 
-Phase 0, the fixture corpus, is done. Phase 1, the core library, is in
-progress: parse and render hold the round-trip property on the corpus, and the
-store, `Check`, and `Apply` are still to come. Section 13 of the plan lists the
-phases and their exit criteria. Do not start a later phase before an earlier one
-meets its criteria.
+Phase 0 and Phase 1 are done and their exit criteria hold. The library parses,
+renders, validates, queries, and mutates, with the store lock and the revision
+precondition. Phase 2, the standalone CLI in section 12.1, is next and no Go
+exists for it yet: there is no `cmd/git-ticket`.
+
+Section 13 of the plan lists the phases and their exit criteria. Do not start a
+later phase before an earlier one meets its criteria.
 
 The repository is local only, on `main`, with no remote.
 
@@ -18,11 +20,10 @@ The repository is local only, on `main`, with no remote.
 
 ```sh
 go test ./...
-python3 scripts/check-corpus.py     # run from the repository root
 ```
 
-Run the corpus script after touching anything under `testdata/` or section 11 of
-the plan. The two overlap on purpose until Phase 1 ends; see Layout.
+That is the whole suite, including the tests that hold the corpus to the plan.
+Run it after touching anything under `testdata/` or section 11 of the plan.
 
 ## Layout
 
@@ -32,8 +33,11 @@ them. Sections 4 through 11 are the format itself.
 `testdata/` is the fixture corpus. Read `testdata/README.md` before adding to
 it.
 
-`scripts/check-corpus.py` enforces the corpus invariants until Phase 1's Go
-tests can assert them with a real parser. Delete it then. Do not maintain both.
+`ticket/` is the library. `ticket/corpus_test.go` holds the corpus to its own
+rules: every fixture pairs with a sidecar, every code in section 11 has a
+fixture, and no sidecar names a code the plan does not define. It replaced
+`scripts/check-corpus.py`, which did the same job from outside until there was a
+real parser to do it from inside.
 
 ## The plan is authoritative
 
@@ -74,8 +78,8 @@ workflow, and a helper that does it for them is out of scope for v1.
 why store fixtures live under `store/` and not `.tickets/`. The realistic name
 would embed nothing and leave a suite of tests passing against an empty corpus.
 
-Renaming a code in section 11 breaks `check-corpus.py` until the sidecars
-follow. That is intended. The corpus and the spec are one artifact.
+Renaming a code in section 11 fails `TestCorpusCoversEveryPlanCode` until the
+sidecars follow. That is intended. The corpus and the spec are one artifact.
 
 Adding a frontmatter field means editing every fixture that carries one, because
 5.3 renders an absent scalar as `null` rather than omitting it. The round-trip

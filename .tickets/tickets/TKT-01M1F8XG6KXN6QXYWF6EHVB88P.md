@@ -31,7 +31,7 @@ extensions: {}
 
 ## Description
 
-Deferred question 7 of plan section 15. go.mod declares github.com/terva-sh/git-ticket, and the repository is hosted at git.local.sothr.com/terva-sh/git-ticket with no public mirror, so the declared path is not fetchable. A module path is a promise about where a consumer can find the code, and nothing enforces it: a replace directive or a local path works either way, which is why this can sit wrong for a long time without failing. It is also hard to change once anything depends on it. Either publish a mirror at the declared path, or rename the module to the host that serves it. Phase 3 is the first consumer, so decide before terva depends on either answer.
+Deferred question 7 of plan section 15. go.mod declares github.com/terva-sh/git-ticket, and the repository is hosted on an internal Forgejo instance with no public mirror, so the declared path is not fetchable. A module path is a promise about where a consumer can find the code, and nothing enforces it: a replace directive or a local path works either way, which is why this can sit wrong for a long time without failing. It is also hard to change once anything depends on it. Either publish a mirror at the declared path, or rename the module to the host that serves it. Phase 3 is the first consumer, so decide before terva depends on either answer.
 
 ## Summary
 

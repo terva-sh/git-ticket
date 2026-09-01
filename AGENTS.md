@@ -44,10 +44,17 @@ A public mirror now exists at `github.com/terva-sh/git-ticket`, which settles
 the module path: `go.mod` already declared it, so nothing changes. Plan 12.2
 holds the rule.
 
-Nothing has been pushed to that mirror yet, and the tree is not ready for it.
-Five tracked files name the internal infrastructure, `AGENTS.md` worst of all.
-`TKT-01M1FAFS` is the scrub and is `ready`. Do not push to the mirror before it
-is done.
+The mirror is a plain `git push`, not a built tree: same commits, same tags, one
+history. That works because the prose never names the internal hosts. Write "the
+internal Forgejo" and "the internal registry" and take a real host from `origin`
+at need. One exception ships knowingly, the container image in
+`.forgejo/workflows/ci.yml`, because it is a working reference rather than
+prose. `TKT-01M1FAFS` holds that decision. Before adding a hostname anywhere
+else, check what you are about to publish:
+
+```sh
+git grep -n -E "$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')" -- . ':!.forgejo'
+```
 
 ## Commands
 
@@ -59,12 +66,17 @@ go build -o git-ticket ./cmd/git-ticket && ./git-ticket check --strict
 To read a CI result rather than guess at one, ask the API for the commit's
 statuses. `terva/scripts/pr.sh` holds the token resolver this borrows:
 `$TERVA_FORGE_TOKEN`, or the login block matching the host in
-`~/Library/Application Support/tea/config.yml`.
+`~/Library/Application Support/tea/config.yml`. Take the forge host from the
+`origin` remote rather than writing it down, so this file names no host.
 
 ```sh
+FORGE=$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')
 curl -sS -H "Authorization: token $TERVA_FORGE_TOKEN" \
-  https://git.local.sothr.com/api/v1/repos/terva-sh/git-ticket/commits/HEAD_SHA/statuses
+  "https://$FORGE/api/v1/repos/terva-sh/git-ticket/commits/HEAD_SHA/statuses"
 ```
+
+`.../actions/tasks?limit=5` on the same host lists recent runs when a commit
+has no status yet.
 
 The suite includes the tests that hold the corpus to the plan. Run it after
 touching anything under `testdata/` or section 11 of the plan.
@@ -131,16 +143,17 @@ workflow, and a helper that does it for them is out of scope for v1.
 ## Gotchas
 
 CI actions resolve against this Forgejo instance, not GitHub. A bare
-`uses: actions/checkout@v4` is fetched from `git.local.sothr.com/actions/checkout`
-and 404s before a single step runs, which is how the first version of
-`.forgejo/workflows/ci.yml` died. Use the public mirrors:
-`Actions-Mirrors/forgejo-actions-checkout@v6`. Go comes from the local registry
-image `container.local.sothr.com/library/golang:1.25-alpine` rather than
-`actions/setup-go`, which fails the same way for the same reason. That registry
-mirror is curated, so do not assume an arbitrary `library/*` image exists. On
-alpine, `-race` needs cgo: `apk add --no-cache gcc musl-dev`. The sibling
-repositories are the reference, and `terva/.forgejo/workflows/ci.yml` is the
-fullest example.
+`uses: actions/checkout@v4` is fetched from the instance's own
+`actions/checkout` path and 404s before a single step runs, which is how the
+first version of `.forgejo/workflows/ci.yml` died. Use the public mirrors:
+`Actions-Mirrors/forgejo-actions-checkout@v6`. Go comes from the internal
+registry's `golang:1.25-alpine` rather than `actions/setup-go`, which fails the
+same way for the same reason. `.forgejo/workflows/ci.yml` has the exact image
+reference and is the only file that should, because it is the only place the
+literal string has to work. That registry mirror is curated, so do not assume
+an arbitrary `library/*` image exists. On alpine, `-race` needs cgo:
+`apk add --no-cache gcc musl-dev`. The sibling repositories are the reference,
+and `terva/.forgejo/workflows/ci.yml` is the fullest example.
 
 `go:embed` silently skips any path whose name starts with `.` or `_`. That is
 why store fixtures live under `store/` and not `.tickets/`. The realistic name

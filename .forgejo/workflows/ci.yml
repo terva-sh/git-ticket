@@ -6,12 +6,18 @@
 # of this file followed none of them and was red on its first run. Two rules
 # matter here. Actions resolve against this Forgejo, not GitHub, so they come
 # from the public Actions-Mirrors org: a bare `actions/checkout@v4` is fetched
-# from git.local.sothr.com/actions/checkout and 404s before any step runs. And
-# Go comes from the local registry's golang image rather than `setup-go`, which
-# would fail the same way for the same reason.
+# from this instance's own actions/checkout path and 404s before any step runs.
+# And Go comes from the internal registry's golang image rather than `setup-go`,
+# which would fail the same way for the same reason.
 #
 # The registry mirror is curated: golang:1.25-alpine is proven by the other
 # repositories here. Do not assume an arbitrary library/* image is present.
+#
+# The image below names the internal registry, and it has to: it is a working
+# reference, not prose. It is the only internal hostname anywhere in the tree,
+# and it ships to the public mirror. That is a decision, not an oversight, and
+# TKT-01M1FAFS holds the reasoning. Everything else says "the internal Forgejo"
+# and "the internal registry", which costs a reader nothing.
 name: ci
 
 on:

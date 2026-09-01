@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "unknown_field",
+      "file": "unknown-field.md",
+      "ticket": "TKT-01K3ZYJ360Q7ESC30QAD2SMY0H",
+      "field": "severity"
+    }
+  ],
+  "warnings": []
+}

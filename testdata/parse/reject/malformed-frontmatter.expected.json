@@ -1,0 +1,13 @@
+{
+  "parse": "reject",
+  "roundTrip": null,
+  "errors": [
+    {
+      "code": "parse_error",
+      "file": "malformed-frontmatter.md",
+      "ticket": null,
+      "field": null
+    }
+  ],
+  "warnings": []
+}

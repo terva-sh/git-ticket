@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "invalid_type",
+      "file": "bad-type.md",
+      "ticket": "TKT-01K40091005G7KY9JBW0WB8543",
+      "field": "type"
+    }
+  ],
+  "warnings": []
+}

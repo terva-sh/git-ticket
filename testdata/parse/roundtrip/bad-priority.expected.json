@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "invalid_priority",
+      "file": "bad-priority.md",
+      "ticket": "TKT-01K400AVK0P8DHFD7CRR6DQYKV",
+      "field": "priority"
+    }
+  ],
+  "warnings": []
+}

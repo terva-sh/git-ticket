@@ -82,10 +82,10 @@ already ships.
 ├── config.yml
 ├── README.md
 ├── tickets/
-│   ├── TKT-01JABCDEF0123456789ABCDEF.md
-│   └── TKT-01JXYZGH0123456789ABCDEF.md
+│   ├── TKT-01K3ZYEE00HV9ZDBB8BEASXBBG.md
+│   └── TKT-01K3ZYG8K0Y52AD43XRGM4T7WZ.md
 └── archive/
-    └── TKT-01JOLDER0123456789ABCDEF.md
+    └── TKT-01K3ZYJ360Q7ESC30QAD2SMY0H.md
 ```
 
 Discovery walks up from the current directory to the Git root and looks for
@@ -130,7 +130,7 @@ otherwise have.
 
 ```yaml
 schema: 1
-id: TKT-01JABCDEF0123456789ABCDEF
+id: TKT-01K3ZYEE00HV9ZDBB8BEASXBBG
 title: Add token refresh handling
 type: task
 status: ready
@@ -219,10 +219,11 @@ the CLI-versus-terva acceptance criterion cannot hold.
 
 - Frontmatter keys in exactly the order listed in 5.1, then any preserved
   unknown keys in their original order.
-- Block style for non-empty sequences, `[]` for empty ones, `null` for absent
-  scalars.
-- No YAML anchors, aliases, or flow mappings. Quote a string only when YAML
-  requires it.
+- Block style for non-empty sequences and mappings. An empty collection is `[]`
+  or `{}`, and an absent scalar is `null`.
+- No YAML anchors or aliases, and no flow style except the two empty forms
+  above, which are the canonical way to write an empty collection. Quote a
+  string only when YAML requires it.
 - LF line endings and exactly one trailing newline.
 - Checkbox items as `- [ ]` and `- [x]`.
 
@@ -244,7 +245,7 @@ client problem this format has to survive. So:
 |---|---|
 | `check` | Error. Exit nonzero. |
 | Ordinary read | Warn on stderr, parse the rest, preserve the field. |
-| Write | Preserve the field in its original position. |
+| Write | Preserve the field, re-emitted after the known keys in its original relative order, per 5.3. |
 | `schema` greater than the reader supports | Refuse with `schema_unsupported` and name the version needed. |
 
 A field may only be removed or given a new meaning at a schema major bump.
@@ -359,7 +360,7 @@ returns `stale_revision` with both the expected and the actual value if they
 differ. When it is omitted, the last write wins under the local lock.
 
 The precondition is optional in the library and CLI so that a person typing
-`git ticket status TKT-01JAB done` at a terminal is not forced into a
+`git ticket status TKT-01K3ZYEE done` at a terminal is not forced into a
 read-then-write dance where no concurrency exists. Terva's tool schema marks it
 required, because agents read before they write anyway and multi-agent is where
 the races actually happen.
@@ -486,28 +487,45 @@ Stable codes, which callers may switch on:
 `check` runs offline, is safe in CI, and separates errors from warnings. It
 exits nonzero on any error, and `--strict` promotes warnings to errors.
 
+Every finding carries a stable code, so a caller switches on the code instead of
+matching a message. These codes overlap the operation codes in section 10 only
+where the condition is the same one: `parse_error`, `merge_conflict`,
+`schema_unsupported`, `dependency_missing`, and `dependency_cycle`. The operation
+code `invalid_field` does not appear here, because a report says which field is
+wrong rather than that some field is.
+
 Errors:
 
-- duplicate ticket ID across files
-- filename that disagrees with the `id` field
-- malformed frontmatter or an unparseable body
-- unknown top-level frontmatter field
-- `schema` newer than this binary supports
-- Git conflict markers in a ticket file, reported as `merge_conflict` rather
-  than as a YAML parse failure, because that is what a user needs to be told
-- a `dependencies` or `parent` entry naming a ticket that does not exist
-- a cycle in `dependencies` or in `parent`, checked separately
-- a status value outside the set
-- `archive_location_mismatch`, where the status and the directory disagree
+| Code | Condition |
+|---|---|
+| `duplicate_id` | the same `id` appears in more than one file |
+| `filename_id_mismatch` | the filename is not `<id>.md` |
+| `parse_error` | malformed frontmatter or an unparseable body |
+| `unknown_field` | an unknown top-level frontmatter field |
+| `schema_unsupported` | `schema` is newer than this binary supports |
+| `merge_conflict` | Git conflict markers in a ticket file, reported as this rather than as a YAML parse failure, because that is what a user needs to be told |
+| `dependency_missing` | a `dependencies` entry names a ticket that does not exist |
+| `parent_missing` | `parent` names a ticket that does not exist |
+| `dependency_cycle` | a cycle in `dependencies` |
+| `parent_cycle` | a cycle in `parent`, checked separately from dependencies |
+| `invalid_status` | a `status` outside the set in 6.1 |
+| `invalid_type` | a `type` outside the set in 5.1 |
+| `invalid_priority` | a `priority` outside the set in 5.1 |
+| `archive_location_mismatch` | the status and the directory disagree; the status wins |
 
 Warnings:
 
-- a live ticket depending on an archived ticket whose `from_status` is not
-  `done`
-- an expired claim
-- a `references` path that does not resolve
-- a label outside `config.yml`
-- a ticket in `in-progress` with no claim
+| Code | Condition |
+|---|---|
+| `dependency_archived_incomplete` | a live ticket depends on an archived ticket whose `from_status` is not `done` |
+| `claim_expired` | a claim is past its `expires_at` |
+| `reference_path_unresolved` | a `references` path does not resolve |
+| `label_unknown` | a label is outside the `config.yml` allowlist |
+| `in_progress_unclaimed` | a ticket is `in-progress` with no claim |
+
+A finding names the file, and the ticket ID and field where they apply. A file
+that fails to parse yields exactly one finding, because everything downstream of
+a parse failure would be noise.
 
 ## 12. Interfaces
 
@@ -683,6 +701,16 @@ Concurrency:
 5. What tool discovery the stdio adapter should expose.
 6. When Backlog.md import and a local view are worth building.
 7. The compatibility policy for the Go module after the first stable schema.
+8. Where a `blocked` reason lives. 6.2 requires `--reason` on the way into
+   `blocked` and on reopening from `done`, but 5.1 defines no field to hold it,
+   so today it can only land in `Notes` as prose no tool can read back. Either
+   accept that and say so, or add a field and pay for it at the schema level.
+9. What a `references` path resolves against. 5.1 says `check` resolves it "far
+   enough to report a broken link", which is not enough to implement:
+   repository root and store parent differ as soon as `--store` points outside
+   the repository, and a store used from two clones would disagree. Until this
+   is settled `reference_path_unresolved` has no fixture, because writing one
+   would invent the answer.
 
 ## 16. References
 

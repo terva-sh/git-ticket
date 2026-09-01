@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "dependency_missing",
+      "file": "tickets/TKT-01K3ZZZW10AJ544MBZMA2JBNNF.md",
+      "ticket": "TKT-01K3ZZZW10AJ544MBZMA2JBNNF",
+      "field": "dependencies"
+    }
+  ],
+  "warnings": []
+}

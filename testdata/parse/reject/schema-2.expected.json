@@ -1,0 +1,13 @@
+{
+  "parse": "reject",
+  "roundTrip": null,
+  "errors": [
+    {
+      "code": "schema_unsupported",
+      "file": "schema-2.md",
+      "ticket": "TKT-01K3ZYYXB0QP32SG8GF99N5VXW",
+      "field": "schema"
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [],
+  "warnings": [
+    {
+      "code": "claim_expired",
+      "file": "claim-expired.md",
+      "ticket": "TKT-01K3ZYQJZ0JMSK4YH3J13BKYV2",
+      "field": "claim.expires_at"
+    }
+  ]
+}

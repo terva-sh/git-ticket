@@ -1,0 +1,13 @@
+{
+  "parse": "reject",
+  "roundTrip": null,
+  "errors": [
+    {
+      "code": "merge_conflict",
+      "file": "conflict-markers.md",
+      "ticket": null,
+      "field": null
+    }
+  ],
+  "warnings": []
+}

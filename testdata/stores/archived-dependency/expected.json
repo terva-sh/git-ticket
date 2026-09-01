@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "dependency_archived_incomplete",
+      "file": "tickets/TKT-01K3ZZRHN0393ED9MC6ZMFJTDT.md",
+      "ticket": "TKT-01K3ZZRHN0393ED9MC6ZMFJTDT",
+      "field": "dependencies"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "in_progress_unclaimed",
+      "file": "tickets/TKT-01K400J5Z097ND5C86DFD1W4KZ.md",
+      "ticket": "TKT-01K400J5Z097ND5C86DFD1W4KZ",
+      "field": "claim"
+    }
+  ]
+}

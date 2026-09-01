@@ -1,0 +1,17 @@
+{
+  "errors": [
+    {
+      "code": "duplicate_id",
+      "file": "archive/TKT-01K3ZZDJ30Q25NXE89T6YN45EE.md",
+      "ticket": "TKT-01K3ZZDJ30Q25NXE89T6YN45EE",
+      "field": "id"
+    },
+    {
+      "code": "duplicate_id",
+      "file": "tickets/TKT-01K3ZZDJ30Q25NXE89T6YN45EE.md",
+      "ticket": "TKT-01K3ZZDJ30Q25NXE89T6YN45EE",
+      "field": "id"
+    }
+  ],
+  "warnings": []
+}

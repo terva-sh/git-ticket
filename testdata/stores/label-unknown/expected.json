@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "label_unknown",
+      "file": "tickets/TKT-01K400GBC0WHK14CSBHQ8WSEPE.md",
+      "ticket": "TKT-01K400GBC0WHK14CSBHQ8WSEPE",
+      "field": "labels"
+    }
+  ]
+}

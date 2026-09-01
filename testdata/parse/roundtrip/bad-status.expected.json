@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "invalid_status",
+      "file": "bad-status.md",
+      "ticket": "TKT-01K3ZYNRC014P7KT7R1SASWG2B",
+      "field": "status"
+    }
+  ],
+  "warnings": []
+}

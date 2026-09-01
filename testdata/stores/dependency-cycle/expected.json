@@ -1,0 +1,23 @@
+{
+  "errors": [
+    {
+      "code": "dependency_cycle",
+      "file": "tickets/TKT-01K3ZZFCP0VJKES58GZG0QDHG0.md",
+      "ticket": "TKT-01K3ZZFCP0VJKES58GZG0QDHG0",
+      "field": "dependencies"
+    },
+    {
+      "code": "dependency_cycle",
+      "file": "tickets/TKT-01K3ZZH790E1HXA78V5PGPBVQ0.md",
+      "ticket": "TKT-01K3ZZH790E1HXA78V5PGPBVQ0",
+      "field": "dependencies"
+    },
+    {
+      "code": "dependency_cycle",
+      "file": "tickets/TKT-01K3ZZK1W0XWVS6RYX1JVVWSK3.md",
+      "ticket": "TKT-01K3ZZK1W0XWVS6RYX1JVVWSK3",
+      "field": "dependencies"
+    }
+  ],
+  "warnings": []
+}

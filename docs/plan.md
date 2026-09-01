@@ -954,6 +954,17 @@ Concurrency:
 4. What tool discovery the stdio adapter should expose.
 5. When Backlog.md import and a local view are worth building.
 6. The compatibility policy for the Go module after the first stable schema.
+7. Whether the module path should follow where the code actually lives. `go.mod`
+   declares `github.com/terva-sh/git-ticket`, and the repository is hosted at
+   `git.local.sothr.com/terva-sh/git-ticket` with no public mirror, so the
+   declared path is not fetchable. A module path is a promise about where a
+   consumer can find the code, and nothing enforces it: a `replace` directive or
+   a local path works either way, which is why this can sit wrong for a long
+   time without failing. It is also hard to change once anything depends on it,
+   so the decision is cheapest now. Either publish a mirror at the declared
+   path, or rename the module to the host that serves it. Related to question 6,
+   because both are promises to a consumer outside this repository.
+
 Five questions have left this list, and the numbers have closed up behind them.
 
 Two were settled during Phase 1, before any reader had shipped, so adding

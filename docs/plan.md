@@ -512,7 +512,11 @@ Stable codes, which callers may switch on:
 `store_not_found`, `store_exists`, `ticket_not_found`, `ambiguous_id`,
 `stale_revision`, `invalid_transition`, `invalid_field`, `dependency_missing`,
 `dependency_cycle`, `claim_conflict`, `parse_error`, `merge_conflict`,
-`schema_unsupported`, `lock_timeout`, `validation_failed`.
+`schema_unsupported`, `lock_timeout`, `validation_failed`, `usage`.
+
+`usage` is the CLI's own: an unknown command, a missing argument, or a flag
+value outside its set. It never comes from the library, which is why it names no
+store condition.
 
 A path in `pathsChanged`, and the `path` of a ticket, is relative to the
 repository root when the store sits inside one, and absolute otherwise.

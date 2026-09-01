@@ -8,8 +8,14 @@ design of record, not background reading.
 
 Phase 0 and Phase 1 are done and their exit criteria hold. The library parses,
 renders, validates, queries, and mutates, with the store lock and the revision
-precondition. Phase 2, the standalone CLI in section 12.1, is next and no Go
-exists for it yet: there is no `cmd/git-ticket`.
+precondition.
+
+Phase 2, the standalone CLI in section 12.1, is under way. `cmd/git-ticket` and
+`internal/cli` exist and carry `init`, `create`, `show`, and `list`, each in a
+human form and behind `--json`. The rest of 12.1 is unwritten, and `check` in
+particular, so the `check-report` JSON kind has no test. Both Phase 2 exit
+criteria are still open: `git ticket check` green in this repository's own CI,
+and a scripted run from create through claim through done through archive.
 
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
@@ -32,6 +38,11 @@ them. Sections 4 through 11 are the format itself.
 
 `testdata/` is the fixture corpus. Read `testdata/README.md` before adding to
 it.
+
+`cmd/git-ticket/` is a thin `main` and holds no decisions. Every choice about
+flags, output, and exit status lives in `internal/cli/`, where the tests can
+reach it: `Run(args, Env)` takes the directory, the environment, both streams,
+and the clock as arguments rather than reading process state.
 
 `ticket/` is the library. `ticket/corpus_test.go` holds the corpus to its own
 rules: every fixture pairs with a sidecar, every code in section 11 has a
@@ -80,6 +91,16 @@ would embed nothing and leave a suite of tests passing against an empty corpus.
 
 Renaming a code in section 11 fails `TestCorpusCoversEveryPlanCode` until the
 sidecars follow. That is intended. The corpus and the spec are one artifact.
+
+The standard library's `flag.Parse` stops at the first non-flag word, so a
+naive parse never sees the `--json` in `git ticket show ID --json`. `parseFlags`
+in `internal/cli/cli.go` loops instead, consuming one positional per pass. Plan
+12.1 requires both orders.
+
+A path printed to a person goes through `displayPath`, never `filepath.Rel`
+alone. On macOS a temporary directory is reached through `/var`, a symlink to
+`/private/var`, so `git rev-parse --show-toplevel` answers in one name space and
+the store path is in another. `displayPath` retries through `EvalSymlinks`.
 
 Adding a frontmatter field means editing every fixture that carries one, because
 5.3 renders an absent scalar as `null` rather than omitting it. The round-trip

@@ -5,9 +5,9 @@ file with YAML frontmatter, committed next to the code, editable in vim and
 reviewable in `git diff`. One Go library owns the format, and a `git-ticket`
 binary exposes it as `git ticket …`.
 
-> **Nothing is built yet.** The format is frozen and covered by 35 test
-> fixtures, but there is no Go code, no module, and nothing to install. See
-> [Status](#status) before you plan around this.
+> **Partly built.** The library is done and the CLI carries four commands.
+> There is no release and no install path yet. See [Status](#status) before you
+> plan around this.
 
 ## The problem
 
@@ -114,13 +114,35 @@ this project rejects: an export is not something you review in a pull request.
 workflow of the three, and the acceptance criteria and definition of done fields
 come from it. It puts the title in the filename, which this format does not.
 
+## Using it
+
+```sh
+go build -o git-ticket ./cmd/git-ticket
+```
+
+Put that on `PATH` and Git spells it `git ticket`. Four commands work today:
+
+```sh
+git ticket init --actor human:you
+git ticket create --title "Refresh fails when the clock jumps backward" \
+    --type bug --priority high --label auth
+git ticket list --status ready --type bug
+git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
+```
+
+Every command takes `--json` and answers with one envelope on stdout. A failure
+exits 1 and puts the reason in an `error` envelope with a stable `code`, so a
+script switches on the code rather than parsing the message. `--store PATH`
+names a store, `GIT_TICKET_STORE` does the same from the environment, and
+without either the store is discovered upward to the Git root.
+
 ## Status
 
 | Phase | What | State |
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | Next |
+| 2 | Standalone CLI with `--json` | Started: `init`, `create`, `show`, `list` |
 | 3 | Terva integration | Tracked in terva, starts after Phase 2 tags |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
@@ -128,6 +150,13 @@ The two questions that blocked Phase 1 are settled. A `blocked` reason lives in
 the `status_reason` field and in `Notes`, per plan 5.1 and 6.2. A `references`
 path resolves against the root of the Git repository holding the store, and is
 not checked at all when the store sits outside one, per plan 5.5.
+
+Phase 2 settled three more, all in the plan. Store precedence is `--store`, then
+`GIT_TICKET_STORE`, then discovery, and a named store that does not exist is an
+error rather than a reason to go looking elsewhere, per 12.1. Exit statuses are
+Git's: 0 or 1, with the detail in the error code, per 10.2. A ticket's JSON
+carries every body section as raw text and derives `checklists` from it, each
+item numbered the way `ac --check N` counts, per 10.1.
 
 ## Reading order
 

@@ -822,6 +822,13 @@ That file is one the user maintains, and merging into it is their edit to make.
 
 ### 12.2 Library
 
+The import path is `github.com/terva-sh/git-ticket/ticket`. Development happens
+on the internal Forgejo and a public mirror serves that path, so the module path
+names where a consumer fetches the code rather than where it is written. Never
+put the internal hostname in `go.mod`: it would publish a name that resolves for
+nobody outside the network, and it is the one string in the project that cannot
+be corrected cheaply once anything imports it.
+
 The API terva and any other consumer builds against:
 
 ```go
@@ -954,18 +961,7 @@ Concurrency:
 4. What tool discovery the stdio adapter should expose.
 5. When Backlog.md import and a local view are worth building.
 6. The compatibility policy for the Go module after the first stable schema.
-7. Whether the module path should follow where the code actually lives. `go.mod`
-   declares `github.com/terva-sh/git-ticket`, and the repository is hosted at
-   `git.local.sothr.com/terva-sh/git-ticket` with no public mirror, so the
-   declared path is not fetchable. A module path is a promise about where a
-   consumer can find the code, and nothing enforces it: a `replace` directive or
-   a local path works either way, which is why this can sit wrong for a long
-   time without failing. It is also hard to change once anything depends on it,
-   so the decision is cheapest now. Either publish a mirror at the declared
-   path, or rename the module to the host that serves it. Related to question 6,
-   because both are promises to a consumer outside this repository.
-
-Five questions have left this list, and the numbers have closed up behind them.
+Six questions have left this list, and the numbers have closed up behind them.
 
 Two were settled during Phase 1, before any reader had shipped, so adding
 `status_reason` to schema 1 cost no compatibility. Where a `blocked` reason
@@ -973,6 +969,13 @@ lives is answered by `status_reason` in 5.1 and 6.2: the field holds the
 current reason and `Notes` keeps the history. What a `references` path resolves
 against is answered in 5.5: the root of the Git repository holding the store,
 and no finding at all when the store sits outside one.
+
+The module path was settled by publishing rather than by argument. `go.mod`
+declares `github.com/terva-sh/git-ticket` and a public mirror now serves that
+path, so the declared path is the real one and nothing changes. The alternative,
+renaming the module to the host that serves it, was wrong on its own terms: a
+private hostname does not belong in a public artifact, and a module path is the
+most load-bearing string in a Go project to change later. See 12.2.
 
 Three were settled during Phase 2, because building the CLI is what forced
 them. The precedence between `--store`, `GIT_TICKET_STORE`, and `config.yml` is

@@ -303,11 +303,12 @@ reason goes to `Notes` as well as the `archive` block, per 6.3, because
 exactly that reason. And `update` carries `--type` and `--parent`, per 12.1,
 because every other field `create` sets already had an `update` flag.
 
-What remains is deferred rather than open: seven questions in plan section 15,
-filed as tickets in `.tickets/`. Run `git ticket list` to see them. The newest
-is whether the module path should follow where the code lives, since `go.mod`
-declares `github.com/terva-sh/git-ticket` and there is no public mirror serving
-it.
+The module path is settled too, by publishing rather than by argument. `go.mod`
+declares `github.com/terva-sh/git-ticket`, a public mirror serves that path, and
+so the import path a consumer writes is the one that was already there.
+
+What remains is deferred rather than open: six questions in plan section 15,
+filed as tickets in `.tickets/`. Run `git ticket list` to see them.
 
 ## Reading order
 

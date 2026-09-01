@@ -39,9 +39,15 @@ job run without network, which is why fetching `yaml.v3` from the proxy is fine.
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
 
-`origin` is `ssh://git@git.local.sothr.com:2222/terva-sh/git-ticket.git`, and
-`main` tracks it. `v0.1.0` is pushed. There is no public mirror, which is
-deferred question 7: `go.mod` declares a path that nothing serves.
+`origin` is the internal Forgejo and `main` tracks it. `v0.1.0` is pushed there.
+A public mirror now exists at `github.com/terva-sh/git-ticket`, which settles
+the module path: `go.mod` already declared it, so nothing changes. Plan 12.2
+holds the rule.
+
+Nothing has been pushed to that mirror yet, and the tree is not ready for it.
+Five tracked files name the internal infrastructure, `AGENTS.md` worst of all.
+`TKT-01M1FAFS` is the scrub and is `ready`. Do not push to the mirror before it
+is done.
 
 ## Commands
 

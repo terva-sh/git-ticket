@@ -475,8 +475,8 @@ every one of those calls sits in one of the helpers, and every helper call names
 a command from this table. A fourth call site added tomorrow has to pass all
 three, and a new helper fails the second rather than slipping past the third.
 
-No writing command joins this table. Section 15 records that decision under Q3,
-so a change that needs `fetch` or `push` is a change to the plan first.
+No writing command joins this table. Section 15 records that decision under sync
+helpers, so a change that needs `fetch` or `push` is a change to the plan first.
 
 Test code is exempt and runs `git init` freely, because a fixture repository is
 not a user's repository.
@@ -1081,7 +1081,7 @@ The module is `v0.x` and stays there until Phase 3 lands. Plain semver reads
 module is `v0.x`, a break in a covered surface bumps the minor and a fix bumps
 the patch, so `v0.2` to `v0.3` carries the warning that `v1` to `v2` will carry
 later. Terva is the first real consumer and the first thing that will find the
-gaps. Deferred question 7 is already one of them, and it changes the JSON
+gaps. Reading the parent hierarchy back was one of them, and it changes the JSON
 contract in 10.1. Tagging `v1.0.0` immediately before making a break we can
 already see coming would spend the major on it and teach a consumer that the
 number means nothing.
@@ -1114,7 +1114,7 @@ a store an old reader refuses outright rather than one it reads with tickets
 missing. Announcing the change up front is honest and going quiet halfway is not.
 
 Migration writes files and does not commit. Publishing stays the user's ordinary
-Git workflow, per 7.4 and the Q3 decision in section 15.
+Git workflow, per 7.4 and the sync-helper decision in section 15.
 
 There is no downgrade. A field added in a later schema has nowhere to go in an
 earlier one, and a migration that quietly dropped it would lose work.
@@ -1178,16 +1178,17 @@ terva by terva.
 
 What this phase can still ask of this repository is a library or format change,
 and the answer goes through the usual route: a plan change first, then code,
-then a tag. The one already visible is deferred question 7, because a board
-that shows an epic's children needs a way to read the hierarchy back.
+then a tag. The one already visible was reading the parent hierarchy back,
+because a board that shows an epic's children needs it. Section 8 now answers
+that with a `parent` filter on `list`.
 
 ### Phase 4: adapters and views
 
 The stdio MCP adapter. Import of the useful Backlog.md fields, with no runtime
 dependency on Backlog.md. A local browser or TUI view, and only after the file
 and agent contracts have held through at least one real project. No remote
-helpers, per Q3 in section 15. Publishing stays the user's ordinary Git
-workflow.
+helpers, per the sync-helper decision in section 15. Publishing stays the
+user's ordinary Git workflow.
 
 ## 14. Acceptance criteria
 
@@ -1218,12 +1219,14 @@ Concurrency:
 
 ## 15. Deferred questions
 
-A question keeps its number for life. A settled one leaves a gap rather than
-closing the numbers up, and each entry carries the ULID of its ticket, which is
-the identifier that was already unique and never moves.
+A question is named by the subject in bold and the ULID of its ticket. This
+section numbered its questions once and stopped, because a number has to be
+chosen and two agents working in parallel choose the same one without noticing.
+That happened twice. A ULID is generated, so it cannot collide, and
+`git ticket show` resolves it to the ticket holding the detail.
 
-**Q2** (`TKT-01M1F7Z2Y5H1ZJAHRGF3XE6F91`). Whether custom statuses are worth the
-cost. The trigger is a workflow that needs a state the seven in 6.1 cannot
+**Custom statuses** (`TKT-01M1F7Z2Y5H1ZJAHRGF3XE6F91`). Whether they are worth
+the cost. The trigger is a workflow that needs a state the seven in 6.1 cannot
 express and that a label plus `status_reason` cannot express either. That second
 half is the part worth checking, because labels are already open and
 `status_reason` already answers "why is this blocked now", so most requests for a
@@ -1233,8 +1236,8 @@ met, is that the transition table in 6.2 stops being a constant and becomes data
 status, and the status enum `git ticket schema` publishes becomes store-specific,
 so no consumer can hard-code it again.
 
-**Q4** (`TKT-01M1F7Z2ZXFX7W4MJ9H1KB8SFZ`). What tool discovery the stdio adapter
-should expose. Phase 4, and not started. The trigger is a host that wants to
+**Stdio adapter tool discovery** (`TKT-01M1F7Z2ZXFX7W4MJ9H1KB8SFZ`). What the
+adapter should expose. Phase 4, not started. The trigger is a host that wants to
 drive git-ticket and cannot embed the `cli` package, which is the only reason an
 adapter exists at all. Terva is not that host, because 12.2 exports `cli` for it
 to embed. Much of the answer is already built. `git ticket schema` publishes the
@@ -1243,16 +1246,16 @@ a tool description rather than restating it and drifting. What is undecided is
 whether every command becomes a tool, or only the ones an agent should reach
 for.
 
-**Q5** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`). When Backlog.md import and a local
-view are worth building. These are two questions with two triggers. Import waits
+**Backlog.md import and a local view** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`). When
+each is worth building. These are two questions with two triggers. Import waits
 for a real Backlog.md project somebody wants to move, and the count of tickets in
 it is the evidence, because an importer for a backlog nobody has is guesswork
 about a format read from the outside. The local view has its trigger written
 already in Phase 4, which is that the file and agent contracts have held through
 at least one real project. Neither is blocked on anything in this repository.
 
-**Q9** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`). Whether git-ticket ships a Git merge
-driver for ticket files. Two agents each adding a ticket merge cleanly and two
+**A merge driver for ticket files** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`). Whether
+git-ticket ships one. Two agents each adding a ticket merge cleanly and two
 editing the same ticket do not, which 7.1 hands to Git and leaves there. A driver
 stays inside the 7.4 promise, because Git invokes the driver and the driver runs
 no Git command itself. It would have to say which fields merge by union, which
@@ -1260,9 +1263,9 @@ are last-writer-wins, and which must always conflict, and how a user installs
 one, since a driver needs both a `.gitattributes` entry and a `git config` line
 that a repository cannot set for itself.
 
-**Q10** (`TKT-01M1HFQ5F4D4KF45A5PFQ39XST`). How git-ticket integrates with an
-external tracker. Storing the identifier already works, because 5.1 leaves the
-reference namespace open and `decodeReferences` takes the ref verbatim, so
+**External tracker integration** (`TKT-01M1HFQ5F4D4KF45A5PFQ39XST`). How
+git-ticket integrates with one. Storing the identifier works, because 5.1 leaves
+the reference namespace open and `decodeReferences` takes the ref verbatim, so
 `jira:PROJ-1234` links today and `check` is content with it. Three gaps sit above
 that storage. Nothing enforces a namespace, so an untyped `PROJ-1234` is accepted
 and `JIRA:proj-1234` is a different reference from `jira:PROJ-1234`, which sits
@@ -1274,66 +1277,68 @@ for the others. And `extensions` has no mutation, so the one place 5.1 reserves
 for a consumer's own fields round-trips through parse and render but can only be
 written by hand-editing the file.
 
-Eleven questions have left this list. The six that went before this section
-stopped renumbering had the numbers close up behind them, which is why a ticket
-closed back then can cite a number that now means something else:
-`TKT-01M1F8XG6KXN6QXYWF6EHVB88P` calls itself question 7, and so does the parent
-hierarchy question above. They are different questions. That collision is the
-reason the numbers are now fixed and the reason each entry names its ULID.
+Eleven questions have left this list. They were numbered once, and the numbering
+is the thing this section gave up. A number has to be chosen, and it collided
+twice. Two settled questions both called themselves question 7, the module path
+and the parent hierarchy. A third was filed as question 9 from a concurrent
+worktree while question 9 already meant the merge driver. Commit messages and
+pull request bodies from that period still cite numbers, and the subject of each
+entry below is what decodes them.
 
-Q6, the compatibility policy, is answered in 12.4. The module version, the file
-`schema`, and the envelope `schemaVersion` move independently. Everything a
-machine reads is covered and human output is not. A covered surface breaks only
-when something that worked stops working or changes meaning, so adding beside
-the old thing is always minor. The module version tracks the Go API alone, which
-makes a `schema` bump an ordinary minor release rather than a `/v2`. A store
-never upgrades itself. `v1.0.0` waits for Phase 3, because the parent hierarchy
-was a break we could already see coming and tagging a major immediately before
-spending it would teach a consumer that the number means nothing. Settling Q6 is
-what raised Q8.
+**The compatibility policy** (`TKT-01M1F7Z31HR5GV06D6Y7WZWJK4`) is answered in
+12.4. The module version, the file `schema`, and the envelope `schemaVersion`
+move independently. Everything a machine reads is covered and human output is
+not. A covered surface breaks only when something that worked stops working or
+changes meaning, so adding beside the old thing is always minor. The module
+version tracks the Go API alone, which makes a `schema` bump an ordinary minor
+release rather than a `/v2`. A store never upgrades itself. `v1.0.0` waits for
+Phase 3, because the parent hierarchy was a break we could already see coming
+and tagging a major immediately before spending it would teach a consumer that
+the number means nothing. Settling it is what raised the schema migration.
 
-Q7, how a caller reads the parent hierarchy back, is answered in section 8 by a
-`parent` filter on `list`. Running the question before answering it is what
-shrank it. The data was never missing: `list` already returns every ticket with
-its `parent`, so a consumer could always rebuild the tree from one call. What
-was missing was a way to ask for one epic's children without pulling the whole
-store, and any way at all for a person at a terminal to ask. A filter is
-additive under 12.4, so it ships as a minor release and 10.1 does not move,
-which is what settled it against the two richer answers: `show` rendering
-children would put data derived from other files onto the ticket object, and
-`deps --children` would overload a command whose whole contract is that it walks
-`dependencies`.
+**Reading the parent hierarchy back** (`TKT-01M1FCMN7QEWM584N192NBC7TD`) is
+answered in section 8 by a `parent` filter on `list`. Running the question
+before answering it is what shrank it. The data was never missing. `list`
+already returns every ticket with its `parent`, so a consumer could always
+rebuild the tree from one call. What was missing was a way to ask for one epic's
+children without pulling the whole store, and any way at all for a person at a
+terminal to ask. A filter is additive under 12.4, so it ships as a minor release
+and 10.1 does not move, which is what settled it against the two richer answers.
+`show` rendering children would put data derived from other files onto the
+ticket object, and `deps --children` would overload a command whose whole
+contract is that it walks `dependencies`.
 
-Q1, how a caller renews an existing claim, is answered in 6.4, and running the
-question is what shrank it. No verb was missing. `claim ID --expires-in 1h` run
-again already re-anchors the bound, which is renewal. What the question hid was
-a defect underneath it. A re-claim that supplied no expiry, against a store with
-no `defaults.claim_expiry`, cleared `expires_at` outright, so the natural way to
-stay alive on a long task widened a bounded claim into an unbounded one, and
-reset `claimed_at` on the way past. Both now survive a renewal. Fixing it cost
-no compatibility, because every `config.yml` in this repository and the corpus
-sets `claim_expiry: null`, so no store had an expiry to lose. The richer answer,
-a `--renew` flag that extends a claim by the amount it was first given, was
-ruled out by the file format rather than by taste. The claim stores two instants
-and never the duration between them.
+**Renewing a claim** (`TKT-01M1F7Z2XAV593RH0KAVBYZQSR`) is answered in 6.4, and
+running the question is what shrank it. No verb was missing. `claim ID
+--expires-in 1h` run again already re-anchors the bound, which is renewal. What
+the question hid was a defect underneath it. A re-claim that supplied no expiry,
+against a store with no `defaults.claim_expiry`, cleared `expires_at` outright,
+so the natural way to stay alive on a long task widened a bounded claim into an
+unbounded one, and reset `claimed_at` on the way past. Both now survive a
+renewal. Fixing it cost no compatibility, because every `config.yml` in this
+repository and the corpus sets `claim_expiry: null`, so no store had an expiry
+to lose. The richer answer, a `--renew` flag that extends a claim by the amount
+it was first given, was ruled out by the file format rather than by taste. The
+claim stores two instants and never the duration between them.
 
-Q3, whether a later release adds sync helpers around ordinary Git commands, is
-answered no, and two independent mechanisms had answered it before anyone sat
-down to decide. The library side is 7.4. A sync helper means adding `fetch` or
-`push` to the enumerated table, and `TestGitCommandsAreReadOnly` holds the source
-to that table, so the addition cannot happen quietly. The workflow side is newer.
-The multi-agent friction that would justify a helper did arrive, and what
-absorbed it was a process rule rather than a tool. Work lands on `main` through a
-pull request, and pushing to `main` is forbidden outright, so a `git ticket sync`
-would automate the fetch, rebase, and push this project now tells its own agents
-not to do. Phase 4 no longer holds a slot for one. What the friction did raise is
-Q9, which is a different question, because merging two edits of one ticket needs
-no network and no writing Git command.
+**Sync helpers around ordinary Git commands** (`TKT-01M1F7Z2Z33HW6FW44TCQVWB7M`)
+are answered no, and two independent mechanisms had answered the question before
+anyone sat down to decide. The library side is 7.4. A sync helper means adding
+`fetch` or `push` to the enumerated table, and `TestGitCommandsAreReadOnly` holds
+the source to that table, so the addition cannot happen quietly. The workflow
+side is newer. The multi-agent friction that would justify a helper did arrive,
+and what absorbed it was a process rule rather than a tool. Work lands on `main`
+through a pull request, and pushing to `main` is forbidden outright, so a
+`git ticket sync` would automate the fetch, rebase, and push this project now
+tells its own agents not to do. Phase 4 no longer holds a slot for one. What the
+friction did raise is the merge driver above, which is a different question,
+because merging two edits of one ticket needs no network and no writing Git
+command.
 
-Q8, what an explicit schema migration looks like, is answered in 12.5, and
-designing it before there is a schema 2 is what turned up the reason to do it
-early. `config.schema` was read in exactly two places, to refuse a store the
-reader is too old for and to write itself back, and nothing consulted it when
+**An explicit schema migration** (`TKT-01M1H9X166M1ATNK9S7ET26BVQ`) is answered
+in 12.5, and designing it before there is a schema 2 is what turned up the reason
+to do it early. `config.schema` was read in exactly two places, to refuse a store
+the reader is too old for and to write itself back, and nothing consulted it when
 writing a ticket. `create` stamped the binary's maximum, so a newer binary would
 have written newer files into an older store with no migration run at all, and
 the tickets a colleague could not read would have been the newest ones. That rule
@@ -1349,12 +1354,13 @@ current reason and `Notes` keeps the history. What a `references` path resolves
 against is answered in 5.5: the root of the Git repository holding the store,
 and no finding at all when the store sits outside one.
 
-The module path was settled by publishing rather than by argument. `go.mod`
-declares `github.com/terva-sh/git-ticket` and a public mirror now serves that
-path, so the declared path is the real one and nothing changes. The alternative,
-renaming the module to the host that serves it, was wrong on its own terms: a
-private hostname does not belong in a public artifact, and a module path is the
-most load-bearing string in a Go project to change later. See 12.2.
+**The module path** (`TKT-01M1F8XG6KXN6QXYWF6EHVB88P`) was settled by publishing
+rather than by argument. `go.mod` declares `github.com/terva-sh/git-ticket` and a
+public mirror now serves that path, so the declared path is the real one and
+nothing changes. The alternative, renaming the module to the host that serves it,
+was wrong on its own terms. A private hostname does not belong in a public
+artifact, and a module path is the most load-bearing string in a Go project to
+change later. See 12.2.
 
 Three were settled during Phase 2, because building the CLI is what forced
 them. The precedence between `--store`, `GIT_TICKET_STORE`, and `config.yml` is

@@ -19,7 +19,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-01T20:00:08Z
-updated_at: 2026-09-02T14:57:58Z
+updated_at: 2026-09-02T17:09:39Z
 created_by:
   id: human:sothr
   name: ""
@@ -31,13 +31,17 @@ extensions: {}
 
 ## Description
 
-Deferred question 7 of plan section 15. go.mod declares github.com/terva-sh/git-ticket, and the repository is hosted on an internal Forgejo instance with no public mirror, so the declared path is not fetchable. A module path is a promise about where a consumer can find the code, and nothing enforces it: a replace directive or a local path works either way, which is why this can sit wrong for a long time without failing. It is also hard to change once anything depends on it. Either publish a mirror at the declared path, or rename the module to the host that serves it. Phase 3 is the first consumer, so decide before terva depends on either answer.
+A deferred question in plan section 15. go.mod declares github.com/terva-sh/git-ticket, and the repository is hosted on an internal Forgejo instance with no public mirror, so the declared path is not fetchable. A module path is a promise about where a consumer can find the code, and nothing enforces it: a replace directive or a local path works either way, which is why this can sit wrong for a long time without failing. It is also hard to change once anything depends on it. Either publish a mirror at the declared path, or rename the module to the host that serves it. Phase 3 is the first consumer, so decide before terva depends on either answer.
 
 ## Notes
 
 **agent:terva/mieli** at 2026-09-02T14:57:58Z
 
 Numbering note. This ticket calls itself deferred question 7, which it was under the old scheme where numbers closed up as questions were settled. Question 7 now means the parent hierarchy, TKT-01M1FCMN7QEWM584N192NBC7TD. Plan section 15 froze the numbers because of this collision, and each entry there now names its ticket ULID. Nothing here changes; the description is left as it was written.
+
+**agent:terva/mieli** at 2026-09-02T17:09:39Z
+
+Correction to the note above. Numbering was not frozen, it was dropped. Plan section 15 now names each question by a subject in bold and the ULID of its ticket, and this ticket's description no longer claims a number. The module path question is the entry beginning 'The module path'.
 
 ## Summary
 

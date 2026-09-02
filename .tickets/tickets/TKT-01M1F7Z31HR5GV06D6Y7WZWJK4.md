@@ -29,7 +29,7 @@ extensions: {}
 
 ## Description
 
-Deferred question 6 of plan section 15. Schema 1 is what the library reads and writes. Decide what a schema 2 means for a schema 1 reader, and what the Go module promises across it, before anything outside this repository depends on either.
+A deferred question in plan section 15. Schema 1 is what the library reads and writes. Decide what a schema 2 means for a schema 1 reader, and what the Go module promises across it, before anything outside this repository depends on either.
 
 ## Notes
 
@@ -43,8 +43,8 @@ The load-bearing rule is that a store never upgrades itself. Go semver only cove
 
 **agent:terva/mieli** at 2026-09-02T14:58:17Z
 
-Settling this raised Q8, TKT-01M1H9X166M1ATNK9S7ET26BVQ: if a store only moves through an explicit migration, that operation has to exist and is undesigned. Per AGENTS.md it went to section 15 rather than being invented here.
+Settling this raised the explicit schema migration question, TKT-01M1H9X166M1ATNK9S7ET26BVQ: if a store only moves through an explicit migration, that operation has to exist and is undesigned. Per AGENTS.md it went to section 15 rather than being invented here.
 
 ## Summary
 
-Answered in plan 12.4. The module version, the file schema, and the envelope schemaVersion move independently. Every machine-readable surface is covered, the ticket API, cli.Run and Env, the JSON envelope and its kinds, the exit statuses, the error and finding codes, and the on-disk format; human CLI output is not. A covered surface breaks only when something that worked stops working or changes meaning, so adding beside the old thing is always minor. The module version tracks the Go API alone, which makes a schema bump an ordinary minor release rather than a /v2, and a consumer gates at runtime on the exported ticket.SchemaVersion. A store never upgrades itself. v1.0.0 waits for Phase 3, because Q7 is a break already in sight and spending the major on it would teach a consumer that the number means nothing.
+Answered in plan 12.4. The module version, the file schema, and the envelope schemaVersion move independently. Every machine-readable surface is covered, the ticket API, cli.Run and Env, the JSON envelope and its kinds, the exit statuses, the error and finding codes, and the on-disk format; human CLI output is not. A covered surface breaks only when something that worked stops working or changes meaning, so adding beside the old thing is always minor. The module version tracks the Go API alone, which makes a schema bump an ordinary minor release rather than a /v2, and a consumer gates at runtime on the exported ticket.SchemaVersion. A store never upgrades itself. v1.0.0 waits for Phase 3, because the parent hierarchy, TKT-01M1FCMN7QEWM584N192NBC7TD, is a break already in sight and spending the major on it would teach a consumer that the number means nothing.

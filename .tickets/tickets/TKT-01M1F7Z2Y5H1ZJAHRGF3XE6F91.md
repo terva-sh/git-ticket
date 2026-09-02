@@ -29,7 +29,7 @@ extensions: {}
 
 ## Description
 
-Deferred question 2 of plan section 15. The set in 6.1 is fixed and the transition table in 6.2 is built on it. Decide after a real workflow asks for a status that is not there, not before.
+A deferred question in plan section 15. The set in 6.1 is fixed and the transition table in 6.2 is built on it. Decide after a real workflow asks for a status that is not there, not before.
 
 ## Notes
 

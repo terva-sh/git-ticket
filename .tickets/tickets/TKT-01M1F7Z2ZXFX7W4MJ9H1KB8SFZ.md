@@ -30,7 +30,7 @@ extensions: {}
 
 ## Description
 
-Deferred question 4 of plan section 15, and part of Phase 4. The MCP adapter has to name its tools and say what each takes. git ticket schema now publishes the enums and codes, which is most of what such a description needs.
+A deferred question in plan section 15, and part of Phase 4. The MCP adapter has to name its tools and say what each takes. git ticket schema now publishes the enums and codes, which is most of what such a description needs.
 
 ## Notes
 

@@ -29,8 +29,8 @@ extensions: {}
 
 ## Description
 
-Deferred question 3 of plan section 15. Publishing is the user's ordinary Git workflow and a helper that does it for them is out of scope for v1. The library runs no Git command that writes.
+A deferred question in plan section 15. Publishing is the user's ordinary Git workflow and a helper that does it for them is out of scope for v1. The library runs no Git command that writes.
 
 ## Summary
 
-Answered no in plan section 15, and Phase 4 no longer holds a slot for a remote helper. Two mechanisms had already decided it. Plan 7.4 enumerates the Git commands this code may run and TestGitCommandsAreReadOnly holds the source to that table, so adding fetch or push cannot happen quietly. The multi-agent friction that would justify a helper did arrive, and a process rule absorbed it rather than a tool, because work now lands on main through a pull request and pushing to main is forbidden. The friction raised Q9 instead, which is about merging two edits of one ticket and needs no network.
+Answered no in plan section 15, and Phase 4 no longer holds a slot for a remote helper. Two mechanisms had already decided it. Plan 7.4 enumerates the Git commands this code may run and TestGitCommandsAreReadOnly holds the source to that table, so adding fetch or push cannot happen quietly. The multi-agent friction that would justify a helper did arrive, and a process rule absorbed it rather than a tool, because work now lands on main through a pull request and pushing to main is forbidden. The friction raised the merge driver question instead, TKT-01M1HE7KX06FY8W1GYXH9MXGBP, which is about merging two edits of one ticket and needs no network.

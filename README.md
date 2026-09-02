@@ -327,14 +327,16 @@ carried every `parent` edge, so the tree was always reconstructable from one
 call and nothing was blocked. What was missing was the asking, not the data,
 which is why the answer is a filter and not a new field on the ticket.
 
-What remains is deferred rather than open: five questions in plan section 15,
-filed as tickets in `.tickets/`. Run `git ticket list` to see them. A question
-keeps its number for life, so a settled one leaves a gap rather than shifting
-the rest, and each entry names the ULID of its ticket.
+What remains is deferred rather than open. Five questions sit in plan section
+15, filed as tickets in `.tickets/`. Run `git ticket list` to see them. Each
+entry names its subject and the ULID of its ticket. Numbering was tried and
+dropped, because a number assigned by hand collides when two agents work at
+once, and a ULID is generated.
 
-Q8 arrived the same way, out of settling the compatibility policy. Ruling that a
-store never upgrades itself leaves the migration a person would run undesigned,
-and nothing should bump the schema before that exists.
+The schema migration question arrived the same way, out of settling the
+compatibility policy. Ruling that a store never upgrades itself leaves the
+migration a person would run undesigned, and nothing should bump the schema
+before that exists.
 
 ## Reading order
 

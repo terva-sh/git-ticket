@@ -29,7 +29,7 @@ extensions: {}
 
 ## Description
 
-Deferred question 5 of plan section 15, and the rest of Phase 4. Backlog.md is the source of the acceptance criteria and definition of done fields, so an importer is a real path in. Worth building when somebody has a backlog to move.
+A deferred question in plan section 15, and the rest of Phase 4. Backlog.md is the source of the acceptance criteria and definition of done fields, so an importer is a real path in. Worth building when somebody has a backlog to move.
 
 ## Notes
 

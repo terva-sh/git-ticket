@@ -30,7 +30,7 @@ extensions: {}
 
 ## Description
 
-Deferred question 1 of plan section 15. Claiming a ticket you already hold currently rewrites the claim. Renewing would extend expires_at and leave the rest alone. Nobody has asked for it yet.
+A deferred question in plan section 15. Claiming a ticket you already hold currently rewrites the claim. Renewing would extend expires_at and leave the rest alone. Nobody has asked for it yet.
 
 ## Summary
 

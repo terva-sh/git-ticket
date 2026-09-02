@@ -30,7 +30,7 @@ extensions: {}
 
 ## Description
 
-Deferred question 7 of plan section 15. The format records a hierarchy it cannot show.
+A deferred question in plan section 15. The format records a hierarchy it cannot show.
 
 Section 8 filters list on status, type, priority, label, assignee, and milestone. Parent is not among them. deps walks dependencies rather than parent, so on an epic it correctly reports that it depends on nothing, which is true and useless. show does not render children either. So nothing lists the children of an epic.
 

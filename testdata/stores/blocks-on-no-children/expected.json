@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "blocks_on_no_children",
+      "file": "tickets/TKT-01M1HZS4EAK96X62PXW4XW9K4B.md",
+      "ticket": "TKT-01M1HZS4EAK96X62PXW4XW9K4B",
+      "field": "blocks_on"
+    }
+  ]
+}

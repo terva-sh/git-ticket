@@ -203,6 +203,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		plan        string
 		milestone   string
 		parent      string
+		blocksOn    string
 		labels      stringList
 		assignees   stringList
 		dependsOn   stringList
@@ -217,6 +218,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		fs.StringVar(&plan, "plan", "", "the Implementation plan section")
 		fs.StringVar(&milestone, "milestone", "", "a milestone")
 		fs.StringVar(&parent, "parent", "", "the epic or ticket this belongs to")
+		fs.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
 		fs.Var(&labels, "label", "a label, repeatable")
 		fs.Var(&assignees, "assignee", "an assignee, repeatable")
 		fs.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
@@ -231,6 +233,9 @@ func runCreate(ctx *cmdContext, args []string) error {
 	}
 	if title == "" {
 		return usageErr("create needs --title")
+	}
+	if blocksOn != "" && !ticket.ValidBlocksOn(blocksOn) {
+		return usageErr("%q is not one of %s", blocksOn, strings.Join(ticket.BlocksOnValues, ", "))
 	}
 
 	s, err := ctx.openStore()
@@ -258,6 +263,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Labels:             labels,
 		Assignees:          assignees,
 		Dependencies:       deps,
+		BlocksOn:           blocksOn,
 		Actor:              ctx.actor(s),
 	}
 	if milestone != "" {
@@ -421,6 +427,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 		description string
 		milestone   string
 		parent      string
+		blocksOn    string
 		addLabels   stringList
 		rmLabels    stringList
 		assign      stringList
@@ -434,6 +441,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 		f.StringVar(&description, "description", "", "a new Description section")
 		f.StringVar(&milestone, "milestone", "", "a milestone, or empty to clear it")
 		f.StringVar(&parent, "parent", "", "the epic or ticket this belongs to, or empty to clear it")
+		f.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
 		f.Var(&addLabels, "add-label", "a label to add, repeatable")
 		f.Var(&rmLabels, "remove-label", "a label to remove, repeatable")
 		f.Var(&assign, "assign", "an assignee to add, repeatable")
@@ -456,6 +464,12 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	if kind != "" && !ticket.ValidType(kind) {
 		return usageErr("%q is not one of %s", kind, strings.Join(ticket.Types, ", "))
 	}
+	// blocks_on is an enum with no empty member, so unlike --milestone the zero
+	// value is not an instruction. It is checked here rather than trusted to
+	// the mutation so the caller gets a usage error and not a write failure.
+	if given["blocks-on"] && !ticket.ValidBlocksOn(blocksOn) {
+		return usageErr("%q is not one of %s", blocksOn, strings.Join(ticket.BlocksOnValues, ", "))
+	}
 
 	// Removals run before additions, so --remove-label x --add-label x ends
 	// with the label present whichever order they were typed in.
@@ -465,6 +479,9 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	}
 	if given["type"] {
 		ms = append(ms, ticket.SetType{Type: kind})
+	}
+	if given["blocks-on"] {
+		ms = append(ms, ticket.SetBlocksOn{BlocksOn: blocksOn})
 	}
 	if given["priority"] {
 		ms = append(ms, ticket.SetPriority{Priority: priority})
@@ -1373,6 +1390,7 @@ func runSchema(ctx *cmdContext, args []string) error {
 			Statuses:      ticket.Statuses,
 			Types:         ticket.Types,
 			Priorities:    ticket.Priorities,
+			BlocksOn:      ticket.BlocksOnValues,
 			Transitions:   transitions,
 			ErrorCodes:    errorCodes,
 			FindingCodes:  findings,
@@ -1385,6 +1403,7 @@ func runSchema(ctx *cmdContext, args []string) error {
 	fmt.Fprintf(ctx.out, "statuses    %s\n", strings.Join(ticket.Statuses, " "))
 	fmt.Fprintf(ctx.out, "types       %s\n", strings.Join(ticket.Types, " "))
 	fmt.Fprintf(ctx.out, "priorities  %s\n", strings.Join(ticket.Priorities, " "))
+	fmt.Fprintf(ctx.out, "blocks on   %s\n", strings.Join(ticket.BlocksOnValues, " "))
 
 	fmt.Fprintln(ctx.out, "\ntransitions")
 	tw := tabwriter.NewWriter(ctx.out, 0, 0, 2, ' ', 0)

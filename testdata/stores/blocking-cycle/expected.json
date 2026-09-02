@@ -1,0 +1,17 @@
+{
+  "errors": [
+    {
+      "code": "blocking_cycle",
+      "file": "tickets/TKT-01M1HZS4EQFS2102Y7TV75JKJ1.md",
+      "ticket": "TKT-01M1HZS4EQFS2102Y7TV75JKJ1",
+      "field": "blocks_on"
+    },
+    {
+      "code": "blocking_cycle",
+      "file": "tickets/TKT-01M1HZS4F4SZREHSRP8SZZ71SJ.md",
+      "ticket": "TKT-01M1HZS4F4SZREHSRP8SZZ71SJ",
+      "field": "blocks_on"
+    }
+  ],
+  "warnings": []
+}

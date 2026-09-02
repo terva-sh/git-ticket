@@ -215,6 +215,7 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 
 	deps := make(map[string][]string, len(ids))
 	parents := make(map[string][]string, len(ids))
+	childrenOf := make(map[string][]string, len(ids))
 	for _, id := range ids {
 		t := live[id]
 		for _, d := range t.Dependencies {
@@ -225,12 +226,28 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 		if t.Parent != nil {
 			if _, ok := live[*t.Parent]; ok {
 				parents[id] = append(parents[id], *t.Parent)
+				childrenOf[*t.Parent] = append(childrenOf[*t.Parent], id)
 			}
+		}
+	}
+
+	// The blocking graph is what readiness actually waits on: dependencies
+	// always, plus the direct children of a ticket whose blocks_on is children.
+	// A cycle can therefore alternate the two edge kinds while each kind on its
+	// own stays acyclic, which is exactly why neither dependency_cycle nor
+	// parent_cycle can see it. An epic blocking on its children, plus a child
+	// depending on that epic, is the smallest example.
+	blocking := make(map[string][]string, len(ids))
+	for _, id := range ids {
+		blocking[id] = append(blocking[id], deps[id]...)
+		if live[id].BlocksOn == BlocksOnChildren {
+			blocking[id] = append(blocking[id], childrenOf[id]...)
 		}
 	}
 
 	inDepCycle := cycleMembers(ids, deps)
 	inParentCycle := cycleMembers(ids, parents)
+	inBlockingCycle := cycleMembers(ids, blocking)
 	for _, f := range parsed {
 		id := f.Ticket.ID
 		if inDepCycle[id] {
@@ -243,6 +260,25 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 			r.addError(Finding{
 				Code: CodeParentCycle, File: f.Rel, Ticket: id, Field: "parent",
 				Message: "this ticket is part of a parent cycle",
+			})
+		}
+		// Reported only when a child edge is what closed the loop. A cycle the
+		// dependency graph already explains keeps its own code rather than
+		// being named twice with two different words for one condition.
+		if inBlockingCycle[id] && !inDepCycle[id] {
+			r.addError(Finding{
+				Code: CodeBlockingCycle, File: f.Rel, Ticket: id, Field: "blocks_on",
+				Message: "this ticket is part of a blocking cycle that alternates dependency and child edges",
+			})
+		}
+		// An epic that gates on children it does not have is a decomposition
+		// somebody has not written yet. It is not blocked, per section 8, since
+		// blocking it would name no blocker, so this is the instrument that
+		// says so.
+		if f.Ticket.BlocksOn == BlocksOnChildren && len(childrenOf[id]) == 0 {
+			r.addWarning(Finding{
+				Code: CodeBlocksOnNoChildren, File: f.Rel, Ticket: id, Field: "blocks_on",
+				Message: "blocks_on is children but no ticket names this one as its parent",
 			})
 		}
 	}
@@ -277,6 +313,13 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 	if !ValidPriority(t.Priority) {
 		errs = append(errs, at(CodeInvalidPriority, "priority",
 			fmt.Sprintf("%q is not one of %v", t.Priority, Priorities)))
+	}
+	// A blocks_on nobody validated would fail silently rather than loudly: a
+	// misspelled children reads as not-children, so the epic quietly stops
+	// gating on its own decomposition and nothing says so.
+	if !ValidBlocksOn(t.BlocksOn) {
+		errs = append(errs, at(CodeInvalidBlocksOn, "blocks_on",
+			fmt.Sprintf("%q is not one of %v", t.BlocksOn, BlocksOnValues)))
 	}
 
 	if t.Claim.Expired(now) {

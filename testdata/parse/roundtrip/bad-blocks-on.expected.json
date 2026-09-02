@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "invalid_blocks_on",
+      "file": "bad-blocks-on.md",
+      "ticket": "TKT-01M1HZGA5WG085NMZ00X2C6K7P",
+      "field": "blocks_on"
+    }
+  ],
+  "warnings": []
+}

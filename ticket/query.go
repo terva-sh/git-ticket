@@ -228,10 +228,14 @@ type Readiness struct {
 	// live claim holds it, and every dependency is satisfied per plan 6.3.
 	Ready bool
 
-	// Blocked reports that at least one dependency is unsatisfied or cannot be
-	// resolved. It is about dependencies alone. A draft, or a ticket somebody
-	// else is holding, is not ready and not blocked, because nothing is in its
-	// way except its own state.
+	// Blocked reports that at least one dependency or blocking child is
+	// unsatisfied or cannot be resolved. A draft, or a ticket somebody else is
+	// holding, is not ready and not blocked, because nothing is in its way
+	// except its own state.
+	//
+	// It covered dependencies alone until blocks_on arrived. Widening it was
+	// the point: a caller asks this field whether a ticket can be started, and
+	// an epic waiting on its children cannot be.
 	Blocked bool
 
 	// Blocking names the dependencies that resolve to a ticket which is not
@@ -244,6 +248,22 @@ type Readiness struct {
 	// is not a dependency anybody met.
 	Blocking []string
 	Missing  []string
+
+	// BlockingChildren names the direct children that are not done, for a
+	// ticket whose blocks_on is children. It is empty for every other ticket,
+	// and it is sorted.
+	//
+	// Children get their own field rather than joining Blocking because
+	// Blocking is published in plan 10.2 and versioned under 12.4. A consumer
+	// rendering "waiting on" from it would print a child ID labelled as a
+	// dependency, with nothing to signal the difference. A new field is
+	// additive, so a consumer that ignores it reads exactly what it read
+	// before.
+	//
+	// An epic with no children at all is therefore not blocked. Blocking it
+	// would name no blocker, which section 8 refuses for a draft on the same
+	// grounds. check reports that state as blocks_on_no_children instead.
+	BlockingChildren []string
 }
 
 // Readiness answers for every ticket in the store, keyed by ID.
@@ -294,6 +314,16 @@ func readinessOf(all []*Ticket, now time.Time) map[string]Readiness {
 		byID[t.ID] = t
 	}
 
+	// The child index is the reverse of parent, built once for the whole store
+	// rather than rescanned per epic. It is derived at read time and never
+	// stored, like the rest of Readiness.
+	children := make(map[string][]string)
+	for _, t := range all {
+		if t.Parent != nil && *t.Parent != "" {
+			children[*t.Parent] = append(children[*t.Parent], t.ID)
+		}
+	}
+
 	out := make(map[string]Readiness, len(all))
 	for _, t := range all {
 		var r Readiness
@@ -306,10 +336,28 @@ func readinessOf(all []*Ticket, now time.Time) map[string]Readiness {
 				r.Blocking = append(r.Blocking, dep)
 			}
 		}
+		if t.BlocksOn == BlocksOnChildren {
+			seen := make(map[string]bool, len(children[t.ID]))
+			for _, child := range children[t.ID] {
+				if seen[child] {
+					continue
+				}
+				seen[child] = true
+				// Fail closed for the same reason a dependency does: an ID two
+				// files claim is the duplicate_id check reports, and until
+				// somebody repairs it neither file can be said to be done.
+				other, ok := byID[child]
+				if !ok || claimants[child] > 1 || !other.SatisfiesDependency() {
+					r.BlockingChildren = append(r.BlockingChildren, child)
+				}
+			}
+		}
+
 		sort.Strings(r.Blocking)
 		sort.Strings(r.Missing)
+		sort.Strings(r.BlockingChildren)
 
-		r.Blocked = len(r.Blocking)+len(r.Missing) > 0
+		r.Blocked = len(r.Blocking)+len(r.Missing)+len(r.BlockingChildren) > 0
 		// An expired claim does not hold a ticket. It grants no exclusivity to
 		// anyone, so the ticket is available again.
 		held := t.Claim != nil && !t.Claim.Expired(now)

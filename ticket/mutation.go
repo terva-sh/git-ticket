@@ -159,6 +159,19 @@ func (m SetType) apply(t *Ticket, env mutEnv) error {
 	return nil
 }
 
+// SetBlocksOn selects which edges gate a ticket beyond its dependencies, per
+// plan 5.1. It never switches dependency gating off, because BlocksOn is
+// additive.
+type SetBlocksOn struct{ BlocksOn string }
+
+func (m SetBlocksOn) apply(t *Ticket, env mutEnv) error {
+	if !ValidBlocksOn(m.BlocksOn) {
+		return &Error{Code: CodeInvalidField, Message: fmt.Sprintf("%q is not one of %v", m.BlocksOn, BlocksOnValues), Ticket: t.ID, Field: "blocks_on"}
+	}
+	t.BlocksOn = m.BlocksOn
+	return nil
+}
+
 type SetPriority struct{ Priority string }
 
 func (m SetPriority) apply(t *Ticket, env mutEnv) error {

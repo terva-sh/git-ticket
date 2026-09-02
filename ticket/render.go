@@ -36,6 +36,14 @@ func renderFrontmatter(b *strings.Builder, t *Ticket) {
 	m.addStringPtr("milestone", t.Milestone)
 	m.addStringPtr("parent", t.Parent)
 	m.addStringSeq("dependencies", t.Dependencies)
+	// A ticket built in Go rather than parsed carries the zero string, and the
+	// zero value of this field is none. Rendering it as none keeps a built
+	// ticket valid rather than emitting an empty scalar no reader accepts.
+	blocksOn := t.BlocksOn
+	if blocksOn == "" {
+		blocksOn = BlocksOnNone
+	}
+	m.addString("blocks_on", blocksOn)
 	m.add("references", referencesNode(t.References))
 	m.add("claim", claimNode(t.Claim))
 	m.add("archive", archiveNode(t.Archive))

@@ -103,6 +103,7 @@ type schemaEnvelope struct {
 	Statuses      []string            `json:"statuses"`
 	Types         []string            `json:"types"`
 	Priorities    []string            `json:"priorities"`
+	BlocksOn      []string            `json:"blocksOn"`
 	Transitions   map[string][]string `json:"transitions"`
 	ErrorCodes    []string            `json:"errorCodes"`
 	FindingCodes  []findingCodeJSON   `json:"findingCodes"`
@@ -148,6 +149,7 @@ type ticketJSON struct {
 	Milestone    *string         `json:"milestone"`
 	Parent       *string         `json:"parent"`
 	Dependencies []string        `json:"dependencies"`
+	BlocksOn     string          `json:"blocksOn"`
 	References   []referenceJSON `json:"references"`
 	Claim        *claimJSON      `json:"claim"`
 	Archive      *archiveJSON    `json:"archive"`
@@ -168,8 +170,9 @@ type ticketJSON struct {
 // stands in the way, so a consumer drawing a list can grey out a blocked ticket
 // and say why without a second call.
 //
-// isBlocked is about dependencies alone. A draft and a held ticket are unready
-// and not blocked, because nothing is in their way but their own state.
+// isBlocked covers dependencies and blocking children. A draft and a held
+// ticket are unready and not blocked, because nothing is in their way but their
+// own state.
 type readinessJSON struct {
 	IsReady   bool `json:"isReady"`
 	IsBlocked bool `json:"isBlocked"`
@@ -179,6 +182,15 @@ type readinessJSON struct {
 	// ever counts as satisfied.
 	BlockingDependencies []string `json:"blockingDependencies"`
 	MissingDependencies  []string `json:"missingDependencies"`
+	// BlockingChildren are the direct children that are not done, for a ticket
+	// whose blocksOn is children, and empty for every other ticket.
+	//
+	// They are a separate key rather than more entries in
+	// blockingDependencies, which is versioned under 12.4: a consumer
+	// rendering "waiting on" from that key would print a child ID labelled as
+	// a dependency with nothing to signal the difference. A new key is
+	// additive, so a consumer that ignores it reads what it read before.
+	BlockingChildren []string `json:"blockingChildren"`
 }
 
 type referenceJSON struct {
@@ -271,6 +283,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 		Milestone:    copyString(t.Milestone),
 		Parent:       copyString(t.Parent),
 		Dependencies: stringSlice(t.Dependencies),
+		BlocksOn:     t.BlocksOn,
 		References:   make([]referenceJSON, 0, len(t.References)),
 		CreatedAt:    timestamp(&t.CreatedAt),
 		UpdatedAt:    timestamp(&t.UpdatedAt),
@@ -299,6 +312,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 			IsBlocked:            r.Blocked,
 			BlockingDependencies: stringSlice(r.Blocking),
 			MissingDependencies:  stringSlice(r.Missing),
+			BlockingChildren:     stringSlice(r.BlockingChildren),
 		},
 	}
 	for _, r := range t.References {

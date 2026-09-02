@@ -35,6 +35,9 @@ const (
 	CodeInvalidStatus                = "invalid_status"
 	CodeInvalidType                  = "invalid_type"
 	CodeInvalidPriority              = "invalid_priority"
+	CodeInvalidBlocksOn              = "invalid_blocks_on"
+	CodeBlockingCycle                = "blocking_cycle"
+	CodeBlocksOnNoChildren           = "blocks_on_no_children"
 	CodeArchiveLocationMismatch      = "archive_location_mismatch"
 	CodeDependencyArchivedIncomplete = "dependency_archived_incomplete"
 	CodeClaimExpired                 = "claim_expired"
@@ -66,13 +69,14 @@ var CheckErrorCodes = []string{
 	CodeDuplicateID, CodeFilenameIDMismatch, CodeParseError, CodeUnknownField,
 	CodeSchemaUnsupported, CodeMergeConflict, CodeDependencyMissing,
 	CodeParentMissing, CodeDependencyCycle, CodeParentCycle, CodeInvalidStatus,
-	CodeInvalidType, CodeInvalidPriority, CodeArchiveLocationMismatch,
+	CodeInvalidType, CodeInvalidPriority, CodeInvalidBlocksOn,
+	CodeBlockingCycle, CodeArchiveLocationMismatch,
 }
 
 var CheckWarningCodes = []string{
 	CodeDependencyArchivedIncomplete, CodeClaimExpired,
 	CodeReferencePathUnresolved, CodeLabelUnknown, CodeMilestoneUnknown,
-	CodeInProgressUnclaimed,
+	CodeInProgressUnclaimed, CodeBlocksOnNoChildren,
 }
 
 // Error is a coded failure. The code is the stable part; the message is for a

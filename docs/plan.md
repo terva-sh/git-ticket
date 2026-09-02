@@ -159,6 +159,7 @@ assignees:
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/proposals/git-ticket.md
@@ -176,7 +177,32 @@ extensions: {}
 ```
 
 `type` is one of `task`, `bug`, `chore`, `spike`, `epic`. `priority` is one of
-`low`, `normal`, `high`, `urgent`.
+`low`, `normal`, `high`, `urgent`. `blocks_on` is one of `none`, `children`.
+
+`blocks_on` names the edges that gate a ticket beyond its `dependencies`, which
+always gate, per 6.3. It is additive and never selective. `children` adds the
+direct children to the gating set and takes nothing away, so an epic that waits
+on both an external ticket and its own decomposition says so without choosing.
+
+Selective was the first design and it was wrong. A value meaning "my
+dependencies do not gate me" would let one field undo the rule 6.3 defines, and
+because 5.3 renders every known field on every ticket, the default would spell
+that change across a whole store at once. There is also no use for it: a
+dependency somebody listed is one they meant, and a link that should not gate is
+a `ticket:` entry in `references`.
+
+`children` is a rule and not a set. The gating children are derived from `parent`
+at read time and never written down, so decomposing an epic edits the child and
+leaves the epic alone. An epic that enumerated its children would be edited by
+every decomposition, which turns the one file several agents share into the one
+file they all conflict on.
+
+An epic with `blocks_on: children` and no children is not blocked. Blocking it
+would put a ticket in `blocked` with nothing to name as the blocker, which
+section 8 refuses for a draft on the same grounds. `check` reports the state as
+`blocks_on_no_children`, because it is an authoring mistake rather than a
+readiness verdict: a new ticket is a `draft` and only reaches `ready` when
+somebody promotes it.
 
 `status_reason` holds the reason 6.2 requires when a ticket enters `blocked` or
 reopens from `done`. It is the current reason and not a history: a transition
@@ -532,7 +558,10 @@ not a user's repository.
   ticket has children, the human output names the count and points at
   `list --parent`, because "it depends on nothing" is true and useless on an
   epic. That is a pointer to the other command, not a second edge kind in the
-  result, and `--json` does not carry it
+  result, and `--json` does not carry it. This holds after `blocks_on`: a child
+  that gates its epic is still not a dependency, and mixing the two edge kinds
+  into one walk is what this bullet declines. `readiness` is where a caller
+  learns that children are in the way
 - `files PATH` for tickets referencing a path. This searches recorded `file:`
   references and is only as complete as the agents that wrote them. It is
   advisory and not derived from Git history, and the help text says so
@@ -547,9 +576,18 @@ the field cannot come to disagree about one ticket. A consumer drawing a board
 was otherwise forced to call `ready`, diff two ID sets, and then call `deps` per
 card to explain the difference.
 
-Blocked is about dependencies alone. A draft, and a ticket somebody else holds,
-are both unready with nothing in the way but their own state, and calling those
-blocked would send a reader looking for a dependency that is not there.
+Blocked covers dependencies and blocking children. A draft, and a ticket
+somebody else holds, are both unready with nothing in the way but their own
+state, and calling those blocked would send a reader looking for a dependency
+that is not there.
+
+The two edge kinds keep separate fields. `blockingDependencies` is published and
+versioned under 12.4, so a child arriving in it would make a consumer print a
+child ID labelled as a dependency with nothing to signal the difference.
+`blockingChildren` is a new key, which an older consumer ignores and reads what
+it always read. Widening `isBlocked` to cover both is the deliberate half: it
+answers whether a ticket can be started, and an epic waiting on its children
+cannot be.
 
 A dependency that resolves to nothing, or to more than one file, blocks and
 never counts as satisfied. Both are states `check` already reports, as
@@ -721,6 +759,7 @@ answers.
   "milestone": "v1.2",
   "parent": null,
   "dependencies": [],
+  "blocksOn": "none",
   "references": [{ "ref": "proposal:git-ticket", "path": "docs/plan.md" }],
   "claim": null,
   "archive": null,
@@ -759,7 +798,8 @@ answers.
     "isReady": false,
     "isBlocked": true,
     "blockingDependencies": ["TKT-01K4001C…"],
-    "missingDependencies": []
+    "missingDependencies": [],
+    "blockingChildren": []
   }
 }
 ```
@@ -957,9 +997,11 @@ Errors:
 | `parent_missing` | `parent` names a ticket that does not exist |
 | `dependency_cycle` | a cycle in `dependencies` |
 | `parent_cycle` | a cycle in `parent`, checked separately from dependencies |
+| `blocking_cycle` | a cycle in the blocking graph that needs a child edge to close, so neither `dependency_cycle` nor `parent_cycle` sees it |
 | `invalid_status` | a `status` outside the set in 6.1 |
 | `invalid_type` | a `type` outside the set in 5.1 |
 | `invalid_priority` | a `priority` outside the set in 5.1 |
+| `invalid_blocks_on` | a `blocks_on` outside the set in 5.1 |
 | `archive_location_mismatch` | the status and the directory disagree; the status wins |
 
 Warnings:
@@ -972,6 +1014,7 @@ Warnings:
 | `label_unknown` | a label is outside the `config.yml` allowlist |
 | `milestone_unknown` | `milestone` is outside the `config.yml` allowlist |
 | `in_progress_unclaimed` | a ticket is `in-progress` with no claim |
+| `blocks_on_no_children` | `blocks_on` is `children` and no ticket names this one as its parent |
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
@@ -1012,8 +1055,8 @@ git ticket list   [--status S --type T --priority P --label L --assignee A --mil
 git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
-git ticket create --title T [--type --priority --label --assignee --milestone --parent --depends-on --description --plan --ac --dod]
-git ticket update ID [--title --type --priority --description --milestone --parent --add-label --remove-label --assign --unassign]
+git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --depends-on --description --plan --ac --dod]
+git ticket update ID [--title --type --priority --description --milestone --parent --blocks-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
 git ticket release ID
@@ -1664,48 +1707,32 @@ disagreeing. Settling it also caught the per-writer trims using `TrimSpace`,
 which is stronger than the round trip needs and would have reindented a section
 opening with an indented code block.
 
-One was settled before any code, because it decides the format and the format is
-decided first. Whether an epic can block on its children
-(`TKT-01M1HXHJWR806ETJQCE49AEZB3`) is answered here rather than in a numbered
-section, because 5.1, 8, 10.2, and 11 describe what the binary does today and
-this is not built yet.
+One more was settled twice, and the second answer is the one that shipped.
+Whether an epic can block on its children
+(`TKT-01M1HXHJWR806ETJQCE49AEZB3`) is answered in 5.1 and 8, and it can.
+`blocks_on` names the edges that gate a ticket beyond its dependencies,
+`readiness` gained `blockingChildren`, and 11 gained `invalid_blocks_on`,
+`blocks_on_no_children`, and `blocking_cycle`.
 
-An epic states the rule once instead of maintaining a set. `blocks_on` takes
-`none`, `listed`, or `children`, and defaults to `none`, so every ticket and
-every fixture that exists is unchanged. `listed` is the current behaviour, an
-enumerated `dependencies` list. `children` derives the blocking set from the
-direct children at read time, stores nothing, and enumerates nothing.
+The first answer, settled on paper, was wrong, and writing the code is what
+showed it. That answer made the enum selective, with `none`, `listed`, and
+`children`, defaulting to `none`. The two halves contradict each other. If a
+value selects which edges gate, then `none` means dependencies stop gating, and
+because 5.3 renders every known field on every ticket, shipping that default
+would have switched dependency blocking off in every store at once. `listed`
+existed only to carry the behaviour the default was quietly discarding, which is
+the tell: a value that exists to undo the default is a default facing the wrong
+way.
 
-Enumerating was the alternative, and it loses on concurrency rather than on
-expressiveness. An epic that lists its children is edited by every decomposition,
-so two agents adding two unrelated children collide on one line of a file neither
-of them was working on. The enum moves that edit off the epic and onto the child,
-where `parent` already records the relationship and two additions are two
-separate files.
+The field is additive instead. Dependencies always gate, `children` adds the
+child edge, and `none` is honestly the default because it takes nothing away.
+`TestBlocksOnIsAdditive` holds it there, and it is the test to read first if this
+ever looks like it wants a third value.
 
-An epic with `blocks_on: children` and no children is not blocked, and `check`
-warns instead. Blocking it would put a ticket in the `blocked` state with nothing
-to name as the blocker, which section 8 already refuses for a draft and for a
-ticket somebody else holds, on the grounds that it sends a reader looking for a
-dependency that is not there. Status is the guard that matters here. A new ticket
-is `draft` and never reaches `ready`, so an undecomposed epic can only be offered
-as startable after somebody promotes it by hand, and that is an authoring mistake
-rather than a readiness verdict.
-
-Children get their own field in `readiness` rather than joining
-`blockingDependencies`. That field is published in 10.2 and versioned under 12.4,
-and a consumer rendering "waiting on" from it would print a child ID labelled as
-a dependency with nothing to signal the difference. A new field is additive, so a
-consumer that ignores it behaves exactly as it does today. The cost is that
-`Blocked` widens to cover both edge kinds, so a consumer showing
-`blockingDependencies` whenever `Blocked` is true prints an empty list for a
-children-blocked epic. Missing beats wrong, and widening `Blocked` is the right
-answer to "can this be started", which is the question the field exists to
-answer.
-
-`deps` does not change. Section 8 keeps it to `dependencies` alone, and mixing a
-second edge kind into one dependency walk is what that section declined on
-purpose.
+The rest of the paper answer survived intact: the gating children are derived
+from `parent` rather than enumerated, an epic with no children is not blocked and
+`check` warns instead, children get their own field rather than joining
+`blockingDependencies`, and `deps` still walks dependencies alone.
 
 ## 16. References
 

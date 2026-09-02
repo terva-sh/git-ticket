@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1HXHJWR806ETJQCE49AEZB3
 title: Let an epic block on its children without enumerating them
 type: task
-status: ready
+status: done
 status_reason: null
 priority: normal
 labels:
@@ -13,13 +13,14 @@ assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: plan:epic-blocking
     path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-02T20:39:07Z
-updated_at: 2026-09-02T20:50:00Z
+updated_at: 2026-09-02T21:24:32Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -88,8 +89,32 @@ Epics stay in `tickets/` with everything else. The store partitions on status or
 ## Acceptance criteria
 
 - [x] All three decisions in the description are settled and recorded in docs/plan.md before any code lands.
-- [ ] blocks_on defaults to none, so every existing ticket and every fixture is unchanged.
-- [ ] The blocking set for blocks_on children is derived at read time and never stored.
-- [ ] check reports a cycle that alternates parent and dependency edges, which neither existing cycle check sees.
-- [ ] deps still walks dependencies alone, and the plan records why children are not in it.
-- [ ] A corpus fixture covers an epic blocking on children, including the empty-children case.
+- [x] The blocking set for blocks_on children is derived at read time and never stored.
+- [x] check reports a cycle that alternates parent and dependency edges, which neither existing cycle check sees.
+- [x] deps still walks dependencies alone, and the plan records why children are not in it.
+- [x] A corpus fixture covers an epic blocking on children, including the empty-children case.
+- [x] blocks_on defaults to none, so no existing ticket changes behaviour; every fixture carrying frontmatter gains the field, per 5.3.
+
+## Implementation plan
+
+1. Add the blocks_on field: enum, validator, struct field, parser case with the none default seeded in decodeFields, renderer after dependencies.
+2. Migrate every frontmatter fixture through the package renderer, verifying the diff is one added line per file.
+3. Derive the blocking-children set in readinessOf from a reverse parent index; add BlockingChildren and widen Blocked.
+4. Add invalid_blocks_on, blocks_on_no_children, and blocking_cycle, each with a corpus fixture.
+5. Expose blocksOn and blockingChildren in the JSON contract and the schema command.
+6. Add --blocks-on to create and update.
+7. Move plan 5.1, 8, 10.2, 11, and 12.1, and rewrite the section 15 entry to record the design correction.
+
+## Summary
+
+Shipped, with one design correction that writing the code forced.
+
+The settled answer made blocks_on selective, with none, listed, and children, defaulting to none. Those two halves contradict each other: if the value selects which edges gate, none means dependencies stop gating, and because 5.3 renders every known field on every ticket, the default would have switched dependency blocking off across every store at once. listed existed only to carry the behaviour the default was discarding, which was the tell.
+
+The field is additive instead. Dependencies always gate per 6.3, children adds the child edge, none takes nothing away. TestBlocksOnIsAdditive holds it there. Plan 5.1 and the section 15 entry record the correction and why.
+
+Everything else settled on paper survived: children derived from parent rather than enumerated, an epic with no children not blocked with check warning instead, children in their own readiness field, and deps still walking dependencies alone.
+
+Three codes rather than the two planned. invalid_blocks_on was not in the design and is needed, because a misspelled children reads as not-children and the epic silently stops gating on its own decomposition.
+
+38 fixtures gained blocks_on: none, migrated through the package renderer and verified as 38 files, 38 insertions, 0 deletions.

@@ -41,6 +41,22 @@ var Types = []string{"task", "bug", "chore", "spike", "epic"}
 // Priorities lists every valid priority, per plan 5.1.
 var Priorities = []string{"low", "normal", "high", "urgent"}
 
+// BlocksOn values, per plan 5.1. The field says which edges gate a ticket in
+// addition to its dependencies, which always gate, per 6.3.
+//
+// It is additive rather than selective on purpose. A value that switched
+// dependency gating off would let one field quietly undo the rule 6.3 defines,
+// and since the default renders on every ticket in the store that would be a
+// store-wide change spelled as a default. BlocksOnChildren therefore adds the
+// direct children to the gating set and takes nothing away.
+const (
+	BlocksOnNone     = "none"
+	BlocksOnChildren = "children"
+)
+
+// BlocksOnValues lists every valid blocks_on value, per plan 5.1.
+var BlocksOnValues = []string{BlocksOnNone, BlocksOnChildren}
+
 func validValue(set []string, v string) bool {
 	for _, s := range set {
 		if s == v {
@@ -58,6 +74,9 @@ func ValidType(t string) bool { return validValue(Types, t) }
 
 // ValidPriority reports whether p is in the set of plan 5.1.
 func ValidPriority(p string) bool { return validValue(Priorities, p) }
+
+// ValidBlocksOn reports whether b is in the set of plan 5.1.
+func ValidBlocksOn(b string) bool { return validValue(BlocksOnValues, b) }
 
 // Timestamp is an instant that remembers how it was written. Rendering emits
 // Raw when it is set, so a file that spells an instant differently than this
@@ -175,14 +194,20 @@ type Ticket struct {
 	Milestone    *string
 	Parent       *string
 	Dependencies []string
-	References   []Reference
-	Claim        *Claim
-	Archive      *Archive
-	CreatedAt    Timestamp
-	UpdatedAt    Timestamp
-	CreatedBy    *Actor
-	UpdatedBy    *Actor
-	Extensions   *yaml.Node
+	// BlocksOn names the edges that gate this ticket beyond its dependencies,
+	// per plan 5.1. It is an enum and always carries a value, like Type and
+	// Priority and unlike Milestone, so an absent key parses as BlocksOnNone
+	// rather than as null. None means dependencies alone, which is what every
+	// ticket did before this field existed.
+	BlocksOn   string
+	References []Reference
+	Claim      *Claim
+	Archive    *Archive
+	CreatedAt  Timestamp
+	UpdatedAt  Timestamp
+	CreatedBy  *Actor
+	UpdatedBy  *Actor
+	Extensions *yaml.Node
 
 	// Unknown holds top-level frontmatter keys this version does not define,
 	// in the order they appeared.

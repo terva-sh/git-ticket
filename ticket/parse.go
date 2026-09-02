@@ -16,7 +16,7 @@ import (
 // order plan 5.1 renders them. Anything else is preserved as an unknown field.
 var knownFields = []string{
 	"schema", "id", "title", "type", "status", "status_reason", "priority",
-	"labels", "assignees", "milestone", "parent", "dependencies",
+	"labels", "assignees", "milestone", "parent", "dependencies", "blocks_on",
 	"references", "claim", "archive",
 	"created_at", "updated_at", "created_by", "updated_by", "extensions",
 }
@@ -121,6 +121,12 @@ func decodeFields(t *Ticket, root *yaml.Node) error {
 		known[k] = true
 	}
 
+	// blocks_on is an enum with a real value for the default case, so an absent
+	// key means none rather than null. Seeding it here rather than after the
+	// loop keeps the switch below a plain assignment: a file that carries the
+	// key overwrites this, and one that does not keeps it.
+	t.BlocksOn = BlocksOnNone
+
 	fail := func(field, format string, args ...any) error {
 		return &Error{
 			Code:    CodeParseError,
@@ -161,6 +167,8 @@ func decodeFields(t *Ticket, root *yaml.Node) error {
 			t.Parent, err = optionalString(val, key)
 		case "dependencies":
 			t.Dependencies, err = stringSeq(val, key)
+		case "blocks_on":
+			t.BlocksOn, err = scalarString(val, key)
 		case "references":
 			t.References, err = decodeReferences(val)
 		case "claim":

@@ -122,7 +122,11 @@ type CreateOptions struct {
 	Milestone    *string
 	Parent       *string
 	Dependencies []string
-	Description  string
+	// BlocksOn names the edges that gate the ticket beyond its dependencies.
+	// Empty means BlocksOnNone, which is what every ticket did before the field
+	// existed.
+	BlocksOn    string
+	Description string
 	// ImplementationPlan seeds the plan section. Writing it after the fact is
 	// SetImplementationPlan.
 	ImplementationPlan string
@@ -159,6 +163,13 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	}
 	if !ValidPriority(priority) {
 		return nil, &Error{Code: CodeInvalidField, Message: fmt.Sprintf("%q is not one of %v", priority, Priorities), Field: "priority"}
+	}
+	blocksOn := o.BlocksOn
+	if blocksOn == "" {
+		blocksOn = BlocksOnNone
+	}
+	if !ValidBlocksOn(blocksOn) {
+		return nil, &Error{Code: CodeInvalidField, Message: fmt.Sprintf("%q is not one of %v", blocksOn, BlocksOnValues), Field: "blocks_on"}
 	}
 
 	lock, err := s.lock()
@@ -230,6 +241,7 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		Milestone:    o.Milestone,
 		Parent:       o.Parent,
 		Dependencies: append([]string{}, o.Dependencies...),
+		BlocksOn:     blocksOn,
 		CreatedAt:    Now(now),
 		UpdatedAt:    Now(now),
 		CreatedBy:    &Actor{ID: actor.ID, Name: actor.Name},

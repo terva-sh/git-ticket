@@ -17,6 +17,7 @@ parent: TKT-01K3ZZRHN0393ED9MC6ZMFJTDT
 dependencies:
   - TKT-01K3ZZPQ20RR5ARKYED1FCV2HV
   - TKT-01K3ZZMWF0K6YY0T5F5N4YTZY8
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

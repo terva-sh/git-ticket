@@ -1312,10 +1312,18 @@ func (ctx *cmdContext) writeTicketList(s *ticket.Store, tickets []*ticket.Ticket
 		for _, t := range tickets {
 			out = append(out, newTicketJSON(s, t))
 		}
+		// A query leaves out a file it could not parse, per plan section 8, so
+		// the envelope has to say which ones. A host building a board on this
+		// cannot otherwise tell a short listing from a complete one.
+		broken, err := s.Unreadable(context.Background())
+		if err != nil {
+			return err
+		}
 		writeJSON(ctx.out, ticketListEnvelope{
 			SchemaVersion: schemaVersion,
 			Kind:          "ticket-list",
 			Tickets:       out,
+			Unreadable:    findings(s, broken),
 		})
 		return nil
 	}

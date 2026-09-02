@@ -287,6 +287,58 @@ func TestShowSaysWhyATicketCannotBeRead(t *testing.T) {
 	}
 }
 
+// TestListReportsWhatItHadToLeaveOut covers the unreadable channel in 10.1. A
+// query drops a file it cannot parse, so without this a host building a board
+// cannot tell a short listing from a complete one.
+func TestListReportsWhatItHadToLeaveOut(t *testing.T) {
+	dir := newStore(t)
+	keep := ticketID(t, createTicket(t, dir))
+	breakID := ticketID(t, createTicket(t, dir))
+	path := filepath.Join(dir, ".tickets", "tickets", breakID+".md")
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken := strings.Replace(string(data), "title:", "title: [unclosed", 1)
+	if err := os.WriteFile(path, []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runCLI(t, dir, nil, "--json", "list")
+	if got.code != exitOK {
+		t.Fatalf("list: %s", got.stderr)
+	}
+	var env struct {
+		Tickets []struct {
+			ID string `json:"id"`
+		} `json:"tickets"`
+		Unreadable []struct {
+			Code  string  `json:"code"`
+			File  string  `json:"file"`
+			Field *string `json:"field"`
+		} `json:"unreadable"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &env); err != nil {
+		t.Fatalf("envelope did not parse: %v\n%s", err, got.stdout)
+	}
+
+	// The readable ticket is still listed, and the broken one still is not.
+	if len(env.Tickets) != 1 || env.Tickets[0].ID != keep {
+		t.Errorf("tickets = %+v, want only %s", env.Tickets, keep)
+	}
+	// But the envelope now says why the listing is short.
+	if len(env.Unreadable) != 1 {
+		t.Fatalf("unreadable = %+v, want one entry", env.Unreadable)
+	}
+	if env.Unreadable[0].Code != "parse_error" {
+		t.Errorf("code = %q, want parse_error", env.Unreadable[0].Code)
+	}
+	if !strings.HasSuffix(env.Unreadable[0].File, breakID+".md") {
+		t.Errorf("file = %q, want the broken ticket's path", env.Unreadable[0].File)
+	}
+}
+
 // TestClaimOutsideARepositoryStillWorks holds the best-effort promise: a claim
 // records what it can rather than failing where git has nothing to say.
 func TestClaimOutsideARepositoryStillWorks(t *testing.T) {

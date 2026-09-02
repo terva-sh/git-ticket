@@ -573,7 +573,7 @@ Each returns the resulting ticket, its new revision, and the paths changed.
 Every machine-readable operation emits a versioned envelope on stdout:
 
 ```json
-{ "schemaVersion": 1, "kind": "ticket-list", "tickets": [] }
+{ "schemaVersion": 1, "kind": "ticket-list", "tickets": [], "unreadable": [] }
 ```
 
 Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, `error`,
@@ -632,6 +632,19 @@ kind rather than having to know which layer produced the value.
 
 The `ticket` kind carries one ticket under a `ticket` key, and `ticket-list`
 carries an array of the same objects under `tickets`.
+
+`ticket-list` also carries `unreadable`, the ticket files the query had to leave
+out because they did not parse. Section 8 says a query skips those files and
+`check` reports them, which leaves a host unable to tell a short listing from a
+complete one. The entries have the same four keys a `check` finding has, built
+the same way, so a consumer parses one shape whichever command it called. Every
+command that answers with `ticket-list` carries it, because every one of them
+reads the whole store.
+
+Human output does not show it. A person who wants to know what is broken runs
+`check`, which is the command for that and reports far more than this. The
+channel exists for a host that cannot run a second command and reconcile two
+answers.
 
 ```json
 {

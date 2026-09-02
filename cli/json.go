@@ -26,6 +26,11 @@ type ticketListEnvelope struct {
 	SchemaVersion int           `json:"schemaVersion"`
 	Kind          string        `json:"kind"`
 	Tickets       []*ticketJSON `json:"tickets"`
+	// Unreadable names the ticket files a query had to leave out. Without it a
+	// short listing is indistinguishable from a complete one, and a host
+	// building a board on this envelope would show neither the ticket nor the
+	// reason it is missing. It carries the same shape check reports.
+	Unreadable []findingJSON `json:"unreadable"`
 }
 
 type mutationEnvelope struct {

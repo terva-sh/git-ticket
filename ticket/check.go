@@ -72,6 +72,37 @@ func sortFindings(fs []Finding) {
 	})
 }
 
+// Unreadable reports the ticket files the store could not parse, as the same
+// findings Check would report for them.
+//
+// A query leaves those files out, per plan section 8, so a listing can be short
+// without saying so. This is how a caller learns that, without running the rest
+// of Check. The fields are built exactly as the block in Check that reports the
+// same files, so a host sees one shape whichever command it called.
+func (s *Store) Unreadable(ctx context.Context) ([]Finding, error) {
+	files, err := s.load()
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]Finding, 0)
+	for _, f := range files {
+		if f.Err == nil {
+			continue
+		}
+		out = append(out, Finding{
+			Code:    f.Err.Code,
+			File:    f.Rel,
+			Ticket:  f.Err.Ticket,
+			Field:   f.Err.Field,
+			Message: f.Err.Message,
+		})
+	}
+	return out, nil
+}
+
 // Check validates the whole store, per plan section 11. It runs offline, reads
 // no clock but the store's, and never writes.
 func (s *Store) Check(ctx context.Context) (*Report, error) {

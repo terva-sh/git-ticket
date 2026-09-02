@@ -435,10 +435,15 @@ func TestDepsPointsAtChildren(t *testing.T) {
 	}
 
 	// The hint is for a person. The JSON contract does not carry it, so the
-	// envelope keeps exactly the three keys 10.1 gives a ticket-list.
+	// envelope keeps exactly the four keys 10.1 gives a ticket-list.
 	envelope := decode(t, runCLI(t, dir, nil, "--json", "deps", epic).stdout)
-	if len(envelope) != 3 || envelope["kind"] != "ticket-list" {
+	if len(envelope) != 4 || envelope["kind"] != "ticket-list" {
 		t.Errorf("the JSON envelope gained something: %v", envelope)
+	}
+	// Every file in this store parses, so the channel is present and empty
+	// rather than absent, per 10.1.
+	if broken, ok := envelope["unreadable"].([]any); !ok || len(broken) != 0 {
+		t.Errorf("unreadable = %v, want an empty array", envelope["unreadable"])
 	}
 	if tickets, ok := envelope["tickets"].([]any); !ok || len(tickets) != 0 {
 		t.Errorf("tickets = %v, want an empty array", envelope["tickets"])

@@ -6,7 +6,7 @@ reviewable in `git diff`. One Go library owns the format, and a `git-ticket`
 binary exposes it as `git ticket …`.
 
 > **Partly built.** The library and the 24-command CLI are done and tagged
-> `v0.3.0`. There is no binary release, so installing means building from
+> `v0.4.1`. There is no binary release, so installing means building from
 > source. See [Status](#status) before you plan around this.
 
 ## The problem
@@ -279,7 +279,7 @@ repository and before `init`.
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
 | 2 | Standalone CLI with `--json` | Done, tagged `v0.1.0`. All 24 commands, and both exit criteria met |
-| 3 | Terva integration | Started. `v0.2.0` exports the `cli` package terva embeds, `v0.3.0` adds the `--parent` filter its board needs. Tracked in terva |
+| 3 | Terva integration | Started. `v0.2.0` exports the `cli` package terva embeds, `v0.3.0` adds the `--parent` filter its board needs, `v0.4.1` reports the files a query could not read. Tracked in terva |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
 The two questions that blocked Phase 1 are settled. A `blocked` reason lives in

@@ -23,7 +23,7 @@ this integration is that there is exactly one implementation of the format.
 
 ## What already exists, and is published
 
-`github.com/terva-sh/git-ticket`, tagged **`v0.3.0`**. One dependency,
+`github.com/terva-sh/git-ticket`, tagged **`v0.4.1`**. One dependency,
 `gopkg.in/yaml.v3`. `go` directive `1.25`, so it does not constrain terva,
 which declares `1.25.0`.
 
@@ -38,10 +38,34 @@ Two importable packages, and you will want both for different jobs.
 
 What the format gives you: Markdown tickets with YAML frontmatter in
 `.tickets/` in the user's repository, so the work record travels with the
-branch and merges through ordinary review. 24 CLI commands. Seven JSON envelope
+branch and merges through ordinary review. 24 CLI commands. Eight JSON envelope
 kinds. `check` with 14 error codes and 5 warning codes. Statuses are `draft`,
 `ready`, `in-progress`, `blocked`, `review`, `done`, `archived`. Types are
 `task`, `bug`, `chore`, `spike`, `epic`.
+
+## What changed since `v0.3.0`
+
+The handoff was first written against `v0.3.0`. Three things have changed that
+reach your tool path, and one of them is a break.
+
+The break is an error code. `show` and every mutation used to answer
+`ticket_not_found` for a ticket whose file is on disk but does not parse. They
+now answer `parse_error`, or `schema_unsupported` when the file declares a
+schema the binary does not know. If you branch on `ticket_not_found` to mean
+"no such ticket", a present but broken file no longer lands in that branch,
+which is what you want to tell a user apart anyway. ID resolution counts
+unreadable files too, so a 13-character prefix shared with a broken file answers
+`ambiguous_id` rather than silently returning the other ticket.
+
+The `ticket-list` envelope gained a fourth key, `unreadable`, naming the files a
+query had to leave out. `Store.Unreadable(ctx)` is the library call behind it. A
+board can now say it could not read three files rather than quietly showing
+fewer tickets than the store holds.
+
+`git ticket --version` reports the build, and `--version --json` emits the
+`version` kind. Installed with `go install ...@v0.4.1` it prints the module
+version and `unknown` for the commit, because the Go toolchain stamps a revision
+only when it builds from a checkout rather than from a module zip.
 
 ## Already in terva, and needing an owner
 
@@ -68,7 +92,7 @@ Ordered so each is useful alone. Nothing in git-ticket blocks any of them.
 
 ### Slice 1: the dependency and the command
 
-Require `github.com/terva-sh/git-ticket v0.3.0`. Add `terva ticket` as a
+Require `github.com/terva-sh/git-ticket v0.4.1`. Add `terva ticket` as a
 delegation:
 
 ```go
@@ -265,10 +289,12 @@ unknown one is `ticket_not_found` rather than an empty list.
 the ticket has children, the human output names the count and points at the
 filter. `--json` does not carry that, so nothing in your tool path sees it.
 
-`10.1` did not move. The `ticket-list` envelope still carries exactly
-`schemaVersion`, `kind`, and `tickets`, which under 12.4 makes this additive and
-therefore a minor release. It is released as `v0.3.0`, so requiring that version
-is all you need.
+`10.1` did not move for the filter, which is what made it additive and a minor
+release under 12.4. The envelope has moved since, in `v0.4.0`, and now carries
+four keys rather than three: `schemaVersion`, `kind`, `tickets`, and
+`unreadable`. Decode into a struct that ignores unknown keys, which
+`encoding/json` does by default, and neither change reaches you. Require
+`v0.4.1` and both the filter and the new key are there.
 
 One caveat if you construct a `Filter` anywhere: it has only exported fields, so
 an unkeyed composite literal will not compile against the new one. Use keyed
@@ -328,7 +354,7 @@ func main() {
 
 ```sh
 go mod init example.com/probe
-go get github.com/terva-sh/git-ticket@v0.3.0
+go get github.com/terva-sh/git-ticket@v0.4.1
 go run . /path/to/a/repo/with/dot-tickets
 ```
 

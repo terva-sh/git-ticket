@@ -254,6 +254,26 @@ The round-trip guarantee, enforced by test:
 `render(parse(render(t))) == render(t)` for every fixture, and `parse` of a
 supported file loses no content.
 
+The renderer writes body sections verbatim and normalizes nothing. `parse`
+strips the blank lines around a section, so a `Ticket` built in Go with a padded
+section would otherwise render bytes that parse back to something rendering
+differently, which is the guarantee above failing. The normalization therefore
+happens once, in the store, on the way to disk: every write funnels through
+`writeTicket`, and it puts the body in the shape `parse` returns before
+rendering.
+
+It belongs there rather than in the renderer because `writeTicket` hands back
+the same ticket it rendered. Callers read that struct and the CLI serializes it,
+so a renderer that normalized on its own would leave the struct and the file
+disagreeing about the ticket's own text. Byte instability shows up in a diff;
+that divergence would not.
+
+The normalizer strips blank lines at the edges of a section and nothing else. It
+is not `TrimSpace`. Leading whitespace on a content line survives a parse
+untouched, so trimming it would fix no round trip and would silently reindent a
+section that opens with an indented code block. A heading is the one part that
+takes `TrimSpace`, because `parse` reads one that way.
+
 `updated_at` and `updated_by` change on every mutation, so every diff shows at
 least those two lines. That is intended: the diff should say who touched the
 ticket and when.
@@ -1632,6 +1652,17 @@ on the same argument that puts a status reason there. Whether `update` carries
 `--type` and `--parent` is answered by 12.1 listing both, because every other
 field `create` sets already had an `update` flag and the library already had
 `SetType` and `SetParent`.
+
+One was settled after Phase 2, because the same trap sprang three times.
+Whether the renderer canonicalizes body section text
+(`TKT-01M1HQ3D5BMBBP9CEVXBHP3YSN`) is answered in 5.3, and it does not. The
+normalization sits in `writeTicket` instead, which is the one place every write
+already passes through, so no future writer has to remember to trim. The
+renderer stays a faithful echo of the struct because the store hands that same
+struct back to callers, and a renderer that normalized alone would leave the two
+disagreeing. Settling it also caught the per-writer trims using `TrimSpace`,
+which is stronger than the round trip needs and would have reindented a section
+opening with an indented code block.
 
 ## 16. References
 

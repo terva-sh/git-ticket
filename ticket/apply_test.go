@@ -586,12 +586,15 @@ func TestImplementationPlanIsWritable(t *testing.T) {
 	}
 }
 
-// TestCreateTrimsBodySectionsItSeeds pins the reason Create trims. The renderer
-// writes section text verbatim and the parser strips the blank lines around it,
-// so text padded on the way in renders bytes that do not survive the round trip
-// plan 5.3 requires. Every Set* mutation on a body section already trimmed;
-// Create did not, and create --description could reach it.
-func TestCreateTrimsBodySectionsItSeeds(t *testing.T) {
+// TestCreateNormalizesBodySectionsItSeeds covers the path that first exposed
+// the trap: create --description passes a caller's string straight into the
+// body, and the renderer writes section text verbatim while the parser strips
+// the blank lines around it.
+//
+// Create no longer trims for itself. writeTicket normalizes every body on the
+// way to disk, per 5.3, so this holds because the store settles it in one place
+// rather than because this writer remembered to.
+func TestCreateNormalizesBodySectionsItSeeds(t *testing.T) {
 	s := newTestStore(t)
 	res, err := s.Create(context.Background(), CreateOptions{
 		Title:              "Seeded with padded prose",

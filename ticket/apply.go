@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -235,15 +234,14 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		UpdatedAt:    Now(now),
 		CreatedBy:    &Actor{ID: actor.ID, Name: actor.Name},
 		UpdatedBy:    &Actor{ID: actor.ID, Name: actor.Name},
-		// Trimmed for the reason every Set* mutation on a body section trims:
-		// the renderer writes section text verbatim and the parser strips
-		// blank lines around it, so padded input here renders bytes that do
-		// not survive the round trip plan 5.3 requires.
+		// Seeded verbatim. writeTicket normalizes the body on the way to disk,
+		// so a caller's padding is settled in one place rather than by every
+		// writer remembering to trim.
 		Body: Body{
-			Description:        strings.TrimSpace(o.Description),
+			Description:        o.Description,
 			AcceptanceCriteria: ac,
 			DefinitionOfDone:   dod,
-			ImplementationPlan: strings.TrimSpace(o.ImplementationPlan),
+			ImplementationPlan: o.ImplementationPlan,
 		},
 	}
 	return s.writeTicket(t, "")
@@ -261,6 +259,14 @@ func (s *Store) writeTicket(t *Ticket, oldPath string) (*Result, error) {
 		dir = s.ArchiveDir()
 	}
 	target := filepath.Join(dir, t.ID+".md")
+
+	// Every write funnels through here, so this is the one place the body has
+	// to be put in the shape parse returns. Render is a faithful echo of the
+	// struct, per plan 5.3, and normalizing there instead would leave the
+	// Ticket this returns disagreeing with the bytes on disk. Callers read that
+	// struct, and the CLI serializes it, so the divergence would be invisible
+	// where the byte instability at least shows up in a diff.
+	t.Body.normalize()
 
 	data := Render(t)
 	if err := writeFileAtomic(target, data); err != nil {

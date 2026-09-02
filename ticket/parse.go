@@ -504,6 +504,36 @@ func parseBody(body string) Body {
 	return b
 }
 
+// normalize puts a body in the shape parse returns, which is what makes the
+// round trip of plan 5.3 hold for a ticket built in Go rather than read from a
+// file. The store calls it once on the way to disk, in writeTicket.
+//
+// It mirrors parseBody field for field, and that means two different
+// normalizers. A section body gets trimBlankLines, because only blank lines at
+// the edges break the round trip: the renderer puts those back in canonical
+// positions. A heading gets TrimSpace, because parseBody reads one with
+// TrimSpace and a padded heading would come back short.
+//
+// TrimSpace is deliberately not used on a section body. Leading whitespace on a
+// content line survives a parse untouched, so stripping it here would silently
+// reindent a section that opens with an indented code block, and it would fix
+// nothing: that section already round trips.
+func (b *Body) normalize() {
+	trim := func(s string) string { return trimBlankLines(strings.Split(s, "\n")) }
+	b.Preamble = trim(b.Preamble)
+	b.Description = trim(b.Description)
+	b.AcceptanceCriteria = trim(b.AcceptanceCriteria)
+	b.DefinitionOfDone = trim(b.DefinitionOfDone)
+	b.ImplementationPlan = trim(b.ImplementationPlan)
+	b.Notes = trim(b.Notes)
+	b.Comments = trim(b.Comments)
+	b.Summary = trim(b.Summary)
+	for i := range b.Extra {
+		b.Extra[i].Heading = strings.TrimSpace(b.Extra[i].Heading)
+		b.Extra[i].Text = trim(b.Extra[i].Text)
+	}
+}
+
 // trimBlankLines joins lines and removes the blank lines at each end, which
 // the renderer puts back in canonical positions.
 func trimBlankLines(lines []string) string {

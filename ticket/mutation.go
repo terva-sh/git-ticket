@@ -464,7 +464,7 @@ func (m AppendComment) apply(t *Ticket, env mutEnv) error {
 type SetSummary struct{ Text string }
 
 func (m SetSummary) apply(t *Ticket, env mutEnv) error {
-	t.Body.Summary = strings.TrimSpace(m.Text)
+	t.Body.Summary = m.Text
 	return nil
 }
 
@@ -472,7 +472,7 @@ func (m SetSummary) apply(t *Ticket, env mutEnv) error {
 type SetDescription struct{ Text string }
 
 func (m SetDescription) apply(t *Ticket, env mutEnv) error {
-	t.Body.Description = strings.TrimSpace(m.Text)
+	t.Body.Description = m.Text
 	return nil
 }
 
@@ -484,7 +484,7 @@ func (m SetDescription) apply(t *Ticket, env mutEnv) error {
 type SetImplementationPlan struct{ Text string }
 
 func (m SetImplementationPlan) apply(t *Ticket, env mutEnv) error {
-	t.Body.ImplementationPlan = strings.TrimSpace(m.Text)
+	t.Body.ImplementationPlan = m.Text
 	return nil
 }
 

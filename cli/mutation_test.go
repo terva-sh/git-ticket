@@ -212,6 +212,37 @@ func TestClaimRecordsWhereTheWorkIs(t *testing.T) {
 	}
 }
 
+// TestReclaimKeepsAnExpiryNothingReplaced covers plan 6.4 at the surface a
+// person types. Re-running claim to stay alive on a long task must not turn a
+// bounded claim into an unbounded one.
+func TestReclaimKeepsAnExpiryNothingReplaced(t *testing.T) {
+	dir := newGitStore(t)
+	id := readyTicket(t, dir)
+
+	if got := runCLI(t, dir, nil, "claim", id, "--expires-in", "2h",
+		"--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("claim --expires-in: %s", got.stderr)
+	}
+	// Only the expiry is asserted here. runCLI pins Now to one instant, so a
+	// preserved claimed_at and a freshly computed one are identical bytes and
+	// the check could never fail. TestReclaimRenewsRatherThanReplaces in the
+	// ticket package moves the clock and covers claimed_at properly.
+	first := showTicket(t, dir, id)["claim"].(map[string]any)
+	expires := first["expiresAt"]
+	if expires == nil {
+		t.Fatal("the first claim recorded no expiry")
+	}
+
+	// The same actor claims again and names no duration.
+	if got := runCLI(t, dir, nil, "claim", id, "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("re-claim: %s", got.stderr)
+	}
+	again := showTicket(t, dir, id)["claim"].(map[string]any)
+	if again["expiresAt"] != expires {
+		t.Errorf("expiresAt = %v after a re-claim, want it kept at %v", again["expiresAt"], expires)
+	}
+}
+
 // TestClaimOutsideARepositoryStillWorks holds the best-effort promise: a claim
 // records what it can rather than failing where git has nothing to say.
 func TestClaimOutsideARepositoryStillWorks(t *testing.T) {

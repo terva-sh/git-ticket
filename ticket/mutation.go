@@ -293,12 +293,17 @@ func (m RemoveReference) apply(t *Ticket, env mutEnv) error {
 
 // ClaimTicket records that an actor is working this ticket. A claim is
 // metadata and not a status, per plan 6.4.
+//
+// Claiming a ticket the same actor already holds renews it rather than
+// replacing it. claimed_at survives, and so does an expiry that nothing else
+// supplied. See the renewal rules in plan 6.4.
 type ClaimTicket struct {
 	Branch   string
 	Worktree string
 	Commit   string
 	// ExpiresIn overrides the store default. Zero means the store default,
 	// and there is no default expiry, so a claim usually does not expire.
+	// Zero on a renewal keeps the expiry the live claim already carried.
 	ExpiresIn time.Duration
 	// Force takes a live claim from another actor and records the displaced
 	// claim in Notes, because taking work from another agent should leave a
@@ -317,7 +322,8 @@ func (m ClaimTicket) apply(t *Ticket, env mutEnv) error {
 		}
 	}
 
-	if held := t.Claim; held != nil && held.Actor != env.actor.ID && !held.Expired(env.now) {
+	held := t.Claim
+	if held != nil && held.Actor != env.actor.ID && !held.Expired(env.now) {
 		if !m.Force {
 			return &Error{
 				Code:    CodeClaimConflict,
@@ -329,21 +335,39 @@ func (m ClaimTicket) apply(t *Ticket, env mutEnv) error {
 		appendNote(&t.Body, env, fmt.Sprintf("claim taken from %s by %s", held.Actor, env.actor.ID))
 	}
 
+	// Plan 6.4: a re-claim by the actor already named on the claim renews it.
+	renewal := held != nil && held.Actor == env.actor.ID
+
 	claim := &Claim{Actor: env.actor.ID}
+	// Branch, worktree, and commit describe the claim being recorded now, so a
+	// renewal from somewhere else updates them.
 	claim.Branch = optional(m.Branch)
 	claim.Worktree = optional(m.Worktree)
 	claim.Commit = optional(m.Commit)
+
+	// claimed_at is the only record of when the work started, and renewing is
+	// not restarting.
 	claimedAt := Now(env.now)
+	if renewal && held.ClaimedAt != nil {
+		claimedAt = *held.ClaimedAt
+	}
 	claim.ClaimedAt = &claimedAt
 
 	expiry := m.ExpiresIn
 	if expiry == 0 && env.cfg.Defaults.ClaimExpiry != nil {
 		expiry = env.cfg.Defaults.ClaimExpiry.Duration()
 	}
-	if expiry > 0 {
+	switch {
+	case expiry > 0:
 		expiresAt := Now(env.now.Add(expiry))
 		claim.ExpiresAt = &expiresAt
+	case renewal && !held.Expired(env.now):
+		// Nothing supplied an expiry, so keep the bound the live claim already
+		// carried. Clearing it would widen a bounded claim into an unbounded
+		// one on the routine gesture for staying alive.
+		claim.ExpiresAt = held.ExpiresAt
 	}
+
 	t.Claim = claim
 	return nil
 }

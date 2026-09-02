@@ -372,6 +372,23 @@ Claiming a ticket that already carries a live claim by a different actor returns
 `claim_conflict`. `--force` overrides it and records the displaced claim in
 `Notes`, because taking work from another agent should leave a trace.
 
+Re-claiming a ticket you already hold renews the claim rather than replacing it.
+`claimed_at` survives, because it is the only record of when the work started
+and renewing is not restarting. The expiry follows whatever supplied it.
+`--expires-in` and `defaults.claim_expiry` both re-anchor the bound from now,
+and when neither supplies one the renewal keeps the `expires_at` already on the
+live claim. Clearing it would let the ordinary gesture for staying alive on a
+long task widen a bounded claim into an unbounded one. A claim that has already
+lapsed is re-acquired rather than renewed, so it takes whatever the expiry
+sources give it, and that loses nothing, because a lapsed claim already grants
+no exclusivity. The branch, worktree, and commit always describe the claim being
+recorded now, so a renewal from a different worktree updates them.
+
+Renewal needs an explicit duration every time, because the stored claim keeps
+`claimed_at` and `expires_at` and never the duration between them. Extending a
+claim by the amount it was originally given is not implementable from what is on
+disk.
+
 ## 7. Concurrency
 
 ### 7.1 The revision precondition
@@ -1110,9 +1127,6 @@ A question keeps its number for life. A settled one leaves a gap rather than
 closing the numbers up, and each entry carries the ULID of its ticket, which is
 the identifier that was already unique and never moves.
 
-**Q1** (`TKT-01M1F7Z2XAV593RH0KAVBYZQSR`). How a caller renews an existing claim
-rather than replacing it.
-
 **Q2** (`TKT-01M1F7Z2Y5H1ZJAHRGF3XE6F91`). Whether custom statuses are worth the
 cost, decided after a real workflow asks for one.
 
@@ -1133,7 +1147,7 @@ or one ticket, what it does about a store other clones cannot read yet, and how
 `check` reports a store caught halfway. Nothing needs it until there is a schema
 2, and nothing should bump the schema before it exists.
 
-Eight questions have left this list. The six that went before this section
+Nine questions have left this list. The six that went before this section
 stopped renumbering had the numbers close up behind them, which is why a ticket
 closed back then can cite a number that now means something else:
 `TKT-01M1F8XG6KXN6QXYWF6EHVB88P` calls itself question 7, and so does the parent
@@ -1162,6 +1176,19 @@ which is what settled it against the two richer answers: `show` rendering
 children would put data derived from other files onto the ticket object, and
 `deps --children` would overload a command whose whole contract is that it walks
 `dependencies`.
+
+Q1, how a caller renews an existing claim, is answered in 6.4, and running the
+question is what shrank it. No verb was missing. `claim ID --expires-in 1h` run
+again already re-anchors the bound, which is renewal. What the question hid was
+a defect underneath it. A re-claim that supplied no expiry, against a store with
+no `defaults.claim_expiry`, cleared `expires_at` outright, so the natural way to
+stay alive on a long task widened a bounded claim into an unbounded one, and
+reset `claimed_at` on the way past. Both now survive a renewal. Fixing it cost
+no compatibility, because every `config.yml` in this repository and the corpus
+sets `claim_expiry: null`, so no store had an expiry to lose. The richer answer,
+a `--renew` flag that extends a claim by the amount it was first given, was
+ruled out by the file format rather than by taste. The claim stores two instants
+and never the duration between them.
 
 Two were settled during Phase 1, before any reader had shipped, so adding
 `status_reason` to schema 1 cost no compatibility. Where a `blocked` reason

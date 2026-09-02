@@ -371,6 +371,68 @@ func TestClaimConflictAndForce(t *testing.T) {
 	}
 }
 
+// TestReclaimRenewsRatherThanReplaces covers the renewal rules in plan 6.4.
+// Re-claiming a ticket you already hold keeps claimed_at, and keeps an expiry
+// that nothing else supplied, because the routine gesture for staying alive on
+// a long task must not widen a bounded claim into an unbounded one.
+func TestReclaimRenewsRatherThanReplaces(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Rebuild the index from the write-ahead log")
+	mustApply(t, s, tk.ID, SetStatus{Status: StatusReady})
+
+	first := mustApply(t, s, tk.ID, ClaimTicket{Branch: "feat/index", ExpiresIn: time.Hour})
+	claimedAt, expiresAt := first.Ticket.Claim.ClaimedAt, first.Ticket.Claim.ExpiresAt
+	if expiresAt == nil || claimedAt == nil {
+		t.Fatal("the first claim recorded no expiry or no claimed_at")
+	}
+
+	// Half an hour of work later the claim is still live. The clock has to move
+	// here, or a preserved claimed_at and a freshly computed one would be the
+	// same instant and the assertion below could never fail.
+	s.now = func() time.Time { return referenceInstant.Add(30 * time.Minute) }
+
+	// A renewal that supplies no duration keeps both instants.
+	renewed := mustApply(t, s, tk.ID, ClaimTicket{Branch: "feat/index"})
+	if got := renewed.Ticket.Claim.ExpiresAt; got == nil || !got.Time.Equal(expiresAt.Time) {
+		t.Errorf("expires_at = %v, want it kept at %v", got, expiresAt)
+	}
+	if got := renewed.Ticket.Claim.ClaimedAt; got == nil || !got.Time.Equal(claimedAt.Time) {
+		t.Errorf("claimed_at = %v, want it kept at %v", got, claimedAt)
+	}
+
+	// An explicit duration re-anchors the bound from now.
+	longer := mustApply(t, s, tk.ID, ClaimTicket{ExpiresIn: 3 * time.Hour})
+	want := s.Now().Add(3 * time.Hour)
+	if got := longer.Ticket.Claim.ExpiresAt; got == nil || !got.Time.Equal(want) {
+		t.Errorf("expires_at = %v, want %v", got, want)
+	}
+}
+
+// TestReclaimAfterALapseIsAFreshAcquisition covers the other half of 6.4. A
+// lapsed claim already grants no exclusivity, so re-acquiring it takes whatever
+// the expiry sources give, and here they give nothing. claimed_at still
+// survives, because it records when this actor started rather than how long the
+// bound had left.
+func TestReclaimAfterALapseIsAFreshAcquisition(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Drain the retry queue before the cutover")
+	mustApply(t, s, tk.ID, SetStatus{Status: StatusReady})
+
+	first := mustApply(t, s, tk.ID, ClaimTicket{ExpiresIn: time.Hour})
+	claimedAt := first.Ticket.Claim.ClaimedAt
+
+	// Walk the clock past the expiry.
+	s.now = func() time.Time { return referenceInstant.Add(2 * time.Hour) }
+
+	lapsed := mustApply(t, s, tk.ID, ClaimTicket{})
+	if got := lapsed.Ticket.Claim.ExpiresAt; got != nil {
+		t.Errorf("expires_at = %v, want nil once the claim has lapsed", got)
+	}
+	if got := lapsed.Ticket.Claim.ClaimedAt; got == nil || !got.Time.Equal(claimedAt.Time) {
+		t.Errorf("claimed_at = %v, want it kept at %v", got, claimedAt)
+	}
+}
+
 func TestChecklistOperations(t *testing.T) {
 	s := newTestStore(t)
 	tk := mustCreate(t, s, "Measure cold start before optimizing it")

@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1HJKBYGENBTJ7F9S71BN3Q1
 title: Decide whether section 15 stays a hand-maintained index
 type: spike
-status: draft
+status: ready
 status_reason: null
 priority: normal
 labels: []
@@ -17,7 +17,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T17:27:51Z
-updated_at: 2026-09-02T17:27:54Z
+updated_at: 2026-09-02T17:51:31Z
 created_by:
   id: agent:terva/dev-loop
   name: ""
@@ -46,3 +46,9 @@ Three things any answer has to handle:
 - A generated block still conflicts if it is committed, because two agents regenerate the same lines. It is mechanically resolvable by regenerating rather than by reading, which is better, but it is not zero.
 
 The trigger is a third collision in section 15, or a reader who cannot answer what is open because the section and the store disagree. Two collisions have happened. The store and the section agree today.
+
+## Notes
+
+**agent:terva/dev-loop** at 2026-09-02T17:51:31Z
+
+The trigger fired on the merge of this question's own section 15 entry. What counts as a store (TKT-01M1HJTC) and this entry were written in parallel, appended at the same anchor, and conflicted, taking PR #17 to mergeable: False. That is the third collision here and the first of its kind: the two before it were two agents choosing the same number, which naming by subject and ULID settled. This one is two agents landing text in the same place, which naming never addressed.

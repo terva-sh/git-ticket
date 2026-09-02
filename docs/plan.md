@@ -1326,6 +1326,35 @@ is whether the rule belongs to `Open` or only to the CLI's store resolution,
 since a caller passing an explicit path in Go has said what it means and a
 person typing `--store` has not.
 
+**Section 15 as a hand-maintained index** (`TKT-01M1HJKBYGENBTJ7F9S71BN3Q1`).
+Whether this section stays one. Every entry above names the ULID of a ticket
+that holds the same question, so the section is an index of a subset of the
+store, kept in step by attention. Two shapes are on the table. Generation marks
+the question tickets and lets `list` produce the parked entries. A pointer
+keeps the prose and stops claiming to be the complete list.
+
+The trigger was a third collision here, and it has been met. The first two were
+on the numbering this section has since given up, and the second cost a rebase,
+a renumber and a reference repoint on a change that was about archiving. The
+third was this entry: it and **What counts as a store** were written in
+parallel, appended at the same anchor, and conflicted when this one was merged.
+That third is a different kind from the first two, and it is the kind naming by
+subject and ULID never addressed. Naming fixed which entry is which. It did not
+fix that every new question lands in the same place, which is why the question
+outlived the fix.
+
+The cost, now that it is met, is that part of the design of record moves into
+the store, which section 1 puts in this document. It is also worth less than it
+looks. The settled entries below carry their answers and the reasoning behind
+them, and no query reproduces that, so this section stays prose either way and
+only the parked half could ever be generated. Two smaller obstacles sit under
+either shape. The questions are not machine-distinguishable today, mostly
+`spike` but not all, and a `question` label needs adding to the `config.yml`
+allowlist first or every labelled ticket earns `label_unknown`. And a generated
+block that is committed still collides, because two agents regenerate the same
+lines. That is resolvable by regenerating rather than by reading, which is
+better without being zero.
+
 Eleven questions have left this list. They were numbered once, and the numbering
 is the thing this section gave up. A number has to be chosen, and it collided
 twice. Two settled questions both called themselves question 7, the module path

@@ -13,13 +13,14 @@ assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: plan:git-commands
     path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-02T20:41:51Z
-updated_at: 2026-09-02T20:41:51Z
+updated_at: 2026-09-02T22:01:55Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -54,7 +55,7 @@ The gofmt comparison is the honest one. Nobody wants CI to reformat their code a
 
 An agent that sees a red check needs to be told to run `git ticket check --fix`. That belongs in the agent workflow block, which is itself generated and already held to reality by `TestInstructionsNameRealCommands`, so the loop closes without a new mechanism.
 
-### Decision 1: does one command cover artifacts outside the store
+### Open: does one command cover artifacts outside the store
 
 Generated artifacts split by scope, and the split is about authority rather than convenience.
 
@@ -68,13 +69,15 @@ Option B, one command, something like `generate --check`, covering both. One thi
 
 Option A is the conservative call and probably the right one. The difference between writing inside a store the tool owns and writing a file the project owns is real, and one flag covering both hides it at exactly the moment a reader should see it.
 
-### Decision 2: is a stale generated artifact an error or a warning
+### Settled: a stale generated artifact is a warning
 
-This is decision 3 on TKT-01M1HXHJXRFP7VMH7D35YNTG5H restated, and the two have to agree.
+This is decision 3 on TKT-01M1HXHJXRFP7VMH7D35YNTG5H, settled there and recorded at the end of plan section 15. The two agree by construction.
 
-Error means CI is the enforcement, in the way gofmt is enforced, and a PR touching an epic goes red until somebody regenerates. Warning leaves the artifact quietly wrong, which is the failure mode that makes a generated file worse than no file.
+The tradeoff it looked like does not exist. `--strict` promotes warnings to errors, per 10.3, and CI runs `check --strict`, so a warning is enforced exactly as hard as an error everywhere enforcement actually happens. Nothing is given up by declining to call it an error.
 
-Recorded in both places so the answer is not given twice differently.
+What is kept is the line that a derived file falling behind is not a malformed store, which is the same line that keeps "this ticket is late" out of `check` entirely.
+
+Severity also does not gate repair, which is what makes the warning free rather than merely defensible. `planRepairs` recomputes where each file belongs rather than walking the findings, so a warning is exactly as repairable as an error.
 
 ### What this does not ask for
 
@@ -85,5 +88,5 @@ No new command, if decision 1 lands on option A. The deliverable is a plan secti
 - [ ] The plan records that CI verifies generated artifacts and never commits them, with the reasons.
 - [ ] The plan records that no writing git command joins the 7.4 table for this purpose.
 - [ ] check --fix --dry-run is documented as the CI verification entry point.
-- [ ] Decision 1 is settled and recorded before any generate command ships.
 - [ ] The agent workflow block names the command that repairs a red check.
+- [ ] The open decision, whether one command covers artifacts outside the store, is settled and recorded before any generate command ships.

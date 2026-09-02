@@ -1734,6 +1734,39 @@ from `parent` rather than enumerated, an epic with no children is not blocked an
 `check` warns instead, children get their own field rather than joining
 `blockingDependencies`, and `deps` still walks dependencies alone.
 
+Three more were settled for the generated epics index
+(`TKT-01M1HXHJXRFP7VMH7D35YNTG5H`), which is not built yet, so the answers live
+here until 4 and 11 carry them.
+
+Which epics appear is an exclusion and not a list. `done` and `archived` are left
+out and everything else appears, which today means `draft`, `ready`,
+`in-progress`, `blocked`, and `review`. An inclusion list would silently drop any
+status added later, and whether this format ever grows one is itself an open
+question in this section. Including drafts is also the better answer on its own
+terms, because a draft epic is a decomposition somebody is writing, which is what
+a person browsing a forge most wants to see.
+
+The index covers epics and nothing else, and a second view is a change to this
+plan rather than a key in `config.yml`. Configurable views put queries in
+configuration, which the tool then has to validate and every consumer then wants
+its own copy of in the store. The generator may be reusable inside the binary.
+The choice of what it renders is not the store's to make.
+
+A stale index is a warning, and the tradeoff this looked like does not exist.
+`--strict` promotes warnings to errors, per 10.3, and CI runs `check --strict`,
+so a warning is enforced exactly as hard as an error everywhere enforcement
+happens. Keeping it a warning holds the line that a derived file falling behind
+is not a malformed store, which is the same line that keeps "this ticket is
+late" out of `check` entirely. `TKT-01M1HXPJP7EGJVC2J7GC6Y887E` records the same
+answer, because the two cannot be allowed to diverge.
+
+Severity does not gate repair, which is the fact that makes the warning free.
+`planRepairs` recomputes where each file belongs rather than walking the
+findings, so a warning is exactly as repairable as an error. What does need work
+is the shape rather than the severity: a `Repair` today is a rename, carrying
+`From` and `To`, and rewriting a generated file is not a rename. However that
+lands it is an implementation cost, not a second format decision.
+
 ## 16. References
 
 - [Backlog.md](https://github.com/MrLesk/Backlog.md) and its

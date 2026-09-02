@@ -1199,7 +1199,7 @@ func count(n int, noun string) string {
 // any Go type in this package.
 var envelopeKinds = []string{
 	"ticket", "ticket-list", "mutation-result", "check-report", "error",
-	"schema", "instructions",
+	"schema", "instructions", "version",
 }
 
 // runSchema prints the values a consumer would otherwise have to read the plan

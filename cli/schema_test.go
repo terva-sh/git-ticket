@@ -133,7 +133,12 @@ func TestSchemaReportsWhatTheLibraryEnforces(t *testing.T) {
 // TestEveryEmittedKindIsPublished is the drift guard on the kinds list. The
 // list is written out by hand because it is a contract rather than a fact about
 // a Go type, so this runs one command per kind and holds the answers to it. A
-// sixth kind added without touching envelopeKinds fails here.
+// new kind added without touching envelopeKinds fails here.
+//
+// The guard is only as complete as the table below. `version` shipped in
+// v0.4.0 absent from both envelopeKinds and this table, so the two hand-written
+// lists agreed with each other and not with plan 10.1, and nothing failed. Add
+// the command that emits a kind here in the same change that adds the kind.
 func TestEveryEmittedKindIsPublished(t *testing.T) {
 	dir := newStore(t)
 	id := ticketID(t, createTicket(t, dir))
@@ -155,6 +160,8 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		{"a failure", []string{"--json", "show", "TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ"}},
 		{"the schema", []string{"--json", "schema"}},
 		{"the instructions", []string{"--json", "instructions"}},
+		// --version is top level only, so it goes before any subcommand.
+		{"the version", []string{"--json", "--version"}},
 	} {
 		out := runCLI(t, dir, nil, c.args...).stdout
 		kind, ok := decode(t, out)["kind"].(string)

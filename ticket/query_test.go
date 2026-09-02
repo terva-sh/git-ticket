@@ -2,7 +2,10 @@ package ticket
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"testing"
 	"time"
 )
@@ -280,6 +283,171 @@ func TestReadyRules(t *testing.T) {
 	mustApply(t, s, blocker.ID, ArchiveTicket{Reason: "filed"})
 	if got, _ := s.Ready(ctx); !contains(ids(got), waiter.ID) {
 		t.Error("archived out of done still satisfies a dependency")
+	}
+}
+
+// TestReadinessExplainsItself covers the field a query could never carry: not
+// just whether a ticket is startable but what stands in the way.
+//
+// Blocked is about dependencies alone. A draft and a held ticket are both
+// unready with nothing in their way but their own state, and reporting them as
+// blocked would send a reader looking for a dependency that is not there.
+func TestReadinessExplainsItself(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	draft := mustCreate(t, s, "Still a sketch")
+
+	open := mustCreate(t, s, "Ready and unclaimed")
+	mustApply(t, s, open.ID, SetStatus{Status: StatusReady})
+
+	held := mustCreate(t, s, "Ready but held")
+	mustApply(t, s, held.ID, SetStatus{Status: StatusReady})
+	mustApply(t, s, held.ID, ClaimTicket{ExpiresIn: time.Hour})
+
+	blocker := mustCreate(t, s, "Has to land first")
+	waiter := mustCreate(t, s, "Waits on the blocker")
+	mustApply(t, s, waiter.ID, SetStatus{Status: StatusReady})
+	mustApply(t, s, waiter.ID, AddDependency{ID: blocker.ID})
+
+	r, err := s.Readiness(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := r[open.ID]; !got.Ready || got.Blocked {
+		t.Errorf("open = %+v, want ready and unblocked", got)
+	}
+	if got := r[draft.ID]; got.Ready || got.Blocked {
+		t.Errorf("draft = %+v, want unready but not blocked", got)
+	}
+	if got := r[held.ID]; got.Ready || got.Blocked {
+		t.Errorf("held = %+v, want unready but not blocked", got)
+	}
+
+	got := r[waiter.ID]
+	if got.Ready || !got.Blocked {
+		t.Errorf("waiter = %+v, want blocked", got)
+	}
+	if len(got.Blocking) != 1 || got.Blocking[0] != blocker.ID {
+		t.Errorf("blocking = %v, want [%s]", got.Blocking, blocker.ID)
+	}
+	if len(got.Missing) != 0 {
+		t.Errorf("missing = %v, want empty: the dependency exists", got.Missing)
+	}
+
+	// Every ticket the verdict calls ready is exactly what Ready returns. The
+	// two read the same derivation, and this is what holds them to it.
+	list, err := s.Ready(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var agreed []string
+	for id, v := range r {
+		if v.Ready {
+			agreed = append(agreed, id)
+		}
+	}
+	sort.Strings(agreed)
+	fromQuery := ids(list)
+	sort.Strings(fromQuery)
+	if !slices.Equal(agreed, fromQuery) {
+		t.Errorf("the field and the query disagree\nfield: %v\nquery: %v", agreed, fromQuery)
+	}
+}
+
+// TestUnresolvableDependenciesFailClosed is the rule worth copying from
+// Backlog.md verbatim: a dependency that resolves to nothing, or to more than
+// one ticket, blocks rather than counting as satisfied.
+//
+// Both are states check already reports, as dependency_missing and
+// duplicate_id. Until somebody repairs them, nothing can be said to have met
+// the dependency, and guessing would hand an agent work whose prerequisite
+// nobody can point at.
+func TestUnresolvableDependenciesFailClosed(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	// A dependency nothing claims.
+	orphan := mustCreate(t, s, "Waits on a ticket that is not there")
+	mustApply(t, s, orphan.ID, SetStatus{Status: StatusReady})
+	const ghost = "TKT-01K3ZZZZZZZZZZZZZZZZZZZZZZ"
+	// AddDependency refuses an ID with nothing behind it, which is the right
+	// answer for a mutation. Reaching the state this asserts means writing the
+	// file the way a bad merge would leave it.
+	cur, err := s.Get(ctx, orphan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur.Dependencies = []string{ghost}
+	if err := os.WriteFile(cur.Path, Render(cur), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A dependency two files claim. Take it all the way to done first, so the
+	// waiter below is genuinely satisfied until the duplicate appears.
+	twin := mustCreate(t, s, "Claimed by two files")
+	mustApply(t, s, twin.ID, SetStatus{Status: StatusReady})
+	mustApply(t, s, twin.ID, SetStatus{Status: StatusInProgress})
+	done := mustApply(t, s, twin.ID, SetStatus{Status: StatusDone})
+
+	waiter := mustCreate(t, s, "Waits on the twin")
+	mustApply(t, s, waiter.ID, SetStatus{Status: StatusReady})
+	mustApply(t, s, waiter.ID, AddDependency{ID: twin.ID})
+
+	// Satisfied, for now.
+	before, err := s.Readiness(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before[waiter.ID].Ready {
+		t.Fatalf("waiter should be ready while its dependency resolves: %+v", before[waiter.ID])
+	}
+
+	// Now a second file claims the same ID. Filenames are the ID, so a file
+	// under another name is how a bad merge produces this. Every create is
+	// already done, because the store refuses to write once an ID is ambiguous.
+	dup := filepath.Join(s.TicketsDir(), "duplicate-of-the-twin.md")
+	if err := os.WriteFile(dup, Render(done.Ticket), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := s.Readiness(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := r[orphan.ID]
+	if got.Ready || !got.Blocked {
+		t.Errorf("orphan = %+v, want blocked", got)
+	}
+	if len(got.Missing) != 1 || got.Missing[0] != ghost {
+		t.Errorf("missing = %v, want [%s]", got.Missing, ghost)
+	}
+
+	// The twin is done twice over, so a rule that only asked "is it done"
+	// would call this satisfied. Two files claiming one ID means no single
+	// ticket claims it, so it is missing rather than met.
+	got = r[waiter.ID]
+	if got.Ready || !got.Blocked {
+		t.Errorf("waiter on an ambiguous ID = %+v, want blocked", got)
+	}
+	if len(got.Missing) != 1 || got.Missing[0] != twin.ID {
+		t.Errorf("missing = %v, want the ambiguous [%s]", got.Missing, twin.ID)
+	}
+	if len(got.Blocking) != 0 {
+		t.Errorf("blocking = %v, want empty: the ID resolves to nothing single", got.Blocking)
+	}
+
+	// And the query agrees, because it reads the same derivation.
+	list, err := s.Ready(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{orphan.ID, waiter.ID} {
+		if contains(ids(list), id) {
+			t.Errorf("%s is in ready with an unresolvable dependency", id)
+		}
 	}
 }
 

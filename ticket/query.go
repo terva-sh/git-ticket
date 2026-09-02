@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Every query reads every file. At the scale this format targets, hundreds to a
@@ -216,52 +217,107 @@ func anyMatch(match func(string) bool, fields ...string) bool {
 	return false
 }
 
+// Readiness says whether a ticket can be picked up now, and what stands in the
+// way when it cannot.
+//
+// It is derived from the whole store at read time and never stored, like
+// revision and path in plan 7.1, so no ticket file carries it and nothing can
+// go stale against the files.
+type Readiness struct {
+	// Ready is the verdict the Ready query filters on: the status is ready, no
+	// live claim holds it, and every dependency is satisfied per plan 6.3.
+	Ready bool
+
+	// Blocked reports that at least one dependency is unsatisfied or cannot be
+	// resolved. It is about dependencies alone. A draft, or a ticket somebody
+	// else is holding, is not ready and not blocked, because nothing is in its
+	// way except its own state.
+	Blocked bool
+
+	// Blocking names the dependencies that resolve to a ticket which is not
+	// done. Missing names the dependency IDs that no single ticket in this
+	// store claims, which covers both an ID nothing claims and one that two
+	// files claim. Both are sorted.
+	//
+	// Both fail closed. An ID that resolves to nothing, or to more than one
+	// file, never counts as satisfied, because a dependency nobody can point at
+	// is not a dependency anybody met.
+	Blocking []string
+	Missing  []string
+}
+
+// Readiness answers for every ticket in the store, keyed by ID.
+//
+// One call builds the index once, so a caller explaining a whole listing does
+// not re-read the store per row.
+func (s *Store) Readiness(ctx context.Context) (map[string]Readiness, error) {
+	all, err := s.tickets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return readinessOf(all, s.now()), nil
+}
+
 // Ready returns the tickets that can be started now: status ready, no live
 // claim, and every dependency satisfied per plan 6.3.
 //
 // Only direct dependencies are considered, so this cannot loop on a dependency
 // cycle. A cycle makes its members permanently unready, which is what check
 // reports as dependency_cycle.
+//
+// It filters on the same verdict Readiness computes rather than repeating the
+// rule, so the query and the field cannot come to disagree about one ticket.
 func (s *Store) Ready(ctx context.Context) ([]*Ticket, error) {
 	all, err := s.tickets(ctx)
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[string]*Ticket, len(all))
-	for _, t := range all {
-		byID[t.ID] = t
-	}
-
-	now := s.now()
+	ready := readinessOf(all, s.now())
 	out := make([]*Ticket, 0, len(all))
 	for _, t := range all {
-		if t.Status != StatusReady {
-			continue
+		if ready[t.ID].Ready {
+			out = append(out, t)
 		}
-		// An expired claim does not hold a ticket. It grants no exclusivity to
-		// anyone, so the ticket is available again.
-		if t.Claim != nil && !t.Claim.Expired(now) {
-			continue
-		}
-		if !dependenciesSatisfied(t, byID) {
-			continue
-		}
-		out = append(out, t)
 	}
 	return out, nil
 }
 
-// dependenciesSatisfied reports whether every dependency is done, or archived
-// out of done. A dependency that does not exist is not satisfied, because
-// nothing can ever satisfy it.
-func dependenciesSatisfied(t *Ticket, byID map[string]*Ticket) bool {
-	for _, dep := range t.Dependencies {
-		other, ok := byID[dep]
-		if !ok || !other.SatisfiesDependency() {
-			return false
-		}
+func readinessOf(all []*Ticket, now time.Time) map[string]Readiness {
+	// Counting rather than only indexing is what makes an ambiguous dependency
+	// fail closed. Two files claiming one ID is the duplicate_id that check
+	// reports as an error, and until somebody repairs it neither file can be
+	// said to satisfy anything.
+	byID := make(map[string]*Ticket, len(all))
+	claimants := make(map[string]int, len(all))
+	for _, t := range all {
+		claimants[t.ID]++
+		byID[t.ID] = t
 	}
-	return true
+
+	out := make(map[string]Readiness, len(all))
+	for _, t := range all {
+		var r Readiness
+		for _, dep := range t.Dependencies {
+			other, ok := byID[dep]
+			switch {
+			case !ok || claimants[dep] > 1:
+				r.Missing = append(r.Missing, dep)
+			case !other.SatisfiesDependency():
+				r.Blocking = append(r.Blocking, dep)
+			}
+		}
+		sort.Strings(r.Blocking)
+		sort.Strings(r.Missing)
+
+		r.Blocked = len(r.Blocking)+len(r.Missing) > 0
+		// An expired claim does not hold a ticket. It grants no exclusivity to
+		// anyone, so the ticket is available again.
+		held := t.Claim != nil && !t.Claim.Expired(now)
+		r.Ready = t.Status == StatusReady && !r.Blocked && !held
+
+		out[t.ID] = r
+	}
+	return out
 }
 
 // DepsOptions selects which edges to walk.

@@ -292,15 +292,22 @@ func runShow(ctx *cmdContext, args []string) error {
 		return err
 	}
 
+	// Readiness is derived from the whole store rather than from this ticket,
+	// so it costs one read whichever output mode follows.
+	ready, err := s.Readiness(context.Background())
+	if err != nil {
+		return err
+	}
+
 	if ctx.g.json {
 		writeJSON(ctx.out, ticketEnvelope{
 			SchemaVersion: schemaVersion,
 			Kind:          "ticket",
-			Ticket:        newTicketJSON(s, t),
+			Ticket:        newTicketJSON(s, t, ready[t.ID]),
 		})
 		return nil
 	}
-	writeTicketHuman(ctx.out, s, t)
+	writeTicketHuman(ctx.out, s, t, ready[t.ID])
 	return nil
 }
 
@@ -1386,9 +1393,15 @@ func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human 
 // because "nothing" means something different to search and to ready.
 func (ctx *cmdContext) writeTicketList(s *ticket.Store, tickets []*ticket.Ticket, empty string) error {
 	if ctx.g.json {
+		// One call for the whole listing. Readiness reads the store to resolve
+		// dependencies, so asking per row would re-read it per row.
+		ready, err := s.Readiness(context.Background())
+		if err != nil {
+			return err
+		}
 		out := make([]*ticketJSON, 0, len(tickets))
 		for _, t := range tickets {
-			out = append(out, newTicketJSON(s, t))
+			out = append(out, newTicketJSON(s, t, ready[t.ID]))
 		}
 		// A query leaves out a file it could not parse, per plan section 8, so
 		// the envelope has to say which ones. A host building a board on this
@@ -1425,7 +1438,7 @@ func writeListHuman(w io.Writer, tickets []*ticket.Ticket, short map[string]stri
 	tw.Flush()
 }
 
-func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket) {
+func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready ticket.Readiness) {
 	fmt.Fprintf(w, "%s  %s\n", t.ID, t.Title)
 	fmt.Fprintf(w, "%s  %s  %s\n", t.Status, t.Type, t.Priority)
 	if t.StatusReason != nil {
@@ -1447,6 +1460,13 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket) {
 		field("parent", *t.Parent)
 	}
 	field("depends on", strings.Join(t.Dependencies, ", "))
+	// Say what is in the way rather than leaving a reader to compare the
+	// dependency list against the status of each one by hand.
+	field("blocked by", strings.Join(ready.Blocking, ", "))
+	// Named apart from the line above because the repair is different: a
+	// blocking dependency needs finishing, and one nothing resolves needs
+	// either the ticket it names or an unlink.
+	field("unresolved", strings.Join(ready.Missing, ", "))
 	if c := t.Claim; c != nil {
 		held := c.Actor
 		if c.Branch != nil {

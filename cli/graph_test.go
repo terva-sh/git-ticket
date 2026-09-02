@@ -261,6 +261,96 @@ func TestUnlinkRepairsADanglingDependency(t *testing.T) {
 	}
 }
 
+// readinessOf reads the derived readiness back through the JSON contract.
+func readinessOfTicket(t *testing.T, dir, id string) map[string]any {
+	t.Helper()
+	r, ok := showTicket(t, dir, id)["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("ticket %s carries no readiness", id)
+	}
+	return r
+}
+
+// TestReadinessRidesOnEveryTicket is the point of the field: a consumer holding
+// a listing can grey out a blocked card and say why, without calling ready and
+// diffing two ID sets and then calling deps per row.
+func TestReadinessRidesOnEveryTicket(t *testing.T) {
+	dir := newStore(t)
+	blocker := makeTicket(t, dir, "Has to land first")
+	waiter := makeTicket(t, dir, "Waits on the blocker")
+
+	if got := runCLI(t, dir, nil, "link", waiter, "--depends-on", blocker,
+		"--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("link: %s", got.stderr)
+	}
+	if got := runCLI(t, dir, nil, "status", waiter, "ready", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("status ready: %s", got.stderr)
+	}
+
+	r := readinessOfTicket(t, dir, waiter)
+	if r["isReady"] != false || r["isBlocked"] != true {
+		t.Errorf("waiter readiness = %v, want blocked and unready", r)
+	}
+	blocking, _ := r["blockingDependencies"].([]any)
+	if len(blocking) != 1 || blocking[0] != blocker {
+		t.Errorf("blockingDependencies = %v, want [%s]", blocking, blocker)
+	}
+	// Absent collections are [] and never null, per plan 10.1.
+	if missing, ok := r["missingDependencies"].([]any); !ok || len(missing) != 0 {
+		t.Errorf("missingDependencies = %v, want an empty array", r["missingDependencies"])
+	}
+
+	// The blocker is a draft: unready, and not blocked, because nothing is in
+	// its way but its own status.
+	if r := readinessOfTicket(t, dir, blocker); r["isReady"] != false || r["isBlocked"] != false {
+		t.Errorf("draft readiness = %v, want unready and not blocked", r)
+	}
+
+	// Every row of a listing carries it too, not just the single-ticket kind.
+	got := runCLI(t, dir, nil, "--json", "list")
+	if got.code != exitOK {
+		t.Fatalf("list: %s", got.stderr)
+	}
+	for _, row := range decode(t, got.stdout)["tickets"].([]any) {
+		tk := row.(map[string]any)
+		if _, ok := tk["readiness"].(map[string]any); !ok {
+			t.Errorf("list row %v carries no readiness", tk["id"])
+		}
+	}
+
+	// Finishing the blocker clears the way, and the verdict follows.
+	for _, to := range []string{"ready", "in-progress", "done"} {
+		if got := runCLI(t, dir, nil, "status", blocker, to, "--actor", "human:sothr"); got.code != exitOK {
+			t.Fatalf("status %s: %s", to, got.stderr)
+		}
+	}
+	if r := readinessOfTicket(t, dir, waiter); r["isReady"] != true || r["isBlocked"] != false {
+		t.Errorf("waiter readiness = %v, want ready once the blocker is done", r)
+	}
+}
+
+// TestShowSaysWhatBlocksATicket covers the human half. A reader should not have
+// to compare the dependency list against the status of each one by hand.
+func TestShowSaysWhatBlocksATicket(t *testing.T) {
+	dir := newStore(t)
+	blocker := makeTicket(t, dir, "Has to land first")
+	waiter := makeTicket(t, dir, "Waits on the blocker")
+	runCLI(t, dir, nil, "link", waiter, "--depends-on", blocker, "--actor", "human:sothr")
+
+	got := runCLI(t, dir, nil, "show", waiter)
+	if got.code != exitOK {
+		t.Fatalf("show: %s", got.stderr)
+	}
+	if !strings.Contains(got.stdout, "blocked by") || !strings.Contains(got.stdout, blocker) {
+		t.Errorf("show does not say what blocks the ticket:\n%s", got.stdout)
+	}
+
+	// Nothing in the way means no line at all, rather than an empty one.
+	if got := runCLI(t, dir, nil, "show", blocker); strings.Contains(got.stdout, "blocked by") {
+		t.Errorf("an unblocked ticket should not print a blocked line:\n%s", got.stdout)
+	}
+}
+
 func TestUnlinkFlagCombinations(t *testing.T) {
 	dir := newStore(t)
 	a := makeTicket(t, dir, "A")

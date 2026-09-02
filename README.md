@@ -196,6 +196,19 @@ and search inside that. `ready` answers one question: which open tickets are
 not blocked and have every dependency closed. That is the queue, and it is what
 an agent asks for when it wants work.
 
+Every ticket also carries a `readiness`, derived from the whole store at read
+time and never stored. It holds the verdict `ready` filters on plus what stands
+in the way, so `show` prints a `blocked by` line and a consumer drawing a board
+can grey out a card and say why without calling `ready` and then `deps` per row.
+`ready` filters on that same verdict rather than restating the rule, so the two
+cannot come to disagree.
+
+Blocked means dependencies. A draft, and a ticket somebody else is holding, are
+both unready with nothing in the way but their own state. A dependency that
+resolves to nothing, or to two files claiming one ID, blocks rather than
+counting as satisfied, because a prerequisite nobody can point at is not one
+anybody met.
+
 `note`, `comment`, `plan`, and `summary` write the text sections of plan section
 9. `note` and `comment` append with a timestamp and an actor, so they read as a
 log. `plan` and `summary` set. Each is one statement rather than a log: a plan

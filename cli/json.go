@@ -140,6 +140,25 @@ type ticketJSON struct {
 	Unknown      map[string]any  `json:"unknown"`
 	Body         bodyJSON        `json:"body"`
 	Checklists   checklistsJSON  `json:"checklists"`
+	Readiness    readinessJSON   `json:"readiness"`
+}
+
+// readinessJSON is derived from the whole store at read time and never stored,
+// like revision and path. It carries the verdict `ready` filters on, plus what
+// stands in the way, so a consumer drawing a list can grey out a blocked ticket
+// and say why without a second call.
+//
+// isBlocked is about dependencies alone. A draft and a held ticket are unready
+// and not blocked, because nothing is in their way but their own state.
+type readinessJSON struct {
+	IsReady   bool `json:"isReady"`
+	IsBlocked bool `json:"isBlocked"`
+	// BlockingDependencies resolve to a ticket that is not done.
+	// MissingDependencies are the IDs no single ticket in the store claims,
+	// which covers an ID nothing claims and one that two files claim. Neither
+	// ever counts as satisfied.
+	BlockingDependencies []string `json:"blockingDependencies"`
+	MissingDependencies  []string `json:"missingDependencies"`
 }
 
 type referenceJSON struct {
@@ -202,7 +221,7 @@ type checklistItemJSON struct {
 	Text    string `json:"text"`
 }
 
-func newTicketJSON(s *ticket.Store, t *ticket.Ticket) *ticketJSON {
+func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticketJSON {
 	out := &ticketJSON{
 		ID:           t.ID,
 		Revision:     t.Revision,
@@ -239,6 +258,12 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket) *ticketJSON {
 		Checklists: checklistsJSON{
 			AcceptanceCriteria: checklist(t.Body.AcceptanceCriteria),
 			DefinitionOfDone:   checklist(t.Body.DefinitionOfDone),
+		},
+		Readiness: readinessJSON{
+			IsReady:              r.Ready,
+			IsBlocked:            r.Blocked,
+			BlockingDependencies: stringSlice(r.Blocking),
+			MissingDependencies:  stringSlice(r.Missing),
 		},
 	}
 	for _, r := range t.References {

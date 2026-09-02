@@ -505,6 +505,26 @@ not a user's repository.
   advisory and not derived from Git history, and the help text says so
 - `check`, described in section 10
 
+Every ticket carries `readiness`, which is derived from the whole store at read
+time and never stored, like `revision` and `path` in 7.1. It holds the verdict
+`ready` filters on, and what stands in the way when the answer is no.
+
+`ready` filters on that verdict rather than restating the rule, so the query and
+the field cannot come to disagree about one ticket. A consumer drawing a board
+was otherwise forced to call `ready`, diff two ID sets, and then call `deps` per
+card to explain the difference.
+
+Blocked is about dependencies alone. A draft, and a ticket somebody else holds,
+are both unready with nothing in the way but their own state, and calling those
+blocked would send a reader looking for a dependency that is not there.
+
+A dependency that resolves to nothing, or to more than one file, blocks and
+never counts as satisfied. Both are states `check` already reports, as
+`dependency_missing` and `duplicate_id`. Failing closed is the only safe
+reading. Until somebody repairs the store, nothing can be said to have met the
+dependency, and guessing would hand an agent work whose prerequisite nobody can
+point at.
+
 The parent filter answers what is under an epic, which is the one hierarchy
 question this format could record and not read back. It matches direct children
 only, and little is lost by that: `list` already returns every ticket with its
@@ -693,14 +713,20 @@ answers.
       { "index": 2, "checked": false, "text": "New tokens use the newer key" }
     ],
     "definitionOfDone": []
+  },
+  "readiness": {
+    "isReady": false,
+    "isBlocked": true,
+    "blockingDependencies": ["TKT-01K4001C…"],
+    "missingDependencies": []
   }
 }
 ```
 
-The frontmatter fields keep their names in camel case. `revision` and `path` are
-computed rather than stored, per 7.1. `unknown` holds the top-level fields this
-version does not define, per 5.4, which are preserved on write whether or not a
-consumer understands them.
+The frontmatter fields keep their names in camel case. `revision`, `path`, and
+`readiness` are computed rather than stored, per 7.1 and section 8. `unknown`
+holds the top-level fields this version does not define, per 5.4, which are
+preserved on write whether or not a consumer understands them.
 
 `body` holds every section exactly as it appears in the file, one type for all of
 them, so nothing a person wrote by hand is dropped on the way out.
@@ -962,6 +988,7 @@ func (s *Store) Get(ctx context.Context, ref string) (*Ticket, error)
 func (s *Store) List(ctx context.Context, f Filter) ([]*Ticket, error)
 func (s *Store) Search(ctx context.Context, q Query) ([]*Ticket, error)
 func (s *Store) Ready(ctx context.Context) ([]*Ticket, error)
+func (s *Store) Readiness(ctx context.Context) (map[string]Readiness, error)
 func (s *Store) Check(ctx context.Context) (*Report, error)
 func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOptions) (*Result, error)
 

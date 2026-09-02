@@ -1279,6 +1279,29 @@ for the others. And `extensions` has no mutation, so the one place 5.1 reserves
 for a consumer's own fields round-trips through parse and render but can only be
 written by hand-editing the file.
 
+**Long-term archiving** (`TKT-01M1HFPCRWCW72EA6EKACFSYZ5`). What a store does
+with an archive that grows without bound. Every ticket ever closed stays in
+`archive/` as its own file, and nothing prunes it, rolls it up, or compresses
+it. The sketch to start from is a tarball per archived month for anything older
+than thirty days, plus an index tooling reads instead of opening them.
+
+The trigger is a store where the archive is measurably the reason something is
+slow or large, rather than a store where it looks untidy. This repository's
+archive is seven files.
+
+The cost, if the trigger is ever met, is that the archive stops being files a
+person can open. 6.3 makes a dependency satisfied by a ticket archived out of
+`done` and by nothing else, so `check` and `deps` read archived tickets to
+answer questions about live ones, and 11 scans `archive/` for a location
+mismatch and for an ID duplicated across both directories. An index carrying
+each archived ID and its `from_status` answers all of that without opening a
+tarball, and an index carrying less makes every `check` unpack a month. A
+`.tar.gz` also gives up what the format is for. One late arrival rewrites a
+whole month, review sees an opaque object, and `tar` records mtimes and entry
+order, so a rebuild differs from an identical input. The index is the separable
+half and costs the format nothing, which is the argument whoever settles this
+has to answer rather than inherit.
+
 Eleven questions have left this list. They were numbered once, and the numbering
 is the thing this section gave up. A number has to be chosen, and it collided
 twice. Two settled questions both called themselves question 7, the module path

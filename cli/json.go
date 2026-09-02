@@ -64,6 +64,25 @@ type checkEnvelope struct {
 	OK            bool          `json:"ok"`
 	Errors        []findingJSON `json:"errors"`
 	Warnings      []findingJSON `json:"warnings"`
+	// PathsChanged names every file --fix moved, both ends of each move, the
+	// way a mutation reports one. It is empty without --fix, and empty under
+	// --dry-run because nothing was written.
+	PathsChanged []string `json:"pathsChanged"`
+	// Repairs is what --fix did, or under --dry-run what it would do. It is
+	// the only place a dry run says anything, since the findings it would
+	// clear are still in errors.
+	Repairs []repairJSON `json:"repairs"`
+	DryRun  bool         `json:"dryRun"`
+}
+
+// repairJSON is one move. codes names the findings it clears, as a list because
+// a file in the wrong directory under the wrong name raises both and one move
+// settles them together.
+type repairJSON struct {
+	Codes  []string `json:"codes"`
+	Ticket string   `json:"ticket"`
+	From   string   `json:"from"`
+	To     string   `json:"to"`
 }
 
 type findingJSON struct {
@@ -315,14 +334,34 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 //
 // --strict moves no finding between the arrays. The two arrays report severity
 // as section 11 defines it, whatever the caller asked for.
-func newCheckEnvelope(s *ticket.Store, r *ticket.Report, ok bool) checkEnvelope {
-	return checkEnvelope{
+func newCheckEnvelope(s *ticket.Store, r *ticket.Report, ok bool, repairs []ticket.Repair, dryRun bool) checkEnvelope {
+	env := checkEnvelope{
 		SchemaVersion: schemaVersion,
 		Kind:          "check-report",
 		OK:            ok,
 		Errors:        findings(s, r.Errors),
 		Warnings:      findings(s, r.Warnings),
+		PathsChanged:  []string{},
+		Repairs:       make([]repairJSON, 0, len(repairs)),
+		DryRun:        dryRun,
 	}
+	for _, rep := range repairs {
+		from := storePath(s, rep.From)
+		to := storePath(s, rep.To)
+		env.Repairs = append(env.Repairs, repairJSON{
+			Codes: rep.Codes, Ticket: rep.Ticket, From: from, To: to,
+		})
+		if !dryRun {
+			env.PathsChanged = append(env.PathsChanged, to, from)
+		}
+	}
+	return env
+}
+
+// storePath turns a store-relative path into the repository-relative form every
+// path in the contract uses, the same conversion findings makes.
+func storePath(s *ticket.Store, rel string) string {
+	return displayPath(s, filepath.Join(s.Path(), filepath.FromSlash(rel)))
 }
 
 // findings converts each file to the repository-relative form the rest of the

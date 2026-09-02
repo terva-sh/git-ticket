@@ -1212,9 +1212,11 @@ func readGit(dir string, args ...string) string {
 // goes to stdout either way and the status is one, so CI gates on the status
 // while a person still sees what is wrong.
 func runCheck(ctx *cmdContext, args []string) error {
-	var strict bool
+	var strict, fix, dryRun bool
 	rest, err := ctx.parseFlags("check", args, func(fs *flag.FlagSet) {
 		fs.BoolVar(&strict, "strict", false, "count a warning as a failure")
+		fs.BoolVar(&fix, "fix", false, "repair the findings that have one correct repair")
+		fs.BoolVar(&dryRun, "dry-run", false, "with --fix, report the repairs and make none")
 	})
 	if err != nil {
 		return err
@@ -1222,14 +1224,30 @@ func runCheck(ctx *cmdContext, args []string) error {
 	if len(rest) > 0 {
 		return usageErr("check takes no arguments; it validates the whole store")
 	}
+	// A dry run of a pass that was never asked for would report nothing and
+	// look like a clean store, which is worse than saying so.
+	if dryRun && !fix {
+		return usageErr("--dry-run describes what --fix would do; pass --fix as well")
+	}
 
 	s, err := ctx.openStore()
 	if err != nil {
 		return err
 	}
-	report, err := s.Check(context.Background())
-	if err != nil {
-		return err
+
+	var report *ticket.Report
+	var repairs []ticket.Repair
+	if fix {
+		res, err := s.Fix(context.Background(), ticket.FixOptions{DryRun: dryRun})
+		if err != nil {
+			return err
+		}
+		report, repairs = res.Report, res.Repairs
+	} else {
+		report, err = s.Check(context.Background())
+		if err != nil {
+			return err
+		}
 	}
 
 	// --strict moves no finding between the arrays. It changes the verdict
@@ -1237,14 +1255,33 @@ func runCheck(ctx *cmdContext, args []string) error {
 	ok := report.OK() && (!strict || len(report.Warnings) == 0)
 
 	if ctx.g.json {
-		writeJSON(ctx.out, newCheckEnvelope(s, report, ok))
+		writeJSON(ctx.out, newCheckEnvelope(s, report, ok, repairs, dryRun))
 	} else {
+		writeRepairsHuman(ctx.out, s, repairs, dryRun)
 		writeCheckHuman(ctx.out, s, report, strict)
 	}
 	if !ok {
 		return errReported
 	}
 	return nil
+}
+
+// writeRepairsHuman lists the moves ahead of the findings, so a reader sees
+// what changed under them before they read what is left.
+func writeRepairsHuman(w io.Writer, s *ticket.Store, repairs []ticket.Repair, dryRun bool) {
+	if len(repairs) == 0 {
+		return
+	}
+	verb := "moved"
+	if dryRun {
+		verb = "would move"
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for _, r := range repairs {
+		fmt.Fprintf(tw, "%s\t%s\t-> %s\n", verb, storePath(s, r.From), storePath(s, r.To))
+	}
+	tw.Flush()
+	fmt.Fprintln(w)
 }
 
 func writeCheckHuman(w io.Writer, s *ticket.Store, r *ticket.Report, strict bool) {

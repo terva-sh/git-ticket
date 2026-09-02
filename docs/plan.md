@@ -805,7 +805,10 @@ The `check-report` kind carries the findings of section 11:
       "field": "dependencies"
     }
   ],
-  "warnings": []
+  "warnings": [],
+  "repairs": [],
+  "pathsChanged": [],
+  "dryRun": false
 }
 ```
 
@@ -814,6 +817,28 @@ the file did not parse far enough to know its ID, and `field` is null when the
 finding is about the file rather than one field. Findings are ordered by file,
 then code, then field, so two reports of the same store compare directly instead
 of having to be treated as sets.
+
+`repairs`, `pathsChanged`, and `dryRun` describe a `--fix` pass, per 12.1. They
+are present on every report, empty and false without the flag, because an absent
+collection is an empty array and never omitted. A repair names the findings it
+cleared as a list:
+
+```json
+{
+  "codes": ["filename_id_mismatch"],
+  "ticket": "TKT-01K3ZZ2JH000GHB4EE6SNRE6MD",
+  "from": ".tickets/tickets/notes-about-auth.md",
+  "to": ".tickets/tickets/TKT-01K3ZZ2JH000GHB4EE6SNRE6MD.md"
+}
+```
+
+`codes` is a list because a file in the wrong directory under the wrong name
+raises both findings and one move settles them together.
+
+`pathsChanged` names both ends of every move, the way a mutation names what it
+touched. It is empty under `--dry-run`, because nothing was written. `repairs`
+is not, so a dry run still says what it would do. The findings a dry run would
+have cleared are still in `errors`, since the store still has them.
 
 `ok` mirrors the exit status: it is true exactly when the command exited zero.
 A caller therefore gates on one field, and never has to reconstruct the verdict
@@ -942,6 +967,21 @@ corpus so the two cannot drift.
 sits. A store outside a Git repository has no root to resolve against, so the
 check is skipped there and reports nothing, per 5.5.
 
+Two findings have exactly one correct repair, and `check --fix` makes them:
+
+| Code | The repair |
+|---|---|
+| `filename_id_mismatch` | rename the file to `<id>.md`, which section 4 fixes and leaves no second reading of |
+| `archive_location_mismatch` | move the file to the directory the status implies, because 6.3 already rules the status wins |
+
+Nothing else is repaired, and the rest are not near misses. `duplicate_id` has
+to choose which file keeps the ID, which is a judgement about which ticket is
+the real one. `dependency_missing` is repaired either by dropping the edge or by
+creating the ticket, and only a person knows which was meant. `label_unknown`
+and `milestone_unknown` are each either a typo in the ticket or a gap in the
+allowlist. A tool that guessed at those would be wrong about half of them and
+silent about it, which is worse than reporting and stopping.
+
 ## 12. Interfaces
 
 ### 12.1 CLI
@@ -967,7 +1007,7 @@ git ticket comment ID TEXT
 git ticket summary ID TEXT
 git ticket deps   ID [--transitive] [--dependents]
 git ticket files  PATH   # the tickets that reference a path
-git ticket check  [--strict]
+git ticket check  [--strict] [--fix [--dry-run]]
 git ticket archive ID [--reason R]
 git ticket unarchive ID
 git ticket migrate [--to N] [--dry-run]
@@ -995,6 +1035,25 @@ has no say, because it lives inside a store and cannot name one.
 A `--store` or `GIT_TICKET_STORE` that names a directory holding no store is
 `store_not_found`, and never a fall back to discovery. Searching elsewhere after
 being told where to look is how a tool writes to the wrong store.
+
+`check --fix` repairs the two findings of section 11 that have exactly one
+correct repair, and touches nothing else. It is the first command that writes
+without being told which ticket to write, so `--dry-run` reports the moves and
+makes none, and the report names every path it touched the way a mutation does.
+
+The repair moves the file and does not re-render the ticket. Both findings are
+about where a file sits, so a pass that also rewrote contents would be doing
+something the caller did not ask for.
+
+A move onto a path that already exists does not happen, and neither does one
+where two files want the same destination. Both mean a second ticket is
+involved, and which of them is the real one is the `duplicate_id` judgement this
+deliberately declines to make. The repair is dropped and the finding stays, so
+the store still says what is wrong.
+
+The store lock is held across the whole pass, planning through the re-check, so
+the report describes the store the repairs left rather than one somebody else
+has changed since.
 
 `instructions` prints an agent workflow block for pasting into a project's
 `AGENTS.md` or equivalent, per 10.5. The block tells an agent how to find work,
@@ -1073,6 +1132,7 @@ func (s *Store) Search(ctx context.Context, q Query) ([]*Ticket, error)
 func (s *Store) Ready(ctx context.Context) ([]*Ticket, error)
 func (s *Store) Readiness(ctx context.Context) (map[string]Readiness, error)
 func (s *Store) Check(ctx context.Context) (*Report, error)
+func (s *Store) Fix(ctx context.Context, o FixOptions) (*FixResult, error)
 func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOptions) (*Result, error)
 
 type ApplyOptions struct {

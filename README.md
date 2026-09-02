@@ -154,6 +154,7 @@ git ticket status TKT-01K3ZZ2J done
 git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 
 git ticket check --strict         # safe in CI: offline, read-only
+git ticket check --fix            # repair the two findings that have one repair
 git ticket schema                 # the values and codes this binary enforces
 git ticket instructions           # the agent workflow block, for an AGENTS.md
 git ticket instructions --write   # put it in AGENTS.md, or refresh it in place
@@ -287,6 +288,23 @@ conflict markers left by a merge. It separates errors from warnings, and
 
 `ok` is true exactly when the command exited zero, so CI gates on one field
 whether or not it passed `--strict`.
+
+`check --fix` repairs the two findings that have one correct repair, and
+nothing else. A file named something other than its ID is renamed, and a file
+in the wrong directory is moved to the one its status implies, because plan 6.3
+already rules that the status wins. It moves the file and never rewrites the
+ticket, since both findings are about where a file sits.
+
+It is the only command that writes without being told which ticket to write, so
+`--dry-run` shows the moves and makes none, and the report names every path it
+touched in `pathsChanged` the way a mutation does.
+
+Everything else is reported and left alone. A duplicate ID has to choose which
+file is the real ticket, a missing dependency is repaired either by dropping the
+edge or by creating what it names, and an unknown label is either a typo or a
+gap in the allowlist. Each needs a person, so `--fix` does not guess. That also
+covers a move onto a path already taken: the repair is dropped and the finding
+stays.
 
 `instructions` prints a workflow block to paste into a project's `AGENTS.md`,
 telling an agent how to find work, claim it, record what it learned, and finish.

@@ -148,7 +148,7 @@ func runInit(ctx *cmdContext, args []string) error {
 	// Checked before the store is made, so a refusal leaves no half-built
 	// store behind for the user to clean up.
 	if writeInstructions {
-		if err := instructionsFileConflict(root); err != nil {
+		if err := checkInstructionsFile(root); err != nil {
 			return err
 		}
 	}
@@ -165,12 +165,16 @@ func runInit(ctx *cmdContext, args []string) error {
 		filepath.Join(s.Path(), "config.yml"),
 		filepath.Join(s.Path(), "README.md"),
 	}
+	var instructions instructionsAction
 	if writeInstructions {
-		path, err := writeInstructionsFile(root)
+		path, action, err := writeInstructionsFile(root)
 		if err != nil {
 			return err
 		}
-		written = append(written, path)
+		instructions = action
+		if action != instructionsCurrent {
+			written = append(written, path)
+		}
 	}
 	if ctx.g.json {
 		writeJSON(ctx.out, mutationEnvelope{
@@ -183,7 +187,7 @@ func runInit(ctx *cmdContext, args []string) error {
 	}
 	fmt.Fprintf(ctx.out, "Initialized a ticket store at %s\n", displayPath(s, s.Path()))
 	if writeInstructions {
-		fmt.Fprintf(ctx.out, "Wrote %s\n", displayPath(s, filepath.Join(root, instructionsFile)))
+		fmt.Fprintf(ctx.out, "%s\n", instructions.sentence(displayPath(s, filepath.Join(root, instructionsFile))))
 	}
 	fmt.Fprintf(ctx.out, "Commit it, then run `git ticket create --title \"...\"`.\n")
 	return nil

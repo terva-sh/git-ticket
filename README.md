@@ -156,6 +156,7 @@ git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 git ticket check --strict         # safe in CI: offline, read-only
 git ticket schema                 # the values and codes this binary enforces
 git ticket instructions           # the agent workflow block, for an AGENTS.md
+git ticket instructions --write   # put it in AGENTS.md, or refresh it in place
 ```
 
 `release` and `unarchive` undo the two that are undoable, and `dod` edits the
@@ -289,10 +290,19 @@ whether or not it passed `--strict`.
 
 `instructions` prints a workflow block to paste into a project's `AGENTS.md`,
 telling an agent how to find work, claim it, record what it learned, and finish.
-`git ticket init --instructions` writes it to `AGENTS.md` for a new project. It
-refuses when that file already exists rather than touching a file you maintain,
-and it checks before creating the store so a refusal leaves nothing half-built.
-Without the flag, `init` writes no such file.
+`git ticket instructions --write` puts it there for you, and
+`git ticket init --instructions` does the same for a new project. Without the
+flag, `init` writes no such file.
+
+The block is fenced by `<!-- git-ticket:begin -->` and `<!-- git-ticket:end -->`,
+so `--write` can replace it later and leave every other byte of your file alone.
+Run it again after upgrading and the block catches up. A file with no markers is
+appended to rather than refused, which is what a project that already has an
+`AGENTS.md` needs, and it is refreshable from then on. A file already current is
+not rewritten at all, so a no-op stays out of your diff.
+
+One marker without its partner is the one case it refuses. There is no honest
+reading of where the block ends, and guessing would delete prose you wrote.
 
 A test holds the block to the commands and flags this binary actually has, so it
 cannot tell you to run something that does not exist. It caught the first draft

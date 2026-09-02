@@ -1,3 +1,5 @@
+<!-- git-ticket:begin -->
+
 ## Tickets
 
 Work is tracked as Markdown tickets in `.tickets/`, managed with `git ticket`.
@@ -85,3 +87,5 @@ read it. Pass it whenever you read, decide, and then write, which is most of
 what an agent does.
 
 Text that opens with a dash goes after a bare `--`.
+
+<!-- git-ticket:end -->

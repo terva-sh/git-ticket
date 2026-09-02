@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,8 +15,13 @@ func TestInstructionsNeedsNoStore(t *testing.T) {
 	if got.code != exitOK {
 		t.Fatalf("instructions outside a store: %s", got.stderr)
 	}
-	if !strings.HasPrefix(got.stdout, "## Tickets\n") {
-		t.Errorf("the block does not start with its heading: %.40q", got.stdout)
+	// The markers are part of what it prints, so a block a person pastes by
+	// hand can be refreshed later by --write. That is the whole point of them.
+	if !strings.HasPrefix(got.stdout, instructionsBegin+"\n\n## Tickets\n") {
+		t.Errorf("the block does not open with the marker and its heading: %.60q", got.stdout)
+	}
+	if !strings.HasSuffix(got.stdout, instructionsEnd+"\n") {
+		t.Errorf("the block does not close with its marker: %.60q", got.stdout[max(0, len(got.stdout)-60):])
 	}
 	// It is pasted into a Markdown file, so it ends with exactly one newline
 	// and does not run into whatever follows it.
@@ -186,20 +192,50 @@ func TestInitWritesInstructionsOnlyWhenAsked(t *testing.T) {
 	}
 }
 
-// TestInitRefusesToTouchAMaintainedFile is the half of plan 12.1 that matters.
-// AGENTS.md is a file the user writes, so init refuses rather than overwriting
-// it, and refuses before making the store so there is nothing to clean up.
-func TestInitRefusesToTouchAMaintainedFile(t *testing.T) {
+// TestInitKeepsWhatIsAlreadyInAMaintainedFile covers the case init used to
+// handle badly. AGENTS.md is a file the user writes, and refusing meant a
+// project that already had one could never get the block from init at all. It
+// appends instead, and every byte the user wrote is still there.
+func TestInitKeepsWhatIsAlreadyInAMaintainedFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, instructionsFile)
-	const mine = "# my own instructions\n"
+	const mine = "# my own instructions\n\nRun the tests before you push.\n"
+	if err := os.WriteFile(path, []byte(mine), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runCLI(t, dir, nil, "init", "--instructions", "--actor", "human:sothr")
+	if got.code != exitOK {
+		t.Fatalf("init --instructions: %s", got.stderr)
+	}
+
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(body), mine) {
+		t.Errorf("the user's prose did not survive:\n%s", body)
+	}
+	if !strings.Contains(string(body), instructionsBegin) {
+		t.Error("the block was not appended")
+	}
+}
+
+// TestInitRefusesAFileItCannotReadHonestly is the half of plan 12.1 that still
+// matters. One marker without its partner leaves no honest reading of where the
+// block ends, so init refuses rather than guessing, and refuses before making
+// the store so there is nothing to clean up.
+func TestInitRefusesAFileItCannotReadHonestly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, instructionsFile)
+	mine := "# my own instructions\n\n" + instructionsBegin + "\n\nsomething\n"
 	if err := os.WriteFile(path, []byte(mine), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	got := runCLI(t, dir, nil, "--json", "init", "--instructions", "--actor", "human:sothr")
 	if got.code != exitError {
-		t.Fatal("init --instructions should refuse when the file exists")
+		t.Fatal("init --instructions should refuse a file with one marker")
 	}
 	if code := errCode(t, got); code != codeUsage {
 		t.Errorf("code = %v, want %s", code, codeUsage)
@@ -215,6 +251,181 @@ func TestInitRefusesToTouchAMaintainedFile(t *testing.T) {
 	// Refused before the store was made, so the repository is as it was.
 	if _, err := os.Stat(filepath.Join(dir, ".tickets")); !os.IsNotExist(err) {
 		t.Error("a refused init left a store behind")
+	}
+}
+
+// TestWriteRefreshesTheBlockInPlace is the point of the markers. A store set up
+// months ago is stuck with whatever the block said then, and re-pasting it by
+// hand is what nobody does. The refresh replaces what sits between the markers
+// and every other byte in the file is the byte that was there before.
+func TestWriteRefreshesTheBlockInPlace(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, instructionsFile)
+
+	const prefix = "# my own instructions\n\nRun the tests before you push.\n\n"
+	stale := instructionsBegin + "\n\n## Tickets\n\nWhatever it said last year.\n\n" + instructionsEnd
+	const suffix = "\n\n## House rules\n\nKeep this too.\n"
+	if err := os.WriteFile(path, []byte(prefix+stale+suffix), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runCLI(t, dir, nil, "instructions", "--write")
+	if got.code != exitOK {
+		t.Fatalf("instructions --write: %s", got.stderr)
+	}
+
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := prefix + strings.TrimRight(instructionsText, "\n") + suffix
+	if string(body) != want {
+		t.Errorf("the refresh did not land exactly:\n--- got ---\n%s\n--- want ---\n%s", body, want)
+	}
+	if strings.Contains(string(body), "Whatever it said last year") {
+		t.Error("the stale block survived")
+	}
+}
+
+// TestWriteAppendsWhenThereAreNoMarkers is the case init used to refuse. A
+// project with an AGENTS.md written before this tool existed has no markers, so
+// the block goes on the end and becomes refreshable from then on.
+func TestWriteAppendsWhenThereAreNoMarkers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, instructionsFile)
+	const mine = "# my own instructions\n\nRun the tests before you push.\n"
+	if err := os.WriteFile(path, []byte(mine), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runCLI(t, dir, nil, "instructions", "--write")
+	if got.code != exitOK {
+		t.Fatalf("instructions --write: %s", got.stderr)
+	}
+
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := mine + "\n" + instructionsText; string(body) != want {
+		t.Errorf("append did not land exactly:\n--- got ---\n%s", body)
+	}
+
+	// Having appended once, the second run has markers to find and replaces
+	// rather than appending a second copy.
+	if got := runCLI(t, dir, nil, "instructions", "--write"); got.code != exitOK {
+		t.Fatalf("second write: %s", got.stderr)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(after), instructionsBegin); n != 1 {
+		t.Errorf("the file carries %d copies of the block, want 1", n)
+	}
+}
+
+// TestWriteChangesNothingWhenItIsCurrent keeps a no-op out of a diff. Rewriting
+// identical bytes would touch the file and show up as a change with nothing in
+// it, which is how a refresh command becomes one nobody runs.
+func TestWriteChangesNothingWhenItIsCurrent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, instructionsFile)
+
+	if got := runCLI(t, dir, nil, "instructions", "--write"); got.code != exitOK {
+		t.Fatalf("first write: %s", got.stderr)
+	}
+	first, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(first) != instructionsText {
+		t.Error("a created file is not the block instructions prints")
+	}
+
+	got := runCLI(t, dir, nil, "instructions", "--write")
+	if got.code != exitOK {
+		t.Fatalf("second write: %s", got.stderr)
+	}
+	if !strings.Contains(got.stdout, "already current") {
+		t.Errorf("the second run should say it did nothing: %q", got.stdout)
+	}
+
+	second, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(second) != string(first) {
+		t.Error("the second run rewrote the file")
+	}
+}
+
+// TestWriteRefusesWhatItCannotReadHonestly covers every shape that leaves no
+// answer to where the block ends. Guessing would delete prose somebody wrote,
+// and a refusal costs them one edit, so this refuses and says what to fix.
+func TestWriteRefusesWhatItCannotReadHonestly(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"a begin with no end", "# mine\n\n" + instructionsBegin + "\n\nsomething\n"},
+		{"an end with no begin", "# mine\n\nsomething\n\n" + instructionsEnd + "\n"},
+		{"the pair reversed", "# mine\n\n" + instructionsEnd + "\n\nx\n\n" + instructionsBegin + "\n"},
+		{"two blocks", "# mine\n\n" + instructionsBegin + "\na\n" + instructionsEnd + "\n\n" +
+			instructionsBegin + "\nb\n" + instructionsEnd + "\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, instructionsFile)
+			if err := os.WriteFile(path, []byte(c.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			got := runCLI(t, dir, nil, "--json", "instructions", "--write")
+			if got.code != exitError {
+				t.Fatal("a file this shape should be refused")
+			}
+			if code := errCode(t, got); code != codeUsage {
+				t.Errorf("code = %v, want %s", code, codeUsage)
+			}
+
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != c.body {
+				t.Error("a refusal changed the file anyway")
+			}
+		})
+	}
+}
+
+// TestWriteFindsTheRepositoryRoot pins where the file lands. The block
+// describes the repository, so it belongs at the top of it rather than in
+// whatever directory the agent happened to be standing in.
+func TestWriteFindsTheRepositoryRoot(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, so there is no repository root to find")
+	}
+	root := t.TempDir()
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	sub := filepath.Join(root, "cmd", "deep")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := runCLI(t, sub, nil, "instructions", "--write"); got.code != exitOK {
+		t.Fatalf("instructions --write: %s", got.stderr)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, instructionsFile)); err != nil {
+		t.Errorf("the block did not land at the repository root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(sub, instructionsFile)); !os.IsNotExist(err) {
+		t.Error("the block landed in the working directory instead")
 	}
 }
 

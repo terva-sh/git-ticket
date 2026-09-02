@@ -871,12 +871,18 @@ because a consumer asks what is legal before it has anything to ask about.
 `instructions` carries the agent workflow block of 12.1 as one string:
 
 ```json
-{ "schemaVersion": 1, "kind": "instructions", "text": "## Tickets\n\n…" }
+{ "schemaVersion": 1, "kind": "instructions", "text": "<!-- git-ticket:begin -->\n\n## Tickets\n\n…" }
 ```
 
 The block is prose, so the envelope holds it whole rather than pretending it has
-structure a consumer would want to walk. In human mode the command prints the
-Markdown alone, because the point of it is `git ticket instructions >> AGENTS.md`.
+structure a consumer would want to walk. `text` carries the markers of 12.1,
+because what a consumer pastes has to be what a later `--write` can find again.
+In human mode the command prints the Markdown alone, so it can be redirected or
+read.
+
+`--write` puts it in `AGENTS.md` instead, per 12.1, and reports what it did as a
+`mutation-result` whose `pathsChanged` is empty when the file was already
+current. That is the kind for a command that changed files, and this one did.
 
 Like `schema`, it reads no store and answers anywhere.
 
@@ -965,7 +971,7 @@ git ticket check  [--strict]
 git ticket archive ID [--reason R]
 git ticket unarchive ID
 git ticket migrate [--to N] [--dry-run]
-git ticket instructions
+git ticket instructions [--write]
 git ticket schema
 ```
 
@@ -996,11 +1002,49 @@ claim it, record what it learned, and finish, and it names only commands this
 binary has. A test holds it to that, because prose that tells a reader to run
 something that does not exist is worse than no prose.
 
-`init --instructions` writes the block to `AGENTS.md` at the repository root. It
-refuses when that file already exists, naming `git ticket instructions` so the
-user can append it themselves, and it checks before creating the store so a
-refusal leaves nothing half-built. Without the flag `init` writes no such file.
-That file is one the user maintains, and merging into it is their edit to make.
+The block is fenced by two markers, so it can be replaced later without
+disturbing what a person wrote around it:
+
+```markdown
+<!-- git-ticket:begin -->
+
+## Tickets
+…
+
+<!-- git-ticket:end -->
+```
+
+The markers are part of the block itself rather than added by the writer, so
+every way it leaves the binary carries them: stdout, the `instructions` kind of
+10.5, and the file. A block somebody pasted by hand is refreshable for that
+reason. An HTML comment is the form because it renders as nothing, so it does
+not clutter a file a person reads and edits.
+
+`instructions --write` puts the block in `AGENTS.md` at the repository root, or
+in the working directory when there is no repository, since the command answers
+anywhere. What it does depends on what it finds:
+
+| The file | What happens |
+|---|---|
+| is not there | it is created holding the block |
+| carries both markers | the text between them is replaced and every other byte is left alone |
+| carries neither marker | the block is appended, and the file is refreshable from then on |
+| is already current | nothing is written |
+| carries anything else | it refuses |
+
+That last row is one marker without its partner, a pair out of order, or a
+second copy of either. None of them leaves an honest reading of where the block
+ends, and the wrong guess deletes prose somebody wrote. A refusal costs a person
+one edit, so it refuses and names what to fix.
+
+Writing nothing when the file is already current keeps a no-op out of a diff. A
+command that reports a change with nothing in it is one nobody runs.
+
+`init --instructions` does the same write, so a project that already has an
+`AGENTS.md` gets the block appended rather than being told to paste it. It
+checks the file before creating the store, so a refusal leaves nothing
+half-built. Without the flag `init` writes no such file. That file is one the
+user maintains, and everything outside the markers stays theirs.
 
 `schema` prints the values and codes this binary enforces, per 10.4. Like
 `instructions`, it reads no store and answers anywhere.

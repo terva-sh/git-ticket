@@ -113,7 +113,7 @@ func commands() []command {
 		{"unarchive", "restore an archived ticket to ready", "ID", runUnarchive},
 		{"check", "validate every ticket in the store", "[--strict]", runCheck},
 		{"schema", "print the values and codes this binary enforces", "", runSchema},
-		{"instructions", "print the agent workflow block for an AGENTS.md", "", runInstructions},
+		{"instructions", "print the agent workflow block for an AGENTS.md", "[--write]", runInstructions},
 	}
 }
 

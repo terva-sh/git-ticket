@@ -1077,14 +1077,16 @@ upgraded, which is the failure this rule exists to prevent. A store moves only
 through an explicit migration that a person runs, described in 12.5.
 
 The module is `v0.x` and stays there until Phase 3 lands. Plain semver reads
-`v0` as promising nothing, which is not what this section means: while the
+`v0` as promising nothing, which is not what this section means. While the
 module is `v0.x`, a break in a covered surface bumps the minor and a fix bumps
 the patch, so `v0.2` to `v0.3` carries the warning that `v1` to `v2` will carry
 later. Terva is the first real consumer and the first thing that will find the
-gaps. Reading the parent hierarchy back was one of them, and it changes the JSON
-contract in 10.1. Tagging `v1.0.0` immediately before making a break we can
-already see coming would spend the major on it and teach a consumer that the
-number means nothing.
+gaps. Reading the parent hierarchy back was the first gap it surfaced, and the
+break it looked like never arrived, because the answer was a `parent` filter on
+`list` that 10.1 did not move for. That is the argument for waiting rather than
+against it. What a gap costs is not knowable until a consumer hits one, and
+`v1.0.0` is a promise not to break a covered surface. Making that promise
+before anything has used those surfaces guesses at which ones were right.
 
 ### 12.5 Schema migration
 
@@ -1292,9 +1294,9 @@ not. A covered surface breaks only when something that worked stops working or
 changes meaning, so adding beside the old thing is always minor. The module
 version tracks the Go API alone, which makes a `schema` bump an ordinary minor
 release rather than a `/v2`. A store never upgrades itself. `v1.0.0` waits for
-Phase 3, because the parent hierarchy was a break we could already see coming
-and tagging a major immediately before spending it would teach a consumer that
-the number means nothing. Settling it is what raised the schema migration.
+Phase 3, because no consumer has exercised a covered surface yet, and the
+promise `v1.0.0` makes about those surfaces is a guess until one has. Settling
+it is what raised the schema migration.
 
 **Reading the parent hierarchy back** (`TKT-01M1FCMN7QEWM584N192NBC7TD`) is
 answered in section 8 by a `parent` filter on `list`. Running the question

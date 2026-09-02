@@ -1193,6 +1193,20 @@ are last-writer-wins, and which must always conflict, and how a user installs
 one, since a driver needs both a `.gitattributes` entry and a `git config` line
 that a repository cannot set for itself.
 
+**Q10** (`TKT-01M1HFQ5F4D4KF45A5PFQ39XST`). How git-ticket integrates with an
+external tracker. Storing the identifier already works, because 5.1 leaves the
+reference namespace open and `decodeReferences` takes the ref verbatim, so
+`jira:PROJ-1234` links today and `check` is content with it. Three gaps sit above
+that storage. Nothing enforces a namespace, so an untyped `PROJ-1234` is accepted
+and `JIRA:proj-1234` is a different reference from `jira:PROJ-1234`, which sits
+badly with 5.1 calling a reference a typed stable identifier. There is no lookup
+by ref, so "which ticket is PROJ-1234" falls to `search`, which matches
+substrings across the body and so also finds a ticket that only mentions the
+number in prose. `files PATH` covers the `file:` namespace and has no equivalent
+for the others. And `extensions` has no mutation, so the one place 5.1 reserves
+for a consumer's own fields round-trips through parse and render but can only be
+written by hand-editing the file.
+
 Ten questions have left this list. The six that went before this section
 stopped renumbering had the numbers close up behind them, which is why a ticket
 closed back then can cite a number that now means something else:

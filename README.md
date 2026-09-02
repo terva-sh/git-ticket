@@ -327,7 +327,7 @@ carried every `parent` edge, so the tree was always reconstructable from one
 call and nothing was blocked. What was missing was the asking, not the data,
 which is why the answer is a filter and not a new field on the ticket.
 
-What remains is deferred rather than open: five questions in plan section 15,
+What remains is deferred rather than open: six questions in plan section 15,
 filed as tickets in `.tickets/`. Run `git ticket list` to see them. A question
 keeps its number for life, so a settled one leaves a gap rather than shifting
 the rest, and each entry names the ULID of its ticket.

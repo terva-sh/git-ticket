@@ -57,13 +57,16 @@ func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOption
 		return nil, err
 	}
 
-	index, err := s.index()
+	index, broken, err := s.index()
 	if err != nil {
 		return nil, err
 	}
-	id, err := ResolveRef(ref, index.ids())
+	id, err := ResolveRef(ref, mergeIDs(index.ids(), broken.ids()))
 	if err != nil {
 		return nil, err
+	}
+	if e, ok := broken[id]; ok {
+		return nil, e
 	}
 	path := index[id]
 
@@ -159,7 +162,7 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		return nil, err
 	}
 
-	index, err := s.index()
+	index, broken, err := s.index()
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +182,9 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	if err != nil {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 	}
-	if _, taken := index[id]; taken {
+	_, taken := index[id]
+	_, takenByBroken := broken[id]
+	if taken || takenByBroken {
 		return nil, &Error{Code: CodeValidationFailed, Message: "generated an ID that already exists: " + id}
 	}
 
@@ -282,23 +287,51 @@ func (ix ticketIndex) ids() []string {
 	return out
 }
 
-// index reads every ticket file to learn which IDs exist and where they live. A
-// file that does not parse is skipped: a mutation cannot be applied to it
-// anyway, and check is where a caller finds out why.
-func (s *Store) index() (ticketIndex, error) {
+// unreadableIndex maps a ticket ID to the error that stopped its file parsing.
+type unreadableIndex map[string]*Error
+
+func (ix unreadableIndex) ids() []string {
+	out := make([]string, 0, len(ix))
+	for id := range ix {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// mergeIDs returns the sorted union of two ID lists.
+func mergeIDs(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	out := append(append(make([]string, 0, len(a)+len(b)), a...), b...)
+	sort.Strings(out)
+	return out
+}
+
+// index reads every ticket file to learn which IDs exist and where they live.
+// A file that does not parse cannot be mutated, so it goes into a second map
+// rather than being dropped. Resolution still has to see it, or a full ID
+// answers ticket_not_found for a file on disk and a shared prefix resolves
+// silently to a readable neighbour. Plan section 8 holds the rule.
+func (s *Store) index() (ticketIndex, unreadableIndex, error) {
 	files, err := s.load()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ix := make(ticketIndex, len(files))
+	broken := make(unreadableIndex)
 	for _, f := range files {
 		if f.Ticket == nil || f.Ticket.ID == "" {
+			if id := f.id(); id != "" {
+				broken[id] = unreadable(id, f.Err)
+			}
 			continue
 		}
 		if _, seen := ix[f.Ticket.ID]; seen {
 			// A duplicate ID is a check error. Resolving to whichever file was
 			// read first is arbitrary, so refuse instead of guessing.
-			return nil, &Error{
+			return nil, nil, &Error{
 				Code:    CodeValidationFailed,
 				Message: "id " + f.Ticket.ID + " appears in more than one file; run check",
 				Ticket:  f.Ticket.ID,
@@ -306,7 +339,7 @@ func (s *Store) index() (ticketIndex, error) {
 		}
 		ix[f.Ticket.ID] = f.Path
 	}
-	return ix, nil
+	return ix, broken, nil
 }
 
 // resolveActor picks who is making a change: the caller's actor, or the first
@@ -332,21 +365,39 @@ func (s *Store) Get(ctx context.Context, ref string) (*Ticket, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A file that did not parse takes part in resolution too. Leaving it out
+	// makes a full ID answer ticket_not_found for a file on disk, and makes a
+	// shared prefix resolve silently to a readable neighbour, which is the
+	// worse of the two. Plan section 8 holds the rule.
 	ids := make([]string, 0, len(files))
 	byID := make(map[string]file, len(files))
 	for _, f := range files {
-		if f.Ticket == nil {
+		id := f.id()
+		if id == "" {
 			continue
 		}
-		ids = append(ids, f.Ticket.ID)
-		byID[f.Ticket.ID] = f
+		ids = append(ids, id)
+		byID[id] = f
 	}
 	sort.Strings(ids)
 	id, err := ResolveRef(ref, ids)
 	if err != nil {
 		return nil, err
 	}
+	if f := byID[id]; f.Ticket == nil {
+		return nil, unreadable(id, f.Err)
+	}
 	return byID[id].Ticket, nil
+}
+
+// unreadable reports why a present ticket could not be read. load always
+// records an error beside a file it could not parse, and the fallback is here
+// so a nil can never turn back into silence.
+func unreadable(id string, err *Error) *Error {
+	if err != nil {
+		return err
+	}
+	return &Error{Code: CodeParseError, Message: "ticket " + id + " could not be read", Ticket: id}
 }
 
 // mutEnv is what a mutation needs beyond the ticket itself.

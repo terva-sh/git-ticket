@@ -433,6 +433,69 @@ func TestReclaimAfterALapseIsAFreshAcquisition(t *testing.T) {
 	}
 }
 
+// TestUnreadableTicketIsNotAbsent covers plan section 8. A ticket whose file is
+// present but does not parse answers with the parse failure rather than with
+// ticket_not_found, because calling a file absent when it is sitting on disk
+// sends a reader looking in the wrong place.
+func TestUnreadableTicketIsNotAbsent(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Rotate the signing key before it expires")
+	other := mustCreate(t, s, "Leave this one readable")
+	path := filepath.Join(s.TicketsDir(), tk.ID+".md")
+
+	breakFile := func(old, new string) {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(strings.Replace(string(data), old, new, 1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	breakFile("title:", "title: [unclosed")
+
+	if _, err := s.Get(context.Background(), tk.ID); CodeOf(err) != CodeParseError {
+		t.Errorf("Get on a broken ticket = %v, want %s", err, CodeParseError)
+	}
+	// A prefix reaches it too, so the fix is not limited to a full ID.
+	if _, err := s.Get(context.Background(), tk.ID[:24]); CodeOf(err) != CodeParseError {
+		t.Errorf("Get by prefix = %v, want %s", err, CodeParseError)
+	}
+	// Both tickets were created against the fixed clock, so they share their
+	// whole ULID timestamp and a short prefix matches both. That has to report
+	// the ambiguity. Dropping the broken file from resolution instead would
+	// hand back the readable neighbour, and a wrong ticket is worse than none.
+	// git ticket list prints prefixes of exactly this length.
+	if _, err := s.Get(context.Background(), tk.ID[:13]); CodeOf(err) != CodeAmbiguousID {
+		t.Errorf("Get by a shared prefix = %v, want %s", err, CodeAmbiguousID)
+	}
+	// A mutation says the same thing rather than claiming the ticket vanished.
+	_, err := s.Apply(context.Background(), tk.ID, SetStatus{Status: StatusReady}, ApplyOptions{Actor: testActor})
+	if CodeOf(err) != CodeParseError {
+		t.Errorf("Apply on a broken ticket = %v, want %s", err, CodeParseError)
+	}
+
+	// A schema this reader does not know reports as itself. The parse error
+	// carries no ID here, because the schema is refused before the rest of the
+	// frontmatter is decoded, so this is what exercises the filename fallback.
+	breakFile("title: [unclosed", "title:")
+	breakFile("schema: 1", "schema: 2")
+	if _, err := s.Get(context.Background(), tk.ID); CodeOf(err) != CodeSchemaUnsupported {
+		t.Errorf("Get on a schema-2 ticket = %v, want %s", err, CodeSchemaUnsupported)
+	}
+
+	// A ticket that genuinely is not there still says so.
+	if _, err := s.Get(context.Background(), "TKT-01K3ZZZZZZZZZZZZZZZZZZZZZZ"); CodeOf(err) != CodeTicketNotFound {
+		t.Errorf("Get on an absent ticket = %v, want %s", err, CodeTicketNotFound)
+	}
+	// And the readable ticket beside it is untouched.
+	if _, err := s.Get(context.Background(), other.ID); err != nil {
+		t.Errorf("the readable ticket broke too: %v", err)
+	}
+}
+
 func TestChecklistOperations(t *testing.T) {
 	s := newTestStore(t)
 	tk := mustCreate(t, s, "Measure cold start before optimizing it")

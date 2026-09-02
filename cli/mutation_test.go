@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -240,6 +241,49 @@ func TestReclaimKeepsAnExpiryNothingReplaced(t *testing.T) {
 	again := showTicket(t, dir, id)["claim"].(map[string]any)
 	if again["expiresAt"] != expires {
 		t.Errorf("expiresAt = %v after a re-claim, want it kept at %v", again["expiresAt"], expires)
+	}
+}
+
+// TestShowSaysWhyATicketCannotBeRead covers plan section 8 at the surface a
+// person types. A hand-edited ticket with a YAML typo must not report as a
+// ticket that was never filed.
+func TestShowSaysWhyATicketCannotBeRead(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir))
+	path := filepath.Join(dir, ".tickets", "tickets", id+".md")
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken := strings.Replace(string(data), "title:", "title: [unclosed", 1)
+	if err := os.WriteFile(path, []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runCLI(t, dir, nil, "show", id)
+	if got.code == exitOK {
+		t.Fatalf("show on a broken ticket succeeded:\n%s", got.stdout)
+	}
+	if !strings.Contains(got.stderr, "parse_error") {
+		t.Errorf("stderr = %q, want it to name parse_error", got.stderr)
+	}
+	if strings.Contains(got.stderr, "ticket_not_found") {
+		t.Errorf("show still calls a present ticket absent: %q", got.stderr)
+	}
+
+	// The JSON envelope carries the same code, since a host reads that one.
+	got = runCLI(t, dir, nil, "show", id, "--json")
+	var env struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &env); err != nil {
+		t.Fatalf("the --json envelope did not parse: %v\n%s", err, got.stdout)
+	}
+	if env.Error.Code != "parse_error" {
+		t.Errorf("envelope code = %q, want parse_error", env.Error.Code)
 	}
 }
 

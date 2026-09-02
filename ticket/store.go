@@ -224,6 +224,28 @@ type file struct {
 	Err    *Error
 }
 
+// id names the ticket this file holds, including when the file did not parse.
+// A parsed file knows its own ID. A broken one may still carry it in the parse
+// error, when the frontmatter got that far, and otherwise the filename carries
+// it, because a ticket file is named for its ID and check reports a
+// filename_mismatch when it is not.
+//
+// This is what lets a present but unreadable ticket be told apart from an
+// absent one.
+func (f file) id() string {
+	if f.Ticket != nil {
+		return f.Ticket.ID
+	}
+	if f.Err != nil && f.Err.Ticket != "" {
+		return f.Err.Ticket
+	}
+	base := strings.TrimSuffix(filepath.Base(f.Path), ".md")
+	if strings.HasPrefix(base, IDPrefix) && validULID(strings.TrimPrefix(base, IDPrefix)) {
+		return base
+	}
+	return ""
+}
+
 // files lists every ticket file in the store, live then archived, each set
 // sorted by name. Sorting makes findings and listings reproducible without a
 // sort at every call site.

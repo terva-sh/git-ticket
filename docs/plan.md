@@ -528,6 +528,29 @@ hundreds to a few thousand tickets, that is a few milliseconds and needs no
 index. An index is deferred, and if one is ever added it must be disposable and
 rebuildable from the files.
 
+A query leaves out a ticket whose file does not parse. `list`, `ready`,
+`search`, `deps`, and `files` all read the whole store, and a query is not the
+place to learn that one file is broken. `check` is, and it reports the file as
+`parse_error` or `schema_unsupported`.
+
+Naming one ticket is different. `show` and every mutation resolve a ref the
+caller supplied, and a ticket that is present but unreadable answers with the
+failure `check` would report rather than with `ticket_not_found`. A file sitting
+on disk is not absent, and calling it absent sends a reader looking in the wrong
+place. This is the rule the parent filter already follows above, where a silent
+empty result reads exactly like an epic with no children. The format is meant to
+be hand-edited, so a YAML typo in a ticket is the ordinary way to reach this,
+not an exotic one.
+
+Resolution therefore sees unreadable files rather than skipping them. Skipping
+them is worse than a misleading error. A prefix matching both a broken ticket
+and a readable one would resolve to the readable one and answer about a
+different ticket than the one asked for. `git ticket list` prints
+thirteen-character prefixes, which is exactly what a person then types, so that
+collision is reachable rather than theoretical. A broken file's ID comes from
+the parse error when the frontmatter got that far, and from the filename
+otherwise, which is why a ticket file is named for its ID.
+
 ## 9. Mutation surface
 
 Every mutation changes only the fields the caller named. Full-file replacement

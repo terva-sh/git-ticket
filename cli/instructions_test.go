@@ -93,6 +93,70 @@ func TestInstructionsNameRealCommands(t *testing.T) {
 	}
 }
 
+// TestInstructionsWorkflowRuns drives the workflow the block describes against
+// a real store, in the order the block puts it. Each step names the span it
+// comes from, so a step that runs is also a step the block still names, and in
+// a position after the one before it.
+//
+// TestInstructionsNameRealCommands checks that every command and flag exists,
+// which is not enough. The block used to say "claim it, then status
+// in-progress", and a ticket create just wrote is in draft, which cannot be
+// claimed. Every command in that sentence was real and only the order was
+// wrong, so the block told an agent to run a sequence that fails on its first
+// step. This runs the sequence.
+func TestInstructionsWorkflowRuns(t *testing.T) {
+	dir := newGitStore(t)
+	const actor = "agent:test/session"
+	id := ticketID(t, createTicket(t, dir))
+
+	// Why the block names the ready step at all. If this ever succeeds, the
+	// lifecycle changed and the block's first paragraph is stale prose.
+	if got := runCLI(t, dir, nil, "claim", id, "--actor", actor); got.code == exitOK {
+		t.Fatal("a draft can be claimed now, so the block's ready step is stale")
+	}
+
+	// Setup rather than a step: `ac ID --check N` has nothing to tick without a
+	// criterion, and the block puts `ac --add` in a different section.
+	if got := runCLI(t, dir, nil, "ac", id, "--add", "the key rotates",
+		"--actor", actor); got.code != exitOK {
+		t.Fatalf("ac --add: %s", got.stderr)
+	}
+
+	steps := []struct {
+		span string   // as the block writes it
+		args []string // as this test runs it
+	}{
+		{"git ticket status ID ready", []string{"status", id, "ready"}},
+		{"git ticket claim ID", []string{"claim", id}},
+		{"git ticket status ID in-progress", []string{"status", id, "in-progress"}},
+		{"git ticket note ID", []string{"note", id, "the skew is 40s, not the 5s we assumed"}},
+		{"git ticket ac ID --check N", []string{"ac", id, "--check", "1"}},
+		{"git ticket summary ID", []string{"summary", id, "widened the window"}},
+		{"git ticket status ID done", []string{"status", id, "done"}},
+		{"git ticket release ID", []string{"release", id}},
+	}
+
+	prev := 0
+	for _, s := range steps {
+		at := strings.Index(instructionsText, s.span)
+		if at < 0 {
+			t.Fatalf("the block no longer names `%s`", s.span)
+		}
+		if at < prev {
+			t.Errorf("the block names `%s` before a step it has to follow", s.span)
+		}
+		prev = at
+		if got := runCLI(t, dir, nil, append(s.args, "--actor", actor)...); got.code != exitOK {
+			t.Fatalf("`%s`: exit %d\n%s%s", s.span, got.code, got.stdout, got.stderr)
+		}
+	}
+
+	// A store the documented workflow produced is a store check accepts.
+	if got := runCLI(t, dir, nil, "check", "--strict"); got.code != exitOK {
+		t.Errorf("check --strict after the documented workflow:\n%s%s", got.stdout, got.stderr)
+	}
+}
+
 // TestInitWritesInstructionsOnlyWhenAsked covers plan 12.1: init may write the
 // block, and never without being asked.
 func TestInitWritesInstructionsOnlyWhenAsked(t *testing.T) {

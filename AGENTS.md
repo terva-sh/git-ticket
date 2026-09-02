@@ -21,7 +21,10 @@ The agent workflow block lives at `cli/instructions.md`, embedded with
 `go:embed`. Edit the Markdown, not a Go string.
 `TestInstructionsNameRealCommands` holds every command and flag it names to what
 the binary has, because prose telling a reader to run something that does not
-exist is worse than no prose.
+exist is worse than no prose. `TestInstructionsWorkflowRuns` goes further and
+runs the sequence against a real store, in the order the block prints it,
+because every command can exist and the order still be wrong. It was: the block
+said claim before ready, and a draft cannot be claimed.
 
 Both Phase 2 exit criteria are met. The scripted end-to-end run is
 `TestLifecycle` in `cli/lifecycle_test.go`. The other is `git ticket

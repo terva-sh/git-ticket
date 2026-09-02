@@ -20,10 +20,14 @@ complete as they were, and nothing derives it from Git history.
 
 ### Doing the work
 
-Claim it with `git ticket claim ID`, then `git ticket status ID in-progress`. A
-claim records who is working, on which branch, from which commit. It is
-advisory and reserves nothing, so it tells another agent what is in flight
-rather than locking anything.
+A ticket you just filed is in `draft`, and a draft cannot be claimed. Move it
+with `git ticket status ID ready` first. One you took off the queue is already
+there.
+
+Then `git ticket claim ID`, and `git ticket status ID in-progress`. A claim
+records who is working, on which branch, from which commit. It is advisory and
+reserves nothing, so it tells another agent what is in flight rather than
+locking anything.
 
 While you work:
 
@@ -45,6 +49,10 @@ next person nothing.
 `git ticket create --title "..." --type bug --priority high` files a ticket.
 Types are task, bug, chore, spike, and epic. Add `--description`, `--label`,
 and `--assignee` as they apply, and `--parent` to file it under an epic.
+
+It lands in `draft`, which keeps something you filed on the way past other work
+out of the queue until somebody decides it belongs there. Move it on with
+`git ticket status ID ready` when it does.
 
 When work blocks or belongs to other work, record it rather than leaving it in
 prose:

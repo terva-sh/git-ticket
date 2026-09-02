@@ -144,6 +144,7 @@ type ticketJSON struct {
 	Status       string          `json:"status"`
 	StatusReason *string         `json:"statusReason"`
 	Priority     string          `json:"priority"`
+	DueOn        *string         `json:"dueOn"`
 	Labels       []string        `json:"labels"`
 	Assignees    []string        `json:"assignees"`
 	Milestone    *string         `json:"milestone"`
@@ -278,6 +279,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 		Status:       t.Status,
 		StatusReason: copyString(t.StatusReason),
 		Priority:     t.Priority,
+		DueOn:        copyString(t.DueOn),
 		Labels:       stringSlice(t.Labels),
 		Assignees:    stringSlice(t.Assignees),
 		Milestone:    copyString(t.Milestone),

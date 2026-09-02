@@ -6,6 +6,7 @@ type: bug
 status: archived
 status_reason: null
 priority: urgent
+due_on: null
 labels: []
 assignees: []
 milestone: null

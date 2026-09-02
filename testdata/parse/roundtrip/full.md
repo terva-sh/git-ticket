@@ -6,6 +6,7 @@ type: epic
 status: in-progress
 status_reason: null
 priority: urgent
+due_on: "2026-10-14"
 labels:
   - auth
   - docs

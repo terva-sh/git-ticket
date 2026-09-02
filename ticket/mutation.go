@@ -191,6 +191,31 @@ func (m SetMilestone) apply(t *Ticket, env mutEnv) error {
 	return nil
 }
 
+// SetDueOn sets or clears the deadline. Nil and the empty string both clear it.
+//
+// The value has to be a YYYY-MM-DD date. An RFC3339 instant is refused rather
+// than truncated to its date, per plan 5.1: truncating throws away a
+// distinction the author can be seen making, and a reader could not then tell
+// an expanded date from one somebody chose.
+type SetDueOn struct{ DueOn *string }
+
+func (m SetDueOn) apply(t *Ticket, env mutEnv) error {
+	if m.DueOn == nil || *m.DueOn == "" {
+		t.DueOn = nil
+		return nil
+	}
+	if !ValidDueOn(*m.DueOn) {
+		return &Error{
+			Code:    CodeInvalidField,
+			Message: fmt.Sprintf("%q is not a YYYY-MM-DD date", *m.DueOn),
+			Ticket:  t.ID,
+			Field:   "due_on",
+		}
+	}
+	t.DueOn = m.DueOn
+	return nil
+}
+
 // SetParent sets or clears the parent. The parent must exist.
 type SetParent struct{ Parent *string }
 

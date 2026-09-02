@@ -75,6 +75,21 @@ func ValidType(t string) bool { return validValue(Types, t) }
 // ValidPriority reports whether p is in the set of plan 5.1.
 func ValidPriority(p string) bool { return validValue(Priorities, p) }
 
+// DateLayout is the shape of a due_on value, per plan 5.1: a calendar date
+// rather than an instant, meaning the end of that day in UTC.
+const DateLayout = "2006-01-02"
+
+// ValidDueOn reports whether s is a due_on this format accepts.
+//
+// It demands the exact YYYY-MM-DD shape rather than whatever time.Parse
+// tolerates, so 2026-1-4 is refused along with an RFC3339 instant. Truncating
+// an instant to its date would throw away a distinction the author can be seen
+// making, per 5.1, so nothing here truncates.
+func ValidDueOn(s string) bool {
+	d, err := time.Parse(DateLayout, s)
+	return err == nil && d.Format(DateLayout) == s
+}
+
 // ValidBlocksOn reports whether b is in the set of plan 5.1.
 func ValidBlocksOn(b string) bool { return validValue(BlocksOnValues, b) }
 
@@ -189,6 +204,12 @@ type Ticket struct {
 	// history lives in Notes.
 	StatusReason *string
 	Priority     string
+	// DueOn is a deadline as a YYYY-MM-DD date meaning the end of that day in
+	// UTC, per plan 5.1. Nil is no deadline. It is the one time value in this
+	// format that is not an instant, which is why the key ends _on rather than
+	// _at, and it is stored exactly as written: a deadline is a claim about a
+	// calendar day, and expanding it would have to pick a zone at write time.
+	DueOn        *string
 	Labels       []string
 	Assignees    []string
 	Milestone    *string

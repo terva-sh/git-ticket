@@ -36,6 +36,7 @@ const (
 	CodeInvalidType                  = "invalid_type"
 	CodeInvalidPriority              = "invalid_priority"
 	CodeInvalidBlocksOn              = "invalid_blocks_on"
+	CodeInvalidDueOn                 = "invalid_due_on"
 	CodeBlockingCycle                = "blocking_cycle"
 	CodeBlocksOnNoChildren           = "blocks_on_no_children"
 	CodeArchiveLocationMismatch      = "archive_location_mismatch"
@@ -69,7 +70,7 @@ var CheckErrorCodes = []string{
 	CodeDuplicateID, CodeFilenameIDMismatch, CodeParseError, CodeUnknownField,
 	CodeSchemaUnsupported, CodeMergeConflict, CodeDependencyMissing,
 	CodeParentMissing, CodeDependencyCycle, CodeParentCycle, CodeInvalidStatus,
-	CodeInvalidType, CodeInvalidPriority, CodeInvalidBlocksOn,
+	CodeInvalidType, CodeInvalidPriority, CodeInvalidBlocksOn, CodeInvalidDueOn,
 	CodeBlockingCycle, CodeArchiveLocationMismatch,
 }
 

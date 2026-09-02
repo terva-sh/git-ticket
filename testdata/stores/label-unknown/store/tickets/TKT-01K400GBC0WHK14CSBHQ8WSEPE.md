@@ -6,6 +6,7 @@ type: task
 status: ready
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - auth
   - telemetry

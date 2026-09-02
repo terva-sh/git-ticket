@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "invalid_due_on",
+      "file": "bad-due-on.md",
+      "ticket": "TKT-01M1J5JQ792T0KQ8ZFP5B6EYCT",
+      "field": "due_on"
+    }
+  ],
+  "warnings": []
+}

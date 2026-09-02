@@ -321,6 +321,14 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 		errs = append(errs, at(CodeInvalidBlocksOn, "blocks_on",
 			fmt.Sprintf("%q is not one of %v", t.BlocksOn, BlocksOnValues)))
 	}
+	// The shape only. A due_on that has passed is never a finding, per plan 11:
+	// check validates the store, and a date going by changes no file, so a check
+	// that went red when a calendar day turned would fail CI for a reason no
+	// commit caused.
+	if t.DueOn != nil && !ValidDueOn(*t.DueOn) {
+		errs = append(errs, at(CodeInvalidDueOn, "due_on",
+			fmt.Sprintf("%q is not a YYYY-MM-DD date", *t.DueOn)))
+	}
 
 	if t.Claim.Expired(now) {
 		warns = append(warns, at(CodeClaimExpired, "claim.expires_at",

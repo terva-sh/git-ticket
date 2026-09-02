@@ -152,6 +152,7 @@ type: task
 status: ready
 status_reason: null
 priority: high
+due_on: "2026-10-14"
 labels:
   - auth
 assignees:
@@ -178,6 +179,34 @@ extensions: {}
 
 `type` is one of `task`, `bug`, `chore`, `spike`, `epic`. `priority` is one of
 `low`, `normal`, `high`, `urgent`. `blocks_on` is one of `none`, `children`.
+
+`due_on` holds a `YYYY-MM-DD` date and means the end of that day in UTC. Absent
+is `null` and means no deadline. It is the one time value in this format that is
+not an RFC3339 instant, which is why it ends `_on` rather than `_at`. Everywhere
+else in this section `_at` is an instant, and a `due_at` holding a day would
+teach a reader otherwise and make `expires_at` on the claim block ambiguous.
+
+The value is quoted, which is 5.3's existing rule rather than a rule for this
+field: the renderer quotes any scalar a YAML reader would resolve to something
+other than a string, and a bare `2026-10-14` is a YAML timestamp. Quoting is
+also what makes the field portable, because a YAML 1.1 reader hands a bare date
+back as a date object and a quoted one as the string this section specifies. A
+hand-written bare date still parses, since the format is meant to be edited by
+hand, and the next write canonicalizes it.
+
+The field holds a constraint from outside the ticket and is not a second
+priority. "It has to be done by the 14th" is a date. "I want this sooner" is
+`priority`, and `priority: urgent` carrying no date stays a complete statement.
+The line is worth holding, because a field that accepts eagerness fills with
+dates nobody chose, and then every row reads as late and the field stops meaning
+anything.
+
+The date is stored as written rather than expanded to an instant. A deadline is
+a claim about a calendar day, and no deadline was ever 23:59:59Z. Expanding also
+has to pick a zone at write time, and the writer's local zone stores two
+different instants for the same typed date depending on who typed it. A writer
+handed an instant where a date belongs rejects it rather than truncating it,
+because truncating throws away a distinction the author can be seen making.
 
 `blocks_on` names the edges that gate a ticket beyond its `dependencies`, which
 always gate, per 6.3. It is additive and never selective. `children` adds the
@@ -546,7 +575,11 @@ not a user's repository.
   parent. Within one filter the values are alternatives and across filters they
   all have to hold. Archived tickets are left out unless the caller asks for
   them, by filtering on the `archived` status or by asking for them outright,
-  because a list of work is about work that is still live
+  because a list of work is about work that is still live. `--due-by` takes a
+  date and selects the tickets due on or before it, which is the query the
+  field exists for, because today's date answers what is late. It is a bound
+  and not a set, so the alternatives rule above does not apply to it, and a
+  ticket carrying no `due_on` is not due by any date and never matches
 - `ready`: status `ready`, no live claim, and every dependency satisfied per 6.3.
   Only direct dependencies are read, so a dependency cycle cannot make this loop
 - `show` for one complete ticket
@@ -566,6 +599,23 @@ not a user's repository.
   references and is only as complete as the agents that wrote them. It is
   advisory and not derived from Git history, and the help text says so
 - `check`, described in section 10
+
+Ordering by `due_on` puts the earliest date first, the undated tickets last, and
+breaks a tie on the ID. Never is the far end of "closest to late first". The ID
+tiebreak is what makes the key safe to apply without asking: in a store where
+nobody has set a date, the order is the one the store had before the field
+existed.
+
+`ready` applies that order always and has no flag to ask for it, because its
+ranking is part of what it answers. `list` applies it on `--sort due_on` and
+otherwise stays in ID order. A list reports what exists rather than recommending
+anything, so reordering it is a change to a report somebody is reading, and the
+caller asks. `--sort` takes `id` or `due_on`, and naming the default is half of
+why the flag has two values rather than one.
+
+One field has one order. Both commands sort it the same way, because two
+orderings of one field is a rule a reader has to hold in mind at the moment they
+are comparing two outputs.
 
 Every ticket carries `readiness`, which is derived from the whole store at read
 time and never stored, like `revision` and `path` in 7.1. It holds the verdict
@@ -754,6 +804,7 @@ answers.
   "status": "in-progress",
   "statusReason": null,
   "priority": "urgent",
+  "dueOn": "2026-10-14",
   "labels": ["auth"],
   "assignees": ["human:sothr"],
   "milestone": "v1.2",
@@ -1002,6 +1053,7 @@ Errors:
 | `invalid_type` | a `type` outside the set in 5.1 |
 | `invalid_priority` | a `priority` outside the set in 5.1 |
 | `invalid_blocks_on` | a `blocks_on` outside the set in 5.1 |
+| `invalid_due_on` | a `due_on` that is not a `YYYY-MM-DD` date, per 5.1. A date that has passed is never a finding |
 | `archive_location_mismatch` | the status and the directory disagree; the status wins |
 
 Warnings:
@@ -1051,12 +1103,12 @@ silent about it, which is worse than reporting and stopping.
 
 ```text
 git ticket init   [--instructions]
-git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P]
+git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on]
 git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
-git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --depends-on --description --plan --ac --dod]
-git ticket update ID [--title --type --priority --description --milestone --parent --blocks-on --add-label --remove-label --assign --unassign]
+git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --plan --ac --dod]
+git ticket update ID [--title --type --priority --description --milestone --parent --blocks-on --due-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
 git ticket release ID
@@ -1768,8 +1820,9 @@ is the shape rather than the severity: a `Repair` today is a rename, carrying
 lands it is an implementation cost, not a second format decision.
 
 Three more were settled for a deadline on a ticket
-(`TKT-01M1HPCVRK1989NDNR9PJS36S4`), which is not built yet, so the answers live
-here until 5.1, 8, and 11 carry them.
+(`TKT-01M1HPCVRK1989NDNR9PJS36S4`), and 5.1, 8, and 11 now carry them. The
+reasoning stays here, because those sections say what the format is and this is
+why it is that.
 
 The field is `due_on` and it holds a date, `2026-10-14`, meaning the end of that
 day in UTC. Neither name the ticket offered survives, because the naming
@@ -1815,9 +1868,20 @@ passed. Validation is about the store, and a date going by changes no file. A
 `check` that went red because a calendar day turned would fail CI for a reason
 no commit caused, which is how a team learns to stop passing `--strict`.
 
-Every fixture carrying frontmatter gains the field when this lands, because 5.3
-renders an absent scalar as `null` rather than omitting it. That is 44 files
-today. It is an implementation cost and not a fourth decision.
+Building it settled a fourth thing, which the ticket had carried as one line of
+acceptance criteria rather than as a question. `list` filters with `--due-by`,
+an inclusive bound, and sorts only when asked with `--sort due_on`, while `ready`
+sorts always. 8 holds the asymmetry and its reason: `ready` ranks, and a list
+reports. The inclusive bound is the same kind of choice. "Due by the end of the
+month" is the query somebody types, and a strict `--due-before` loses the last
+day of it.
+
+Every fixture that parses gained the field, because 5.3 renders an absent scalar
+as `null` rather than omitting it. That was 42 files, migrated by re-rendering
+each one through the package renderer rather than by hand. Two more carry
+frontmatter and did not gain it, because `conflict-markers.md` and `schema-2.md`
+exist to fail parsing, so a field they never reach is a field they must not
+carry.
 
 ## 16. References
 

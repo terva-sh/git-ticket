@@ -204,6 +204,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		milestone   string
 		parent      string
 		blocksOn    string
+		dueOn       string
 		labels      stringList
 		assignees   stringList
 		dependsOn   stringList
@@ -219,6 +220,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		fs.StringVar(&milestone, "milestone", "", "a milestone")
 		fs.StringVar(&parent, "parent", "", "the epic or ticket this belongs to")
 		fs.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
+		fs.StringVar(&dueOn, "due-on", "", "a deadline as a YYYY-MM-DD date")
 		fs.Var(&labels, "label", "a label, repeatable")
 		fs.Var(&assignees, "assignee", "an assignee, repeatable")
 		fs.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
@@ -236,6 +238,12 @@ func runCreate(ctx *cmdContext, args []string) error {
 	}
 	if blocksOn != "" && !ticket.ValidBlocksOn(blocksOn) {
 		return usageErr("%q is not one of %s", blocksOn, strings.Join(ticket.BlocksOnValues, ", "))
+	}
+	// Refused rather than truncated, per plan 5.1. An RFC3339 instant is the
+	// realistic way to get this wrong, because every other time value in the
+	// format is one.
+	if dueOn != "" && !ticket.ValidDueOn(dueOn) {
+		return usageErr("%q is not a YYYY-MM-DD date", dueOn)
 	}
 
 	s, err := ctx.openStore()
@@ -265,6 +273,9 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Dependencies:       deps,
 		BlocksOn:           blocksOn,
 		Actor:              ctx.actor(s),
+	}
+	if dueOn != "" {
+		opts.DueOn = &dueOn
 	}
 	if milestone != "" {
 		opts.Milestone = &milestone
@@ -327,6 +338,16 @@ func runShow(ctx *cmdContext, args []string) error {
 // thing as an empty string, per plan section 8.
 const parentNone = "none"
 
+// The orders list accepts. sortByID is the default and is what the store had
+// before due_on existed: a ULID sorts by creation time, so it is chronological
+// for free. Naming the default is half of why --sort takes two values rather
+// than being a bare --sort-by-due flag, because a reader of the help text can
+// then see what they are changing away from.
+const (
+	sortByID    = "id"
+	sortByDueOn = "due_on"
+)
+
 // runList prints the tickets that match the filters.
 func runList(ctx *cmdContext, args []string) error {
 	var (
@@ -337,6 +358,8 @@ func runList(ctx *cmdContext, args []string) error {
 		assignees stringList
 		milestone stringList
 		parent    stringList
+		dueBy     string
+		sortBy    string
 		archived  bool
 	)
 	rest, err := ctx.parseFlags("list", args, func(fs *flag.FlagSet) {
@@ -347,6 +370,8 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.Var(&assignees, "assignee", "an assignee to match, repeatable")
 		fs.Var(&milestone, "milestone", "a milestone to match, repeatable")
 		fs.Var(&parent, "parent", "a parent whose children to list, or "+parentNone+" for tickets with no parent, repeatable")
+		fs.StringVar(&dueBy, "due-by", "", "only tickets due on or before this YYYY-MM-DD date")
+		fs.StringVar(&sortBy, "sort", sortByID, "order the result: "+sortByID+" or "+sortByDueOn)
 		fs.BoolVar(&archived, "archived", false, "include archived tickets")
 	})
 	if err != nil {
@@ -359,6 +384,14 @@ func runList(ctx *cmdContext, args []string) error {
 		if !ticket.ValidStatus(v) {
 			return usageErr("%q is not one of %s", v, strings.Join(ticket.Statuses, ", "))
 		}
+	}
+	// A bound that is not a date would otherwise compare as a string against
+	// every ticket and answer with a straight face.
+	if dueBy != "" && !ticket.ValidDueOn(dueBy) {
+		return usageErr("%q is not a YYYY-MM-DD date", dueBy)
+	}
+	if sortBy != sortByID && sortBy != sortByDueOn {
+		return usageErr("%q is not one of %s, %s", sortBy, sortByID, sortByDueOn)
 	}
 
 	s, err := ctx.openStore()
@@ -390,10 +423,17 @@ func runList(ctx *cmdContext, args []string) error {
 		Assignees:       assignees,
 		Milestone:       milestone,
 		Parent:          parents,
+		DueBy:           dueBy,
 		IncludeArchived: archived,
 	})
 	if err != nil {
 		return err
+	}
+	// Only when asked. A list reports what exists, so reordering it is a change
+	// to a report somebody is reading, per plan 8. ready ranks instead, and
+	// sorts without being asked.
+	if sortBy == sortByDueOn {
+		ticket.SortByDueOn(tickets)
 	}
 
 	return ctx.writeTicketList(s, tickets, "No tickets match.")
@@ -428,6 +468,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 		milestone   string
 		parent      string
 		blocksOn    string
+		dueOn       string
 		addLabels   stringList
 		rmLabels    stringList
 		assign      stringList
@@ -442,6 +483,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 		f.StringVar(&milestone, "milestone", "", "a milestone, or empty to clear it")
 		f.StringVar(&parent, "parent", "", "the epic or ticket this belongs to, or empty to clear it")
 		f.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
+		f.StringVar(&dueOn, "due-on", "", "a deadline as a YYYY-MM-DD date, or empty to clear it")
 		f.Var(&addLabels, "add-label", "a label to add, repeatable")
 		f.Var(&rmLabels, "remove-label", "a label to remove, repeatable")
 		f.Var(&assign, "assign", "an assignee to add, repeatable")
@@ -470,6 +512,11 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	if given["blocks-on"] && !ticket.ValidBlocksOn(blocksOn) {
 		return usageErr("%q is not one of %s", blocksOn, strings.Join(ticket.BlocksOnValues, ", "))
 	}
+	// Empty clears the deadline, like --milestone, so only a non-empty value is
+	// a date to check. An instant is refused rather than truncated, per 5.1.
+	if given["due-on"] && dueOn != "" && !ticket.ValidDueOn(dueOn) {
+		return usageErr("%q is not a YYYY-MM-DD date", dueOn)
+	}
 
 	// Removals run before additions, so --remove-label x --add-label x ends
 	// with the label present whichever order they were typed in.
@@ -491,6 +538,9 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	}
 	if given["milestone"] {
 		ms = append(ms, ticket.SetMilestone{Milestone: clearable(milestone)})
+	}
+	if given["due-on"] {
+		ms = append(ms, ticket.SetDueOn{DueOn: clearable(dueOn)})
 	}
 	for _, l := range rmLabels {
 		ms = append(ms, ticket.RemoveLabel{Label: l})
@@ -1487,13 +1537,34 @@ func (ctx *cmdContext) writeTicketList(s *ticket.Store, tickets []*ticket.Ticket
 }
 
 func writeListHuman(w io.Writer, tickets []*ticket.Ticket, short map[string]string) {
+	// The deadline column appears only when something in this result carries
+	// one. A store that does not use the field sees the listing it always saw,
+	// and nobody reads a column of blanks.
+	//
+	// It earns its place on a ready listing, which is ordered by this field:
+	// an order by something the row does not show reads as no order at all.
+	dated := false
+	for _, t := range tickets {
+		if t.DueOn != nil {
+			dated = true
+			break
+		}
+	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for _, t := range tickets {
 		id, ok := short[t.ID]
 		if !ok {
 			id = t.ID
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", id, t.Status, t.Priority, t.Title)
+		if !dated {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", id, t.Status, t.Priority, t.Title)
+			continue
+		}
+		due := ""
+		if t.DueOn != nil {
+			due = *t.DueOn
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", id, t.Status, t.Priority, due, t.Title)
 	}
 	tw.Flush()
 }
@@ -1510,6 +1581,9 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready tick
 		if value != "" {
 			fmt.Fprintf(tw, "%s:\t%s\n", name, value)
 		}
+	}
+	if t.DueOn != nil {
+		field("due on", *t.DueOn)
 	}
 	field("labels", strings.Join(t.Labels, ", "))
 	field("assignees", strings.Join(t.Assignees, ", "))

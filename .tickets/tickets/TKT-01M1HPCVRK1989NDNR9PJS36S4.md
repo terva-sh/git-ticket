@@ -3,9 +3,10 @@ schema: 1
 id: TKT-01M1HPCVRK1989NDNR9PJS36S4
 title: Add a deadline field to tickets and let list and ready review by it
 type: task
-status: ready
+status: done
 status_reason: null
 priority: low
+due_on: null
 labels:
   - question
   - format
@@ -21,7 +22,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T18:34:12Z
-updated_at: 2026-09-02T22:15:45Z
+updated_at: 2026-09-02T23:06:26Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -99,24 +100,36 @@ This settles one sort key and does not make `ready` rank by priority. TKT-01M1J2
 
 A missing or unparseable value is a finding. A passed date is not.
 
-### Cost
+### Cost, as paid
 
-Plan 5.3 renders an absent scalar as `null` rather than omitting it, so this means editing every fixture that carries frontmatter. That is 44 files today. `status_reason` cost exactly that, and the AGENTS.md note records the migration pattern that did it: a throwaway test gated on an environment variable that re-renders each fixture through the package renderer.
+Plan 5.3 renders an absent scalar as `null` rather than omitting it, so this meant editing every fixture that carries frontmatter. The estimate was 44, counted by grepping for `created_at:`. The bill was 42, migrated by the throwaway re-render test AGENTS.md describes.
+
+The two that did not move are `conflict-markers.md` and `schema-2.md`, which carry frontmatter and exist to fail parsing. A field they never reach is a field they must not carry, so the grep counted two files the renderer correctly refused to touch.
+
+### What shipped beyond the three decisions
+
+Building it settled a fourth thing, which this ticket had carried as one line of acceptance criteria rather than as a question. `list` filters with `--due-by`, an inclusive bound, and sorts only when asked with `--sort due_on`, while `ready` sorts always. Plan 8 holds the asymmetry: `ready` ranks, and a list reports.
+
+The value renders quoted, as `due_on: "2026-10-14"`. That is 5.3's existing rule and not a new one, because the renderer quotes any scalar a YAML reader would resolve to something other than a string, and a bare date is a YAML timestamp. It also makes the field portable, since a YAML 1.1 reader hands a bare date back as a date object. A hand-written bare date still parses, and the next write canonicalizes it.
 
 ## Acceptance criteria
 
 - [x] All three decisions in the description are settled and recorded in docs/plan.md before any code lands.
-- [ ] The plan states the field holds an external constraint and is not a second priority.
-- [ ] list can filter and sort on the field.
-- [ ] check reports an unparseable value and never reports an overdue ticket.
-- [ ] Every fixture carrying frontmatter gains the field, per 5.3.
-- [ ] The frontmatter field is named due_on and holds a YYYY-MM-DD date rather than an RFC3339 instant, per plan 15.
-- [ ] ready orders by due_on ascending, undated last, ID as the tiebreak, with no flag to ask for it.
-- [ ] A store where no ticket carries a due_on gets the same ready order it gets today, and a test holds that.
-- [ ] The CLI refuses an instant passed where a date belongs rather than truncating it.
+- [x] The plan states the field holds an external constraint and is not a second priority.
+- [x] list can filter and sort on the field.
+- [x] check reports an unparseable value and never reports an overdue ticket.
+- [x] Every fixture carrying frontmatter gains the field, per 5.3.
+- [x] The frontmatter field is named due_on and holds a YYYY-MM-DD date rather than an RFC3339 instant, per plan 15.
+- [x] ready orders by due_on ascending, undated last, ID as the tiebreak, with no flag to ask for it.
+- [x] A store where no ticket carries a due_on gets the same ready order it gets today, and a test holds that.
+- [x] The CLI refuses an instant passed where a date belongs rather than truncating it.
 
 ## Notes
 
 **agent:terva/mieli** at 2026-09-02T22:15:45Z
 
 Settled all three open decisions. The field is due_on holding a YYYY-MM-DD date, and ready orders by it ascending with undated last and no flag. The name and the precision were one question rather than two: _at means an RFC3339 instant everywhere else in 5.1, so a due_at holding a date would have made expires_at ambiguous. The ordering tradeoff dissolved against the ID tiebreak, because the date key is a no-op in a store where nobody has set a date. Recorded at the end of plan section 15. TKT-01M1J2YR9D5242F6H7TPEV4M8K carries the priority-ranking question this raised.
+
+**agent:terva/mieli** at 2026-09-02T23:06:26Z
+
+Shipped. due_on is a *string on the ticket, decoded as a string so a malformed value round-trips and check reports invalid_due_on rather than the whole file failing to parse. ValidDueOn demands the exact YYYY-MM-DD shape, so an instant and 2026-1-4 are both refused at create, at update, and in the library mutation. SortByDueOn is exported and shared, so ready and list cannot come to disagree about the order. Two surprises worth the record. The fixture bill was 42 and not 44: conflict-markers.md and schema-2.md carry frontmatter but exist to fail parsing, so the renderer correctly never reached them. And the value renders quoted, because 5.3 already quotes any scalar a YAML reader resolves to a non-string and a bare date is a YAML timestamp, which also keeps the field a string for a YAML 1.1 reader.

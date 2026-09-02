@@ -6,6 +6,7 @@ type: task
 status: draft
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null

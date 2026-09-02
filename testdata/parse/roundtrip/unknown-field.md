@@ -6,6 +6,7 @@ type: chore
 status: ready
 status_reason: null
 priority: low
+due_on: null
 labels: []
 assignees: []
 milestone: null

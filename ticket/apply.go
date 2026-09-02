@@ -125,7 +125,10 @@ type CreateOptions struct {
 	// BlocksOn names the edges that gate the ticket beyond its dependencies.
 	// Empty means BlocksOnNone, which is what every ticket did before the field
 	// existed.
-	BlocksOn    string
+	BlocksOn string
+	// DueOn is a deadline as a YYYY-MM-DD date. Nil and the empty string both
+	// mean no deadline, and an instant is refused rather than truncated.
+	DueOn       *string
 	Description string
 	// ImplementationPlan seeds the plan section. Writing it after the fact is
 	// SetImplementationPlan.
@@ -170,6 +173,16 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	}
 	if !ValidBlocksOn(blocksOn) {
 		return nil, &Error{Code: CodeInvalidField, Message: fmt.Sprintf("%q is not one of %v", blocksOn, BlocksOnValues), Field: "blocks_on"}
+	}
+	// Refused rather than truncated to its date, per plan 5.1, so an RFC3339
+	// instant never reaches the store. Checked here with the other fields, so a
+	// bad date costs no ID and writes no file.
+	dueOn := o.DueOn
+	if dueOn != nil && *dueOn == "" {
+		dueOn = nil
+	}
+	if dueOn != nil && !ValidDueOn(*dueOn) {
+		return nil, &Error{Code: CodeInvalidField, Message: fmt.Sprintf("%q is not a YYYY-MM-DD date", *dueOn), Field: "due_on"}
 	}
 
 	lock, err := s.lock()
@@ -236,6 +249,7 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		Type:         kind,
 		Status:       StatusDraft,
 		Priority:     priority,
+		DueOn:        dueOn,
 		Labels:       append([]string{}, o.Labels...),
 		Assignees:    append([]string{}, o.Assignees...),
 		Milestone:    o.Milestone,

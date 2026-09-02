@@ -16,7 +16,8 @@ import (
 // order plan 5.1 renders them. Anything else is preserved as an unknown field.
 var knownFields = []string{
 	"schema", "id", "title", "type", "status", "status_reason", "priority",
-	"labels", "assignees", "milestone", "parent", "dependencies", "blocks_on",
+	"due_on", "labels", "assignees", "milestone", "parent", "dependencies",
+	"blocks_on",
 	"references", "claim", "archive",
 	"created_at", "updated_at", "created_by", "updated_by", "extensions",
 }
@@ -157,6 +158,12 @@ func decodeFields(t *Ticket, root *yaml.Node) error {
 			t.StatusReason, err = optionalString(val, key)
 		case "priority":
 			t.Priority, err = scalarString(val, key)
+		case "due_on":
+			// Decoded as a string rather than a date, so that a malformed value
+			// survives the round trip and check reports it. Refusing it here
+			// would fail the whole file to parse over one field, and the format
+			// is meant to be hand-edited.
+			t.DueOn, err = optionalString(val, key)
 		case "labels":
 			t.Labels, err = stringSeq(val, key)
 		case "assignees":

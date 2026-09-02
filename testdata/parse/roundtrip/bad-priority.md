@@ -6,6 +6,7 @@ type: task
 status: ready
 status_reason: null
 priority: p0
+due_on: null
 labels: []
 assignees: []
 milestone: null

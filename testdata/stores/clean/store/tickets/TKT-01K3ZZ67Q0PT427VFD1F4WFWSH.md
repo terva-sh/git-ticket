@@ -6,6 +6,7 @@ type: spike
 status: blocked
 status_reason: the staging provider account is suspended, so the outage cannot be reproduced
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null

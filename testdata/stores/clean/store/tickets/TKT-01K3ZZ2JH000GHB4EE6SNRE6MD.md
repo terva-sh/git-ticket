@@ -6,6 +6,7 @@ type: bug
 status: ready
 status_reason: null
 priority: high
+due_on: null
 labels:
   - auth
 assignees: []

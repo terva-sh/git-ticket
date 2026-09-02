@@ -6,6 +6,7 @@ type: chore
 status: in-progress
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees:
   - agent:terva/session-123

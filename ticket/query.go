@@ -32,6 +32,16 @@ type Filter struct {
 	// hierarchy here would mean precomputing a descendant set before this could
 	// answer a question about one ticket.
 	Parent []string
+	// DueBy selects the tickets due on or before a date, per plan section 8. It
+	// is the query the field exists for, because today's date answers what is
+	// late.
+	//
+	// Unlike the fields above it is a bound and not a set of alternatives, so it
+	// takes one value and an empty string means no bound. A ticket carrying no
+	// due_on is not due by any date and never matches, which is why this cannot
+	// reuse deref and matchesOne: an absent value is not a candidate here, where
+	// for a milestone or a parent it is.
+	DueBy string
 	// IncludeArchived adds archived tickets to the result. They are left out by
 	// default, because a list of work is about work that is still live. Asking
 	// for the archived status explicitly also brings them in.
@@ -66,7 +76,41 @@ func (f Filter) matches(t *Ticket) bool {
 		!matchesOne(f.Parent, deref(t.Parent)) {
 		return false
 	}
+	if f.DueBy != "" {
+		due := deref(t.DueOn)
+		if due == "" || due > f.DueBy {
+			return false
+		}
+	}
 	return true
+}
+
+// SortByDueOn orders tickets by deadline: the earliest date first, the undated
+// last, and the ID breaking a tie. Never is the far end of "closest to late
+// first", per plan section 8.
+//
+// The ID tiebreak is what makes this safe to apply without being asked. In a
+// store where nobody has set a date every ticket is undated, so the result is
+// the ID order the store had before the field existed, byte for byte.
+//
+// Dates compare as strings, which is chronological for YYYY-MM-DD and is one
+// reason the format demands that exact shape. A value that check reports as
+// invalid_due_on still sorts somewhere rather than stopping the query, because
+// a query is not the place to learn that a file is malformed.
+func SortByDueOn(ts []*Ticket) {
+	sort.SliceStable(ts, func(i, j int) bool {
+		a, b := deref(ts[i].DueOn), deref(ts[j].DueOn)
+		if a != b {
+			if a == "" {
+				return false
+			}
+			if b == "" {
+				return true
+			}
+			return a < b
+		}
+		return ts[i].ID < ts[j].ID
+	})
 }
 
 // deref reads an optional field. A nil pointer and an empty string mean the
@@ -299,6 +343,10 @@ func (s *Store) Ready(ctx context.Context) ([]*Ticket, error) {
 			out = append(out, t)
 		}
 	}
+	// Always, and with no flag to ask for it. This command recommends what to
+	// start next, so the ranking is part of what it answers, per plan 8. List
+	// reports what exists instead and reorders only when the caller asks.
+	SortByDueOn(out)
 	return out, nil
 }
 

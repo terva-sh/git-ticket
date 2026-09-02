@@ -102,14 +102,29 @@ just ci                            # the same steps the PR will run
 git push -u origin HEAD
 ```
 
-Then open the PR against `main` with the API recipe below. Name the ticket in
-the body, because a reviewer arriving from `git ticket show` should find the
-review from the ticket and the ticket from the review.
+Then open the PR with `tea`, which is installed and logged in to the instance.
+Name the ticket in the body, because a reviewer arriving from `git ticket show`
+should find the review from the ticket and the ticket from the review:
+
+```sh
+tea pr create --base main --title "..." -d "$(cat body.md)"$'\n'
+tea pr ls                          # open PRs
+tea pr 1                           # one PR, body and all
+tea pr merge 1 --style rebase      # server-side, once CI is green
+```
+
+That trailing `$'\n'` is not superstition. Bash's `$(...)` strips trailing
+newlines, so the body arrives one byte short of the file. tea itself is exact:
+a body posted with `curl` and the same body sent through `tea pr edit` compare
+byte for byte on the server.
+
+Write the body to a file and pass the file. A PR body is prose, and prose
+assembled in a shell argument is prose nobody proofread.
 
 A branch prefix says what the change is: `fix/`, `feat/`, `docs/`, `build/`,
 `test/`, matching the commit type it will carry.
 
-Merge server-side, through the Forgejo UI or the API. Pushing a local merge
+Merge server-side with `tea pr merge` or the web UI. Pushing a local merge
 commit can leave the PR open with its commits already in `main`, which is a
 state somebody then has to clean up by hand.
 
@@ -136,20 +151,31 @@ The recipes wrap plain `go` invocations and hold no logic of their own, so
 `go test ./...` still works when you want one. `just ci` is the gate to run
 before you push.
 
-To read a CI result rather than guess at one, ask the API for the commit's
-statuses. `terva/scripts/pr.sh` holds the token resolver this borrows:
-`$TERVA_FORGE_TOKEN`, or the login block matching the host in
-`~/Library/Application Support/tea/config.yml`. Take the forge host from the
-`origin` remote rather than writing it down, so this file names no host.
+To read a CI result rather than guess at one, ask for the commit's statuses.
+`tea api` carries the login, so there is no token to resolve and no host to
+write down:
+
+```sh
+tea api "repos/terva-sh/git-ticket/commits/$(git rev-parse HEAD)/statuses"
+tea api "repos/terva-sh/git-ticket/actions/tasks?limit=5"   # when there is no status yet
+```
+
+One context carries several rows at different timestamps, `pending` then
+`success`, so read the newest and not the first. The row that gates a PR is the
+one whose context ends in `(pull_request)`.
+
+Without tea, the same call needs a token: `$TERVA_FORGE_TOKEN`, or the login
+block matching the host in tea's `config.yml`, which is
+`~/.config/tea/config.yml` on Linux and under `~/Library/Application Support`
+on macOS. `terva/scripts/pr.sh` holds an awk parser for it. Take the forge host
+from the `origin` remote rather than writing it down, so this file names no
+host:
 
 ```sh
 FORGE=$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')
 curl -sS -H "Authorization: token $TERVA_FORGE_TOKEN" \
   "https://$FORGE/api/v1/repos/terva-sh/git-ticket/commits/HEAD_SHA/statuses"
 ```
-
-`.../actions/tasks?limit=5` on the same host lists recent runs when a commit
-has no status yet.
 
 The suite includes the tests that hold the corpus to the plan. Run it after
 touching anything under `testdata/` or section 11 of the plan.

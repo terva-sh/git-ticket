@@ -45,7 +45,14 @@ later phase before an earlier one meets its criteria.
 There are two remotes. `origin` is the internal Forgejo and `main` tracks it.
 `github` is the public mirror at `github.com/terva-sh/git-ticket`, which settles
 the module path: `go.mod` already declared it, so nothing changes. Plan 12.2
-holds the rule. `main` and every tag are on both, at identical SHAs.
+holds the rule. `main` and every tag are on both, at identical SHAs. Check one
+without adding a remote, because a clone has `origin` alone:
+
+```sh
+TAG=$(git describe --tags --abbrev=0)
+go list -m -json "github.com/terva-sh/git-ticket@$TAG"   # Origin.Hash
+git rev-parse "$TAG^{commit}"                            # what it should equal
+```
 
 The two remotes move at different speeds, and that is deliberate. Push to
 `origin` often: it is the working remote, its runners are internal, and CI there

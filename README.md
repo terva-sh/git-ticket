@@ -6,7 +6,7 @@ reviewable in `git diff`. One Go library owns the format, and a `git-ticket`
 binary exposes it as `git ticket …`.
 
 > **Partly built.** The library and the 24-command CLI are done and tagged
-> `v0.2.0`. There is no binary release, so installing means building from
+> `v0.3.0`. There is no binary release, so installing means building from
 > source. See [Status](#status) before you plan around this.
 
 ## The problem

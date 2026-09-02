@@ -47,11 +47,27 @@ There are two remotes. `origin` is the internal Forgejo and `main` tracks it.
 the module path: `go.mod` already declared it, so nothing changes. Plan 12.2
 holds the rule. `main` and every tag are on both, at identical SHAs.
 
-Push to both, and push `origin` first so CI has a chance to say no:
+The two remotes move at different speeds, and that is deliberate. Push to
+`origin` often: it is the working remote, its runners are internal, and CI there
+is how a branch finds out it is wrong. The mirror is not a backup and does not
+want your daily commits. Push it when there is something to release, which means
+a tag, and let a release carry the commits behind it.
+
+The reason is where the work runs. `origin` builds on the instance's own
+runners, which cost nothing but their own capacity. The mirror is on public
+infrastructure, so every push there spends somebody else's runners on work that
+is not finished.
+
+`main` moves by merging a PR, so the mirror push comes after the merge, from a
+local `main` that has just been fast-forwarded:
 
 ```sh
-git push && git push github main --follow-tags
+git checkout main && git pull --ff-only && git push github main --follow-tags
 ```
+
+A fresh clone has `origin` alone. Add the mirror when you need it, which is at
+release time and not before:
+`git remote add github git@github.com:terva-sh/git-ticket.git`.
 
 The mirror is a plain `git push`, not a built tree: same commits, same tags, one
 history. That works because the prose never names the internal hosts. Write "the
@@ -63,6 +79,47 @@ else, check what you are about to publish:
 
 ```sh
 git grep -n -E "$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')" -- . ':!.forgejo'
+```
+
+## Branches and pull requests
+
+Work lands on `main` through a pull request. Do not commit to `main` and do not
+push to it, not even for a one-line documentation fix.
+
+The reason is concurrency, not ceremony. Several agents work this repository at
+once, in separate worktrees, and each one holds a `main` it believes is current.
+A direct push makes every other agent's next push a rebase over commits they
+cannot see, and the ticket store is the worst place for that: two agents each
+adding a file under `.tickets/tickets/` merge cleanly and each editing the same
+ticket does not. A PR gives the collision one place to happen and a reviewer to
+notice it.
+
+The loop:
+
+```sh
+git switch -c fix/some-slug        # off an up-to-date main
+just ci                            # the same steps the PR will run
+git push -u origin HEAD
+```
+
+Then open the PR against `main` with the API recipe below. Name the ticket in
+the body, because a reviewer arriving from `git ticket show` should find the
+review from the ticket and the ticket from the review.
+
+A branch prefix says what the change is: `fix/`, `feat/`, `docs/`, `build/`,
+`test/`, matching the commit type it will carry.
+
+Merge server-side, through the Forgejo UI or the API. Pushing a local merge
+commit can leave the PR open with its commits already in `main`, which is a
+state somebody then has to clean up by hand.
+
+If you branched after committing to `main` by mistake, move the commits rather
+than re-doing them, and use `git branch -f` rather than `reset --hard` so
+nothing is destroyed if you got it wrong:
+
+```sh
+git switch -c fix/some-slug        # carries the commits
+git branch -f main origin/main     # main is where the remote has it
 ```
 
 ## Commands

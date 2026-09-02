@@ -195,11 +195,21 @@ other.
 `just build` and `just check` put the binary in the repository root, where the
 README tells a reader to find it. It is gitignored for that reason.
 
+Do not call `./git-ticket` directly. It is a build artifact with no sense of its
+own age. Run `just ready` and `just check`, which depend on `build` and so
+answer from the code in your tree.
+
 This repository uses its own tool. Work that outlives a session belongs in a
 ticket rather than in a comment: `git ticket ready` says what is startable, and
 `git ticket create --title "..."` files what you found on the way. After
 `just install` those work as Git subcommands; `just ready` runs the first one
 from the tree without an install.
+
+`ready` is half the backlog. Everything filed lands in `draft` and nothing
+promotes it, so `git ticket list --status draft` is the other half and it is
+usually the larger one. Read it before reporting that there is nothing to pick
+up. Promoting a draft is the user's call: name what looks startable and let them
+choose.
 
 ## Layout
 
@@ -288,6 +298,14 @@ literal string has to work. That registry mirror is curated, so do not assume
 an arbitrary `library/*` image exists. On alpine, `-race` needs cgo:
 `apk add --no-cache gcc musl-dev`. The sibling repositories are the reference,
 and `terva/.forgejo/workflows/ci.yml` is the fullest example.
+
+A stale `./git-ticket` answers with a straight face. It is gitignored, so it
+survives a branch switch, a rebase, and a pull, and nothing in its output says
+which commit built it. A review of this repository's own store once opened with
+`./git-ticket ready` against a binary six hours old whose JSON carried no
+`readiness` field at all, so every ticket read `null` and a shipped feature
+looked unbuilt. `just ready` and `just check` depend on `build`, and `just
+build` prints the short SHA it built from.
 
 `go:embed` silently skips any path whose name starts with `.` or `_`. That is
 why store fixtures live under `store/` and not `.tickets/`. The realistic name

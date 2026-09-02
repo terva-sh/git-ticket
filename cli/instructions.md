@@ -12,6 +12,16 @@ closed. That is the queue. `git ticket list --status in-progress` shows what is
 already underway, and `git ticket search PATTERN` takes a regular expression
 over the title and body when you only roughly know what you are after.
 
+A short queue does not mean there is little to do. Everything filed lands in
+`draft` and stays there until a person promotes it, so
+`git ticket list --status draft` is the rest of the backlog, and it is usually
+the larger half. Read it before you report that there is nothing to pick up.
+
+Do not promote a draft yourself. Name the ones that look startable, say what
+makes each one startable, and let the person you are working with choose.
+Promotion is where somebody weighs this work against everything you cannot see,
+so an agent that promotes its own next ticket has appointed itself.
+
 Read the whole ticket with `git ticket show ID` before you start, including its
 acceptance criteria and its dependencies. Anywhere an ID is taken, a unique
 prefix works, with or without the `TKT-` part.
@@ -22,9 +32,10 @@ complete as they were, and nothing derives it from Git history.
 
 ### Doing the work
 
-A ticket you just filed is in `draft`, and a draft cannot be claimed. Move it
-with `git ticket status ID ready` first. One you took off the queue is already
-there.
+Work starts from a ticket that is `ready`, and a draft cannot be claimed. If you
+were asked to pick up something still in `draft`, that request is the promotion:
+run `git ticket status ID ready` first and carry on. One you took off the queue
+is already there.
 
 Then `git ticket claim ID`, and `git ticket status ID in-progress`. A claim
 records who is working, on which branch, from which commit. It is advisory and
@@ -59,9 +70,9 @@ next person nothing.
 Types are task, bug, chore, spike, and epic. Add `--description`, `--label`,
 and `--assignee` as they apply, and `--parent` to file it under an epic.
 
-It lands in `draft`, which keeps something you filed on the way past other work
-out of the queue until somebody decides it belongs there. Move it on with
-`git ticket status ID ready` when it does.
+It lands in `draft` and it stays there. That keeps something you filed on the
+way past other work out of the queue, and the decision to promote it belongs to
+a person. File it, say that you filed it, and go back to what you were doing.
 
 When work blocks or belongs to other work, record it rather than leaving it in
 prose:

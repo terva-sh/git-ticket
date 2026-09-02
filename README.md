@@ -126,7 +126,9 @@ go install github.com/terva-sh/git-ticket/cmd/git-ticket@latest
 That lands `git-ticket` in your `GOBIN`, or `GOPATH/bin` without one. Git spells
 a binary named `git-ticket` on `PATH` as `git ticket`. From a clone, `just
 install` does the same thing and `just build` puts the binary in the repository
-root instead. A ticket's whole life works today:
+root instead. That root copy is gitignored and nothing rebuilds it for you, so
+prefer `just ready` and `just check`, which depend on `build`. A ticket's whole
+life works today:
 
 ```sh
 git ticket init --actor human:you

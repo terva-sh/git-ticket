@@ -5,9 +5,9 @@ file with YAML frontmatter, committed next to the code, editable in vim and
 reviewable in `git diff`. One Go library owns the format, and a `git-ticket`
 binary exposes it as `git ticket …`.
 
-> **Partly built.** The library is done and the CLI carries four commands.
-> There is no release and no install path yet. See [Status](#status) before you
-> plan around this.
+> **Partly built.** The library and the 24-command CLI are done and tagged
+> `v0.2.0`. There is no binary release, so installing means building from
+> source. See [Status](#status) before you plan around this.
 
 ## The problem
 
@@ -117,11 +117,13 @@ come from it. It puts the title in the filename, which this format does not.
 ## Using it
 
 ```sh
-go build -o git-ticket ./cmd/git-ticket
+go install github.com/terva-sh/git-ticket/cmd/git-ticket@latest
 ```
 
-Put that on `PATH` and Git spells it `git ticket`. A ticket's whole life works
-today:
+That lands `git-ticket` in your `GOBIN`, or `GOPATH/bin` without one. Git spells
+a binary named `git-ticket` on `PATH` as `git ticket`. From a clone, `just
+install` does the same thing and `just build` puts the binary in the repository
+root instead. A ticket's whole life works today:
 
 ```sh
 git ticket init --actor human:you
@@ -343,6 +345,9 @@ and nothing should bump the schema before that exists.
 3. [`AGENTS.md`](AGENTS.md) is the standing rules for working in this
    repository.
 
-`go test ./...` runs everything, including the tests that hold the fixture
-corpus to the plan: every code in section 11 has a fixture, and every fixture
-reproduces the findings recorded beside it.
+`just test` runs everything, including the tests that hold the fixture corpus to
+the plan: every code in section 11 has a fixture, and every fixture reproduces
+the findings recorded beside it. `just ci` adds the race detector, gofmt, vet,
+and `check --strict` over this repository's own store, which is what CI runs.
+The recipes are plain `go` invocations, so working without just costs you
+nothing but typing.

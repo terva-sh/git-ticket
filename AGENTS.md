@@ -64,10 +64,17 @@ git grep -n -E "$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')" -- 
 
 ## Commands
 
+`just` drives the local loop. `just --list` names every recipe.
+
 ```sh
-go test ./...                       # the whole suite
-go build -o git-ticket ./cmd/git-ticket && ./git-ticket check --strict
+just ci        # lint, test-race, check: the same steps CI runs, in the same order
+just test      # the whole suite, without the race detector
+just install   # git-ticket into GOBIN, so `git ticket` resolves outside this tree
 ```
+
+The recipes wrap plain `go` invocations and hold no logic of their own, so
+`go test ./...` still works when you want one. `just ci` is the gate to run
+before you push.
 
 To read a CI result rather than guess at one, ask the API for the commit's
 statuses. `terva/scripts/pr.sh` holds the token resolver this borrows:
@@ -87,12 +94,19 @@ has no status yet.
 The suite includes the tests that hold the corpus to the plan. Run it after
 touching anything under `testdata/` or section 11 of the plan.
 
-The second line is what CI runs against this repository's own store. The binary
-is gitignored, because the README tells a reader to build it right there.
+`.forgejo/workflows/ci.yml` keeps its steps inline rather than calling `just`,
+because the runner image is `golang:1.25-alpine` and installing just there would
+buy nothing. That makes the justfile a mirror, so a change to one belongs in the
+other.
+
+`just build` and `just check` put the binary in the repository root, where the
+README tells a reader to find it. It is gitignored for that reason.
 
 This repository uses its own tool. Work that outlives a session belongs in a
-ticket rather than in a comment: `./git-ticket ready` says what is startable,
-and `./git-ticket create --title "..."` files what you found on the way.
+ticket rather than in a comment: `git ticket ready` says what is startable, and
+`git ticket create --title "..."` files what you found on the way. After
+`just install` those work as Git subcommands; `just ready` runs the first one
+from the tree without an install.
 
 ## Layout
 

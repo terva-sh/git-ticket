@@ -24,6 +24,13 @@ func newWorktreeRepo(t *testing.T) (primary, linked string) {
 	}
 
 	root := t.TempDir()
+	// macOS puts TempDir under /var, which is a symlink to /private/var, and
+	// git reports the resolved path for the common directory. Without this the
+	// store spells the lock path one way and git spells it the other, and the
+	// comparison below fails on two names for one file.
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
 	main := filepath.Join(root, "main")
 	if err := os.MkdirAll(main, 0o755); err != nil {
 		t.Fatal(err)

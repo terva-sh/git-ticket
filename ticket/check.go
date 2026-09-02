@@ -293,6 +293,13 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 				fmt.Sprintf("%q is not in the config.yml allowlist", label)))
 		}
 	}
+	// A milestone nothing listed is a typo as often as it is a new milestone,
+	// so this warns and never errors: v1.2 and v1.2.0 are two milestones and
+	// only a person can say which was meant.
+	if t.Milestone != nil && !cfg.KnownMilestone(*t.Milestone) {
+		warns = append(warns, at(CodeMilestoneUnknown, "milestone",
+			fmt.Sprintf("%q is not in the config.yml allowlist", *t.Milestone)))
+	}
 	// A store outside a repository has no root to resolve against, so the
 	// check is skipped rather than measured against a guess, per plan 5.5.
 	if root != "" {

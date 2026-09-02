@@ -114,6 +114,9 @@ actors:
 labels:
   - auth
   - docs
+milestones:
+  - v1.1
+  - v1.2
 defaults:
   type: task
   priority: normal
@@ -122,10 +125,20 @@ lock:
   timeout: 10s
 ```
 
-`labels` is an advisory allowlist: `check` warns about a label outside it and
-never errors. Configuration sets defaults and vocabulary. It cannot add a
-status, change a transition rule, or grant a consumer authority it does not
-otherwise have.
+`labels` and `milestones` are advisory allowlists: `check` warns about a value
+outside one and never errors. Configuration sets defaults and vocabulary. It
+cannot add a status, change a transition rule, or grant a consumer authority it
+does not otherwise have.
+
+An empty list is not an empty vocabulary. It is a store that has not expressed
+an opinion, so it permits everything. A store opts in by listing.
+
+Advisory is the right strength for both. Either is how somebody marks work
+before the vocabulary catches up, and erroring would mean committing a config
+edit before a ticket could name a new label or a new release even once. The
+warning still earns its place: `milestone` is a bare scalar with no registry, so
+nothing else can tell `v1.2` from `v1.2.0`, and a store left alone accumulates
+near-duplicates until `list --milestone` quietly answers about the wrong one.
 
 ## 5. Ticket format
 
@@ -906,6 +919,7 @@ Warnings:
 | `claim_expired` | a claim is past its `expires_at` |
 | `reference_path_unresolved` | a `references` path does not resolve against the repository root, per 5.5 |
 | `label_unknown` | a label is outside the `config.yml` allowlist |
+| `milestone_unknown` | `milestone` is outside the `config.yml` allowlist |
 | `in_progress_unclaimed` | a ticket is `in-progress` with no claim |
 
 A finding names the file, and the ticket ID and field where they apply. A file

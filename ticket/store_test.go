@@ -103,6 +103,15 @@ func TestConfigRoundTrip(t *testing.T) {
 	if !cfg.KnownLabel("auth") || cfg.KnownLabel("frobnicate") {
 		t.Errorf("label allowlist = %v, want auth known and frobnicate unknown", cfg.Labels)
 	}
+	// v1.2 against v1.2.0 is the case the allowlist exists for: two spellings
+	// of one milestone that nothing else can tell apart.
+	if !cfg.KnownMilestone("v1.2") || cfg.KnownMilestone("v1.2.0") {
+		t.Errorf("milestone allowlist = %v, want v1.2 known and v1.2.0 unknown", cfg.Milestones)
+	}
+	// A ticket naming no milestone is not a ticket naming a wrong one.
+	if !cfg.KnownMilestone("") {
+		t.Error("the empty milestone is always permitted")
+	}
 }
 
 func TestStoreOutsideARepositoryHasNoRoot(t *testing.T) {

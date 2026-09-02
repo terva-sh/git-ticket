@@ -81,7 +81,7 @@ and `claim_expired`. The store-scoped codes are out of scope there and belong to
 `stores/`, because no single file can exhibit them: `duplicate_id`,
 `filename_id_mismatch`, `dependency_missing`, `parent_missing`,
 `dependency_cycle`, `parent_cycle`, `archive_location_mismatch`,
-`dependency_archived_incomplete`, `label_unknown`, and
+`dependency_archived_incomplete`, `label_unknown`, `milestone_unknown`, and
 `reference_path_unresolved`.
 
 That scope split is also why a `parse/` fixture is named after its condition

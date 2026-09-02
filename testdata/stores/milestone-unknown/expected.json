@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "milestone_unknown",
+      "file": "tickets/TKT-01K400HN70QVZ4M6R8TAYC3JD1.md",
+      "ticket": "TKT-01K400HN70QVZ4M6R8TAYC3JD1",
+      "field": "milestone"
+    }
+  ]
+}

@@ -40,6 +40,7 @@ const (
 	CodeClaimExpired                 = "claim_expired"
 	CodeReferencePathUnresolved      = "reference_path_unresolved"
 	CodeLabelUnknown                 = "label_unknown"
+	CodeMilestoneUnknown             = "milestone_unknown"
 	CodeInProgressUnclaimed          = "in_progress_unclaimed"
 )
 
@@ -70,7 +71,8 @@ var CheckErrorCodes = []string{
 
 var CheckWarningCodes = []string{
 	CodeDependencyArchivedIncomplete, CodeClaimExpired,
-	CodeReferencePathUnresolved, CodeLabelUnknown, CodeInProgressUnclaimed,
+	CodeReferencePathUnresolved, CodeLabelUnknown, CodeMilestoneUnknown,
+	CodeInProgressUnclaimed,
 }
 
 // Error is a coded failure. The code is the stable part; the message is for a

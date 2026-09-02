@@ -12,11 +12,12 @@ import (
 // It cannot add a status, change a transition rule, or grant a consumer
 // authority it does not otherwise have.
 type Config struct {
-	Schema   int        `yaml:"schema"`
-	Actors   []Actor    `yaml:"actors"`
-	Labels   []string   `yaml:"labels"`
-	Defaults Defaults   `yaml:"defaults"`
-	Lock     LockConfig `yaml:"lock"`
+	Schema     int        `yaml:"schema"`
+	Actors     []Actor    `yaml:"actors"`
+	Labels     []string   `yaml:"labels"`
+	Milestones []string   `yaml:"milestones"`
+	Defaults   Defaults   `yaml:"defaults"`
+	Lock       LockConfig `yaml:"lock"`
 }
 
 // Defaults are the values a create uses when the caller names none.
@@ -61,11 +62,12 @@ func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 // falls back to.
 func DefaultConfig() Config {
 	return Config{
-		Schema:   SchemaVersion,
-		Actors:   []Actor{},
-		Labels:   []string{},
-		Defaults: Defaults{Type: "task", Priority: "normal"},
-		Lock:     LockConfig{Timeout: Duration(DefaultLockTimeout)},
+		Schema:     SchemaVersion,
+		Actors:     []Actor{},
+		Labels:     []string{},
+		Milestones: []string{},
+		Defaults:   Defaults{Type: "task", Priority: "normal"},
+		Lock:       LockConfig{Timeout: Duration(DefaultLockTimeout)},
 	}
 }
 
@@ -102,6 +104,7 @@ func RenderConfig(c Config) []byte {
 	}
 	m.add("actors", actors)
 	m.addStringSeq("labels", c.Labels)
+	m.addStringSeq("milestones", c.Milestones)
 
 	d := &ymap{}
 	d.addString("type", c.Defaults.Type)
@@ -126,11 +129,31 @@ func RenderConfig(c Config) []byte {
 // allowlist permits everything, since a store that never listed a label has not
 // expressed an opinion.
 func (c Config) KnownLabel(label string) bool {
-	if len(c.Labels) == 0 {
+	return permitted(c.Labels, label)
+}
+
+// KnownMilestone reports whether the milestone is in the advisory allowlist. It
+// carries the same strength as KnownLabel, and for the same reason: a typo is
+// worth reporting, and naming a new milestone should not need a config edit
+// before the ticket can be filed.
+//
+// The empty milestone means the ticket names none, which is always permitted.
+// Only a store that listed its milestones has expressed an opinion at all.
+func (c Config) KnownMilestone(milestone string) bool {
+	if milestone == "" {
 		return true
 	}
-	for _, l := range c.Labels {
-		if l == label {
+	return permitted(c.Milestones, milestone)
+}
+
+// permitted is the advisory allowlist rule of plan 4.1: an empty list is not an
+// empty vocabulary, it is a store that has not expressed an opinion.
+func permitted(allowed []string, value string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, a := range allowed {
+		if a == value {
 			return true
 		}
 	}

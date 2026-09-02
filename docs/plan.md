@@ -475,6 +475,9 @@ every one of those calls sits in one of the helpers, and every helper call names
 a command from this table. A fourth call site added tomorrow has to pass all
 three, and a new helper fails the second rather than slipping past the third.
 
+No writing command joins this table. Section 15 records that decision under Q3,
+so a change that needs `fetch` or `push` is a change to the plan first.
+
 Test code is exempt and runs `git init` freely, because a fixture repository is
 not a user's repository.
 
@@ -1091,8 +1094,9 @@ that shows an epic's children needs a way to read the hierarchy back.
 
 The stdio MCP adapter. Import of the useful Backlog.md fields, with no runtime
 dependency on Backlog.md. A local browser or TUI view, and only after the file
-and agent contracts have held through at least one real project. Explicit remote
-helpers evaluated separately, and never as a side effect of a mutation.
+and agent contracts have held through at least one real project. No remote
+helpers, per Q3 in section 15. Publishing stays the user's ordinary Git
+workflow.
 
 ## 14. Acceptance criteria
 
@@ -1130,9 +1134,6 @@ the identifier that was already unique and never moves.
 **Q2** (`TKT-01M1F7Z2Y5H1ZJAHRGF3XE6F91`). Whether custom statuses are worth the
 cost, decided after a real workflow asks for one.
 
-**Q3** (`TKT-01M1F7Z2Z33HW6FW44TCQVWB7M`). Whether a later release adds sync
-helpers around ordinary Git commands.
-
 **Q4** (`TKT-01M1F7Z2ZXFX7W4MJ9H1KB8SFZ`). What tool discovery the stdio adapter
 should expose.
 
@@ -1147,7 +1148,16 @@ or one ticket, what it does about a store other clones cannot read yet, and how
 `check` reports a store caught halfway. Nothing needs it until there is a schema
 2, and nothing should bump the schema before it exists.
 
-Nine questions have left this list. The six that went before this section
+**Q9** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`). Whether git-ticket ships a Git merge
+driver for ticket files. Two agents each adding a ticket merge cleanly and two
+editing the same ticket do not, which 7.1 hands to Git and leaves there. A driver
+stays inside the 7.4 promise, because Git invokes the driver and the driver runs
+no Git command itself. It would have to say which fields merge by union, which
+are last-writer-wins, and which must always conflict, and how a user installs
+one, since a driver needs both a `.gitattributes` entry and a `git config` line
+that a repository cannot set for itself.
+
+Ten questions have left this list. The six that went before this section
 stopped renumbering had the numbers close up behind them, which is why a ticket
 closed back then can cite a number that now means something else:
 `TKT-01M1F8XG6KXN6QXYWF6EHVB88P` calls itself question 7, and so does the parent
@@ -1189,6 +1199,19 @@ sets `claim_expiry: null`, so no store had an expiry to lose. The richer answer,
 a `--renew` flag that extends a claim by the amount it was first given, was
 ruled out by the file format rather than by taste. The claim stores two instants
 and never the duration between them.
+
+Q3, whether a later release adds sync helpers around ordinary Git commands, is
+answered no, and two independent mechanisms had answered it before anyone sat
+down to decide. The library side is 7.4. A sync helper means adding `fetch` or
+`push` to the enumerated table, and `TestGitCommandsAreReadOnly` holds the source
+to that table, so the addition cannot happen quietly. The workflow side is newer.
+The multi-agent friction that would justify a helper did arrive, and what
+absorbed it was a process rule rather than a tool. Work lands on `main` through a
+pull request, and pushing to `main` is forbidden outright, so a `git ticket sync`
+would automate the fetch, rebase, and push this project now tells its own agents
+not to do. Phase 4 no longer holds a slot for one. What the friction did raise is
+Q9, which is a different question, because merging two edits of one ticket needs
+no network and no writing Git command.
 
 Two were settled during Phase 1, before any reader had shipped, so adding
 `status_reason` to schema 1 cost no compatibility. Where a `blocked` reason

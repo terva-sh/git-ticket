@@ -329,11 +329,12 @@ func TestACIndexCountsCheckboxesNotLines(t *testing.T) {
 	}
 }
 
-func TestACWantsExactlyOneOperation(t *testing.T) {
+// TestACWantsAtLeastOneOperation covers the one thing still refused now that
+// the operations combine: an invocation that asks for nothing.
+func TestACWantsAtLeastOneOperation(t *testing.T) {
 	dir := newStore(t)
 	id := ticketID(t, createTicket(t, dir))
 
-	// None of the three.
 	got := runCLI(t, dir, nil, "--json", "ac", id, "--actor", "human:sothr")
 	if got.code != exitError {
 		t.Fatal("ac with no operation should be refused")
@@ -341,17 +342,91 @@ func TestACWantsExactlyOneOperation(t *testing.T) {
 	if code := errCode(t, got); code != codeUsage {
 		t.Errorf("code = %v, want %s", code, codeUsage)
 	}
+	// The message names every operation, because a caller who typed none of
+	// them needs the list rather than a complaint.
+	msg := decode(t, got.stdout)["error"].(map[string]any)["message"].(string)
+	for _, flag := range []string{"--add", "--check", "--uncheck", "--remove"} {
+		if !strings.Contains(msg, flag) {
+			t.Errorf("the message should name %s: %q", flag, msg)
+		}
+	}
+}
 
-	// Two of the three, which is a mistake worth naming rather than
-	// resolving by precedence.
-	got = runCLI(t, dir, nil, "--json", "ac", id, "--add", "x", "--check", "1",
+// TestChecklistOperationsCombine is the contract this command now offers: every
+// index means the item the caller read when they typed it, whatever else is in
+// the same invocation.
+//
+// The ordering is what makes that true. Checks move nothing, removals renumber
+// everything below them so they run highest first, and adds append last. Get it
+// wrong and `--check 3 --remove 1` ticks the wrong box.
+func TestChecklistOperationsCombine(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir,
+		"--ac", "one", "--ac", "two", "--ac", "three", "--ac", "four"))
+
+	got := runCLI(t, dir, nil, "ac", id, "--check", "3", "--remove", "1",
+		"--remove", "4", "--add", "five", "--actor", "human:sothr")
+	if got.code != exitOK {
+		t.Fatalf("combined operations: %s", got.stderr)
+	}
+
+	items := checklistOf(t, dir, id, "acceptanceCriteria")
+	want := []struct {
+		text    string
+		checked bool
+	}{
+		{"two", false},
+		{"three", true},
+		{"five", false},
+	}
+	if len(items) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(items), len(want), items)
+	}
+	for i, w := range want {
+		it := items[i].(map[string]any)
+		if it["text"] != w.text || it["checked"] != w.checked {
+			t.Errorf("item %d = %v, want %q checked=%v", i+1, it, w.text, w.checked)
+		}
+	}
+}
+
+// TestChecklistOperationsAreOneWrite covers the atomicity runUpdate already
+// promises. One bad index in a combined invocation leaves the ticket alone
+// rather than applying the operations that came before it.
+func TestChecklistOperationsAreOneWrite(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir, "--ac", "one", "--ac", "two"))
+	before, _ := showTicket(t, dir, id)["revision"].(string)
+
+	got := runCLI(t, dir, nil, "--json", "ac", id, "--check", "1", "--check", "9",
 		"--actor", "human:sothr")
 	if got.code != exitError {
-		t.Fatal("ac with two operations should be refused")
+		t.Fatal("an index past the end should refuse the whole invocation")
 	}
-	msg := decode(t, got.stdout)["error"].(map[string]any)["message"].(string)
-	if !strings.Contains(msg, "--add") || !strings.Contains(msg, "--check") {
-		t.Errorf("the message should name both flags: %q", msg)
+	if code := errCode(t, got); code != "invalid_field" {
+		t.Errorf("code = %v, want invalid_field", code)
+	}
+
+	if after, _ := showTicket(t, dir, id)["revision"].(string); after != before {
+		t.Error("a refused invocation still wrote to the ticket")
+	}
+	if items := checklistOf(t, dir, id, "acceptanceCriteria"); items[0].(map[string]any)["checked"] != false {
+		t.Error("the valid half of a refused invocation was applied")
+	}
+}
+
+// TestChecklistRemoveDeletesAnItem is the operation ac and dod lacked: a
+// criterion that turned out to be wrong could be unchecked but never dropped.
+func TestChecklistRemoveDeletesAnItem(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir, "--ac", "keep", "--ac", "wrong"))
+
+	if got := runCLI(t, dir, nil, "ac", id, "--remove", "2", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("remove: %s", got.stderr)
+	}
+	items := checklistOf(t, dir, id, "acceptanceCriteria")
+	if len(items) != 1 || items[0].(map[string]any)["text"] != "keep" {
+		t.Errorf("items = %v, want keep alone", items)
 	}
 }
 

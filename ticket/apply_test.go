@@ -623,6 +623,133 @@ func TestCreateTrimsBodySectionsItSeeds(t *testing.T) {
 	}
 }
 
+// TestRemoveChecklistItem covers the operation ac and dod lacked entirely: a
+// criterion that turned out to be wrong could be unchecked but never deleted.
+func TestRemoveChecklistItem(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Three criteria, one of them wrong")
+	for _, text := range []string{"first", "second", "third"} {
+		mustApply(t, s, tk.ID, AddChecklistItem{Section: AcceptanceCriteria, Text: text})
+	}
+
+	res := mustApply(t, s, tk.ID, RemoveChecklistItem{Section: AcceptanceCriteria, Index: 2})
+	items := Checklist(res.Ticket.Body.AcceptanceCriteria)
+	if len(items) != 2 || items[0].Text != "first" || items[1].Text != "third" {
+		t.Fatalf("items = %+v, want first and third", items)
+	}
+
+	// What was third is now second, which is the renumbering that makes a
+	// caller removing two indexes have to go highest first.
+	res = mustApply(t, s, tk.ID, RemoveChecklistItem{Section: AcceptanceCriteria, Index: 2})
+	if items := Checklist(res.Ticket.Body.AcceptanceCriteria); len(items) != 1 || items[0].Text != "first" {
+		t.Errorf("items = %+v, want first alone", items)
+	}
+
+	// An index past the end says how many there are, like SetChecklistItem.
+	_, err := s.Apply(context.Background(), tk.ID,
+		RemoveChecklistItem{Section: AcceptanceCriteria, Index: 9}, ApplyOptions{Actor: testActor})
+	if CodeOf(err) != CodeInvalidField {
+		t.Errorf("err = %v, want %s", err, CodeInvalidField)
+	}
+	_, err = s.Apply(context.Background(), tk.ID,
+		RemoveChecklistItem{Section: AcceptanceCriteria, Index: 0}, ApplyOptions{Actor: testActor})
+	if CodeOf(err) != CodeInvalidField {
+		t.Errorf("index 0 = %v, want %s", err, CodeInvalidField)
+	}
+}
+
+// TestRemoveTheLastItemUnderProseRoundTrips is the case that made the removal
+// trim blank lines. A section holding prose above its list keeps the prose, and
+// dropping the last checkbox must not leave the separating blank line behind,
+// because the parser strips those and the bytes would stop round-tripping.
+func TestRemoveTheLastItemUnderProseRoundTrips(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Prose above the list")
+
+	mustApply(t, s, tk.ID, AddChecklistItem{Section: AcceptanceCriteria, Text: "the only one"})
+
+	// Put prose above the list the way a person editing the file would.
+	cur, err := s.Get(context.Background(), tk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur.Body.AcceptanceCriteria = "Measured on an empty cache.\n\n" + cur.Body.AcceptanceCriteria
+	if err := os.WriteFile(cur.Path, Render(cur), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := mustApply(t, s, tk.ID, RemoveChecklistItem{Section: AcceptanceCriteria, Index: 1})
+	if got := res.Ticket.Body.AcceptanceCriteria; got != "Measured on an empty cache." {
+		t.Errorf("section = %q, want the prose with no trailing blank", got)
+	}
+
+	data, err := os.ReadFile(res.Ticket.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := Parse(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got := string(Render(again)); got != string(data) {
+		t.Errorf("removing the last item broke the round trip\n%s", diffLines(string(data), got))
+	}
+}
+
+// TestCreateSeedsTheChecklists covers filing a ticket with its criteria already
+// written. The bytes have to match what repeated AddChecklistItem calls would
+// have produced, or a store would carry two spellings of the same list.
+func TestCreateSeedsTheChecklists(t *testing.T) {
+	s := newTestStore(t)
+
+	seeded, err := s.Create(context.Background(), CreateOptions{
+		Title:              "Seeded",
+		AcceptanceCriteria: []string{"The verifier accepts either key", "New tokens use the newer key"},
+		DefinitionOfDone:   []string{"Tests pass"},
+		Actor:              testActor,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if got := Checklist(seeded.Ticket.Body.AcceptanceCriteria); len(got) != 2 {
+		t.Fatalf("got %d criteria, want 2: %+v", len(got), got)
+	}
+	if got := Checklist(seeded.Ticket.Body.DefinitionOfDone); len(got) != 1 {
+		t.Fatalf("got %d dod items, want 1: %+v", len(got), got)
+	}
+
+	// The same list built the other way is the same bytes.
+	built := mustCreate(t, s, "Built")
+	mustApply(t, s, built.ID, AddChecklistItem{Section: AcceptanceCriteria, Text: "The verifier accepts either key"})
+	res := mustApply(t, s, built.ID, AddChecklistItem{Section: AcceptanceCriteria, Text: "New tokens use the newer key"})
+	if res.Ticket.Body.AcceptanceCriteria != seeded.Ticket.Body.AcceptanceCriteria {
+		t.Errorf("seeding and adding disagree\nseeded: %q\nbuilt:  %q",
+			seeded.Ticket.Body.AcceptanceCriteria, res.Ticket.Body.AcceptanceCriteria)
+	}
+
+	// An empty criterion refuses the whole create, so no half-built ticket is
+	// filed. AddChecklistItem refuses the same input for the same reason.
+	before, err := s.List(context.Background(), Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Create(context.Background(), CreateOptions{
+		Title:              "Refused",
+		AcceptanceCriteria: []string{"fine", "   "},
+		Actor:              testActor,
+	})
+	if CodeOf(err) != CodeInvalidField {
+		t.Errorf("err = %v, want %s", err, CodeInvalidField)
+	}
+	after, err := s.List(context.Background(), Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Errorf("a refused create left a ticket behind: %d then %d", len(before), len(after))
+	}
+}
+
 func TestDependencyMutationsRefuseTheImpossible(t *testing.T) {
 	s := newTestStore(t)
 	a := mustCreate(t, s, "Cycle member A")

@@ -559,7 +559,12 @@ is not an operation the API offers.
 - `init`, `create`, `update`
 - `status`, `claim`, `release`
 - `link` and `unlink` for dependencies and references
-- `ac` and `dod` to add, check, and uncheck criteria items
+- `ac` and `dod` to add, check, uncheck, and remove criteria items. Every
+  operation repeats and they combine in one call, which lands as one write or
+  none of it. Every index means the item the caller read when they typed it:
+  checks and unchecks move nothing, removals apply highest first so the lower
+  indexes still point where they did, and adds append last. A removal index
+  named twice is applied once, because it names one item
 - `note` and `comment` to append
 - `plan` and `summary` to set. Each replaces rather than appends, because each
   is one statement rather than a log: a plan says how the work will go and a
@@ -876,15 +881,15 @@ git ticket list   [--status S --type T --priority P --label L --assignee A --mil
 git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
-git ticket create --title T [--type --priority --label --assignee --parent --depends-on --description --plan]
-git ticket update ID [--title --type --priority --milestone --parent --add-label --remove-label --assign --unassign]
+git ticket create --title T [--type --priority --label --assignee --milestone --parent --depends-on --description --plan --ac --dod]
+git ticket update ID [--title --type --priority --description --milestone --parent --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
 git ticket release ID
 git ticket link   ID [--depends-on OTHER | --ref proposal:x [--path P]]
 git ticket unlink ID [--depends-on OTHER | --ref proposal:x]
-git ticket ac     ID [--add TEXT | --check N | --uncheck N]
-git ticket dod    ID [--add TEXT | --check N | --uncheck N]
+git ticket ac     ID [--add TEXT] [--check N] [--uncheck N] [--remove N]
+git ticket dod    ID [--add TEXT] [--check N] [--uncheck N] [--remove N]
 git ticket plan   ID TEXT
 git ticket note   ID TEXT
 git ticket comment ID TEXT

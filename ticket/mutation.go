@@ -522,13 +522,33 @@ func (m AddChecklistItem) apply(t *Ticket, env mutEnv) error {
 	if text == "" {
 		return &Error{Code: CodeInvalidField, Message: "an empty checklist item", Ticket: t.ID, Field: string(m.Section)}
 	}
-	line := "- [ ] " + text
+	line := uncheckedItem(text)
 	if *target == "" {
 		*target = line
 		return nil
 	}
 	*target += "\n" + line
 	return nil
+}
+
+// uncheckedItem renders one new checklist line. Seeding a section at create and
+// building one by repeated adds go through here, so the two cannot drift into
+// producing different bytes for the same list.
+func uncheckedItem(text string) string { return "- [ ] " + text }
+
+// checklistSection renders seed items as a section body. An empty item is the
+// same mistake AddChecklistItem refuses, and it is refused here for the same
+// reason: a blank checkbox is a criterion nobody can meet or check off.
+func checklistSection(items []string) (string, error) {
+	lines := make([]string, 0, len(items))
+	for _, item := range items {
+		text := strings.TrimSpace(item)
+		if text == "" {
+			return "", codedError(CodeInvalidField, "an empty checklist item")
+		}
+		lines = append(lines, uncheckedItem(text))
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 // SetChecklistItem checks or unchecks item Index, counting from one in the
@@ -545,6 +565,34 @@ func (m SetChecklistItem) apply(t *Ticket, env mutEnv) error {
 		return err
 	}
 	updated, err := setChecklistItem(*target, m.Index, m.Checked)
+	if err != nil {
+		if e, ok := err.(*Error); ok {
+			e.Ticket = t.ID
+			e.Field = string(m.Section)
+		}
+		return err
+	}
+	*target = updated
+	return nil
+}
+
+// RemoveChecklistItem deletes item Index, counting from one in the order the
+// items appear.
+//
+// Removing an item renumbers every item after it. A caller removing more than
+// one therefore has to apply them highest first, or the second index means a
+// different item than the one it read. runChecklist does that ordering.
+type RemoveChecklistItem struct {
+	Section ChecklistSection
+	Index   int
+}
+
+func (m RemoveChecklistItem) apply(t *Ticket, env mutEnv) error {
+	target, err := m.Section.field(&t.Body)
+	if err != nil {
+		return err
+	}
+	updated, err := removeChecklistItem(*target, m.Index)
 	if err != nil {
 		if e, ok := err.(*Error); ok {
 			e.Ticket = t.ID
@@ -600,6 +648,31 @@ func setChecklistItem(text string, index int, checked bool) (string, error) {
 		}
 		lines[i] = m[1] + mark + m[3] + m[4]
 		return strings.Join(lines, "\n"), nil
+	}
+	return "", codedError(CodeInvalidField, "there is no item %d; the section has %d", index, seen)
+}
+
+func removeChecklistItem(text string, index int) (string, error) {
+	if index < 1 {
+		return "", codedError(CodeInvalidField, "checklist items count from 1")
+	}
+	lines := strings.Split(text, "\n")
+	seen := 0
+	for i, line := range lines {
+		if checkboxLine.FindStringSubmatch(line) == nil {
+			continue
+		}
+		seen++
+		if seen != index {
+			continue
+		}
+		// The full slice expression forces a copy, so this does not write
+		// through into the caller's backing array.
+		kept := append(lines[:i:i], lines[i+1:]...)
+		// Dropping the last item under a section that also holds prose would
+		// otherwise leave the blank line that separated them, and the parser
+		// strips those, so the bytes would not survive a round trip.
+		return trimBlankLines(kept), nil
 	}
 	return "", codedError(CodeInvalidField, "there is no item %d; the section has %d", index, seen)
 }

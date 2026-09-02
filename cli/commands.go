@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -26,6 +27,27 @@ func (l *stringList) Set(v string) error {
 		return fmt.Errorf("an empty value")
 	}
 	*l = append(*l, v)
+	return nil
+}
+
+// intList collects a repeated numeric flag, such as --check. Without it the
+// last value would win, and `--check 1 --check 3` would silently tick one box.
+type intList []int
+
+func (l *intList) String() string {
+	parts := make([]string, len(*l))
+	for i, v := range *l {
+		parts[i] = strconv.Itoa(v)
+	}
+	return strings.Join(parts, ",")
+}
+
+func (l *intList) Set(v string) error {
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fmt.Errorf("%q is not a number", v)
+	}
+	*l = append(*l, n)
 	return nil
 }
 
@@ -175,10 +197,13 @@ func runCreate(ctx *cmdContext, args []string) error {
 		priority    string
 		description string
 		plan        string
+		milestone   string
 		parent      string
 		labels      stringList
 		assignees   stringList
 		dependsOn   stringList
+		ac          stringList
+		dod         stringList
 	)
 	rest, err := ctx.parseFlags("create", args, func(fs *flag.FlagSet) {
 		fs.StringVar(&title, "title", "", "what the ticket is about")
@@ -186,10 +211,13 @@ func runCreate(ctx *cmdContext, args []string) error {
 		fs.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
 		fs.StringVar(&description, "description", "", "the Description section")
 		fs.StringVar(&plan, "plan", "", "the Implementation plan section")
+		fs.StringVar(&milestone, "milestone", "", "a milestone")
 		fs.StringVar(&parent, "parent", "", "the epic or ticket this belongs to")
 		fs.Var(&labels, "label", "a label, repeatable")
 		fs.Var(&assignees, "assignee", "an assignee, repeatable")
 		fs.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
+		fs.Var(&ac, "ac", "an acceptance criterion, repeatable")
+		fs.Var(&dod, "dod", "a definition of done item, repeatable")
 	})
 	if err != nil {
 		return err
@@ -221,10 +249,15 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Priority:           priority,
 		Description:        description,
 		ImplementationPlan: plan,
+		AcceptanceCriteria: ac,
+		DefinitionOfDone:   dod,
 		Labels:             labels,
 		Assignees:          assignees,
 		Dependencies:       deps,
 		Actor:              ctx.actor(s),
+	}
+	if milestone != "" {
+		opts.Milestone = &milestone
 	}
 	if parent != "" {
 		id, err := resolveID(s, parent)
@@ -370,22 +403,24 @@ func resolveID(s *ticket.Store, ref string) (string, error) {
 // half-applied update would leave a ticket in a state nobody typed.
 func runUpdate(ctx *cmdContext, args []string) error {
 	var (
-		fs        *flag.FlagSet
-		title     string
-		kind      string
-		priority  string
-		milestone string
-		parent    string
-		addLabels stringList
-		rmLabels  stringList
-		assign    stringList
-		unassign  stringList
+		fs          *flag.FlagSet
+		title       string
+		kind        string
+		priority    string
+		description string
+		milestone   string
+		parent      string
+		addLabels   stringList
+		rmLabels    stringList
+		assign      stringList
+		unassign    stringList
 	)
 	rest, err := ctx.parseFlags("update", args, func(f *flag.FlagSet) {
 		fs = f
 		f.StringVar(&title, "title", "", "a new title")
 		f.StringVar(&kind, "type", "", "task, bug, chore, spike, or epic")
 		f.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
+		f.StringVar(&description, "description", "", "a new Description section")
 		f.StringVar(&milestone, "milestone", "", "a milestone, or empty to clear it")
 		f.StringVar(&parent, "parent", "", "the epic or ticket this belongs to, or empty to clear it")
 		f.Var(&addLabels, "add-label", "a label to add, repeatable")
@@ -422,6 +457,9 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	}
 	if given["priority"] {
 		ms = append(ms, ticket.SetPriority{Priority: priority})
+	}
+	if given["description"] {
+		ms = append(ms, ticket.SetDescription{Text: description})
 	}
 	if given["milestone"] {
 		ms = append(ms, ticket.SetMilestone{Milestone: clearable(milestone)})
@@ -482,7 +520,7 @@ func clearable(v string) *string {
 // happened rather than only that something did.
 func changedFields(given map[string]bool, rmLabels, addLabels, unassign, assign stringList) []string {
 	var out []string
-	for _, name := range []string{"title", "type", "priority", "milestone", "parent"} {
+	for _, name := range []string{"title", "type", "priority", "description", "milestone", "parent"} {
 		if given[name] {
 			out = append(out, name)
 		}
@@ -864,23 +902,27 @@ func runDoD(ctx *cmdContext, args []string) error {
 	return runChecklist(ctx, "dod", ticket.DefinitionOfDone, args)
 }
 
-// runChecklist adds, checks, or unchecks one item.
+// runChecklist adds, checks, unchecks, and removes items, in any combination.
 //
 // The index counts checkbox lines from one, per plan 10.1, which is not the
 // same as a line number or an array position: a section may hold prose above
 // the list and still number its items 1, 2, 3.
+//
+// Every index means the item the caller read, and checklistOps orders the
+// operations so that stays true. The whole set lands as one write or none of
+// it does, which is the rule runUpdate already follows.
 func runChecklist(ctx *cmdContext, name string, section ticket.ChecklistSection, args []string) error {
 	var (
-		fs      *flag.FlagSet
-		add     string
-		check   int
-		uncheck int
+		add     stringList
+		check   intList
+		uncheck intList
+		remove  intList
 	)
 	rest, err := ctx.parseFlags(name, args, func(f *flag.FlagSet) {
-		fs = f
-		f.StringVar(&add, "add", "", "append an unchecked item")
-		f.IntVar(&check, "check", 0, "check item N, counting from 1")
-		f.IntVar(&uncheck, "uncheck", 0, "uncheck item N, counting from 1")
+		f.Var(&add, "add", "append an unchecked item, repeatable")
+		f.Var(&check, "check", "check item N, counting from 1, repeatable")
+		f.Var(&uncheck, "uncheck", "uncheck item N, counting from 1, repeatable")
+		f.Var(&remove, "remove", "remove item N, counting from 1, repeatable")
 	})
 	if err != nil {
 		return err
@@ -888,26 +930,16 @@ func runChecklist(ctx *cmdContext, name string, section ticket.ChecklistSection,
 	if len(rest) != 1 {
 		return usageErr("%s takes one ticket ID", name)
 	}
-	op, err := exactlyOne(flagsGiven(fs), name, "add", "check", "uncheck")
-	if err != nil {
-		return err
-	}
-
-	var m ticket.Mutation
-	switch op {
-	case "add":
-		m = ticket.AddChecklistItem{Section: section, Text: add}
-	case "check":
-		m = ticket.SetChecklistItem{Section: section, Index: check, Checked: true}
-	default:
-		m = ticket.SetChecklistItem{Section: section, Index: uncheck, Checked: false}
+	if len(add)+len(check)+len(uncheck)+len(remove) == 0 {
+		return usageErr("%s needs one of %s", name,
+			joinFlags([]string{"add", "check", "uncheck", "remove"}, "or"))
 	}
 
 	s, err := ctx.openStore()
 	if err != nil {
 		return err
 	}
-	res, err := ctx.applyTo(s, rest[0], m)
+	res, err := ctx.applyTo(s, rest[0], checklistOps(section, add, check, uncheck, remove))
 	if err != nil {
 		return err
 	}
@@ -920,6 +952,43 @@ func runChecklist(ctx *cmdContext, name string, section ticket.ChecklistSection,
 	fmt.Fprintf(ctx.out, "%s  %s\n", res.Ticket.ID, strings.ToLower(string(section)))
 	writeChecklist(ctx.out, sectionText(res.Ticket, section))
 	return nil
+}
+
+// checklistOps orders one invocation's operations so that every index means the
+// item the caller read when they typed it.
+//
+// Checks and unchecks move nothing, so they go first and see the original
+// numbering. Removals renumber everything below the item they drop, so they go
+// highest first, which leaves every lower index still pointing at what it did.
+// Adds append, so they cannot disturb an index and go last.
+//
+// A repeated removal index is applied once. Under the rule above, naming index
+// 2 twice names the same item twice, so honouring both would delete an item the
+// caller never pointed at.
+func checklistOps(section ticket.ChecklistSection, add stringList, check, uncheck, remove intList) ticket.Mutations {
+	ms := make(ticket.Mutations, 0, len(check)+len(uncheck)+len(remove)+len(add))
+	for _, n := range check {
+		ms = append(ms, ticket.SetChecklistItem{Section: section, Index: n, Checked: true})
+	}
+	for _, n := range uncheck {
+		ms = append(ms, ticket.SetChecklistItem{Section: section, Index: n, Checked: false})
+	}
+
+	highestFirst := append([]int(nil), remove...)
+	sort.Sort(sort.Reverse(sort.IntSlice(highestFirst)))
+	seen := make(map[int]bool, len(highestFirst))
+	for _, n := range highestFirst {
+		if seen[n] {
+			continue
+		}
+		seen[n] = true
+		ms = append(ms, ticket.RemoveChecklistItem{Section: section, Index: n})
+	}
+
+	for _, text := range add {
+		ms = append(ms, ticket.AddChecklistItem{Section: section, Text: text})
+	}
+	return ms
 }
 
 func sectionText(t *ticket.Ticket, section ticket.ChecklistSection) string {

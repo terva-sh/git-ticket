@@ -175,6 +175,17 @@ The number `ac --check N` takes counts checkbox lines from one, not lines and
 not array positions. A section can hold prose above its list and still number
 its items 1, 2, 3, and editing a box leaves that prose alone.
 
+`ac` and `dod` take `--add`, `--check`, `--uncheck`, and `--remove`, each
+repeatable and all combinable in one call that lands as one write. Every index
+means the item you read when you typed it, so
+`ac ID --check 3 --remove 1 --add "a fourth"` ticks the third box you can see,
+drops the first, and appends. Removals run highest first for that reason, and
+naming one twice removes one item.
+
+`create` seeds the same two sections with `--ac` and `--dod`, both repeatable,
+so a ticket can be filed complete in one command rather than one call per
+criterion.
+
 `link` takes one of `--depends-on` or `--ref`, and `--path` goes with the
 second, because a path with no reference names nothing. `unlink` is the reverse,
 and removing something that is not there succeeds rather than complaining.

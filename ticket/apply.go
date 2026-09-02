@@ -127,6 +127,12 @@ type CreateOptions struct {
 	// ImplementationPlan seeds the plan section. Writing it after the fact is
 	// SetImplementationPlan.
 	ImplementationPlan string
+	// AcceptanceCriteria and DefinitionOfDone seed the two checkbox sections,
+	// unchecked and in the order given. Seeding them here rather than through
+	// repeated AddChecklistItem calls keeps a filed ticket to one write and one
+	// revision.
+	AcceptanceCriteria []string
+	DefinitionOfDone   []string
 	Actor              Actor
 	// Entropy is the source for the ID's random half. Nil means crypto/rand.
 	Entropy io.Reader
@@ -202,6 +208,17 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		schema = SchemaVersion
 	}
 
+	// Rendered before the ticket exists, so an empty criterion refuses the
+	// whole create rather than leaving a filed ticket with half its checklist.
+	ac, err := checklistSection(o.AcceptanceCriteria)
+	if err != nil {
+		return nil, err
+	}
+	dod, err := checklistSection(o.DefinitionOfDone)
+	if err != nil {
+		return nil, err
+	}
+
 	t := &Ticket{
 		Schema:       schema,
 		ID:           id,
@@ -224,6 +241,8 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		// not survive the round trip plan 5.3 requires.
 		Body: Body{
 			Description:        strings.TrimSpace(o.Description),
+			AcceptanceCriteria: ac,
+			DefinitionOfDone:   dod,
 			ImplementationPlan: strings.TrimSpace(o.ImplementationPlan),
 		},
 	}

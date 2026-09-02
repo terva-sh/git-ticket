@@ -1302,6 +1302,30 @@ order, so a rebuild differs from an identical input. The index is the separable
 half and costs the format nothing, which is the argument whoever settles this
 has to answer rather than inherit.
 
+**What counts as a store** (`TKT-01M1HJTCYTZZHGGPCXT2SAJMFR`). Nothing decides
+what makes a directory a store, so any directory that exists is one. `Open`
+returns `store_not_found` only when its path is missing or is not a directory,
+and a missing `config.yml` falls through to the defaults in 4.1, so opening an
+empty directory yields a store with no tickets rather than an error. The CLI
+inherits it, and `--store DIR` at a directory holding nothing answers
+`ticket-list` with an empty array and exit 0. A typo therefore answers "no
+tickets" where it should answer "no store", which is the one wrong answer that
+reads exactly like a right one. An agent that lists and sees nothing concludes
+there is no work.
+
+The markers exist already. `init` writes `config.yml`, `tickets/` and `archive/`
+under `.tickets`, and `Discover` walks up looking for that name, so 4 is the
+definition everywhere except the check at open time. What has to be decided is
+which marker is the contract, because that is a format promise rather than an
+implementation detail. Requiring `config.yml` is the cheapest test and the
+strictest, and it stops a store whose config was deleted from opening at all.
+Requiring `tickets/` describes the store better and survives a missing config,
+which 4.1 already treats as defaults. Requiring the name `.tickets` would break
+`--store` pointed at a fixture directory, which the corpus relies on. Also open
+is whether the rule belongs to `Open` or only to the CLI's store resolution,
+since a caller passing an explicit path in Go has said what it means and a
+person typing `--store` has not.
+
 Eleven questions have left this list. They were numbered once, and the numbering
 is the thing this section gave up. A number has to be chosen, and it collided
 twice. Two settled questions both called themselves question 7, the module path

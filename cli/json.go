@@ -140,6 +140,7 @@ type ticketJSON struct {
 	Unknown      map[string]any  `json:"unknown"`
 	Body         bodyJSON        `json:"body"`
 	Checklists   checklistsJSON  `json:"checklists"`
+	Comments     []entryJSON     `json:"comments"`
 	Readiness    readinessJSON   `json:"readiness"`
 }
 
@@ -221,6 +222,20 @@ type checklistItemJSON struct {
 	Text    string `json:"text"`
 }
 
+// entryJSON is one comment, split out of body.comments so a consumer can draw a
+// thread without parsing Markdown. Like checklists it is derived and never the
+// other way round: body.comments stays the whole section verbatim.
+//
+// actor and at are null for an entry somebody typed without the stamp `comment`
+// writes. That entry is still a comment a person left, so it comes back with
+// its text rather than being dropped.
+type entryJSON struct {
+	Index int     `json:"index"`
+	Actor *string `json:"actor"`
+	At    *string `json:"at"`
+	Text  string  `json:"text"`
+}
+
 func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticketJSON {
 	out := &ticketJSON{
 		ID:           t.ID,
@@ -259,6 +274,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 			AcceptanceCriteria: checklist(t.Body.AcceptanceCriteria),
 			DefinitionOfDone:   checklist(t.Body.DefinitionOfDone),
 		},
+		Comments: entries(t.Body.Comments),
 		Readiness: readinessJSON{
 			IsReady:              r.Ready,
 			IsBlocked:            r.Blocked,
@@ -333,6 +349,22 @@ func checklist(text string) []checklistItemJSON {
 	out := make([]checklistItemJSON, 0, len(items))
 	for i, item := range items {
 		out = append(out, checklistItemJSON{Index: i + 1, Checked: item.Checked, Text: item.Text})
+	}
+	return out
+}
+
+// entries is the derived view of the comments section: one element per stamped
+// block, numbered from one the way a person would count them.
+func entries(text string) []entryJSON {
+	found := ticket.Entries(text)
+	out := make([]entryJSON, 0, len(found))
+	for _, e := range found {
+		out = append(out, entryJSON{
+			Index: e.Index,
+			Actor: optionalString(e.Actor),
+			At:    optionalString(e.At),
+			Text:  e.Text,
+		})
 	}
 	return out
 }

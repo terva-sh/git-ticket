@@ -133,6 +133,112 @@ func TestReject(t *testing.T) {
 	}
 }
 
+// TestEntriesReadsAStampedLog covers the derivation behind the comments view.
+// It is a reading of the section text and never the other way round, like
+// Checklist, so the two cannot disagree about what a ticket says.
+func TestEntriesReadsAStampedLog(t *testing.T) {
+	const log = "**human:sothr** at 2026-09-30T00:00:00Z\n\n" +
+		"Second pair of eyes wanted.\n\n" +
+		"**agent:terva/s1** at 2026-09-30T01:00:00Z\n\n" +
+		"Looks right to me.\nAcross two lines."
+
+	got := Entries(log)
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2: %+v", len(got), got)
+	}
+	if got[0].Index != 1 || got[0].Actor != "human:sothr" ||
+		got[0].At != "2026-09-30T00:00:00Z" || got[0].Text != "Second pair of eyes wanted." {
+		t.Errorf("first entry = %+v", got[0])
+	}
+	// A blank line inside an entry belongs to that entry, not to the next one.
+	if got[1].Index != 2 || got[1].Actor != "agent:terva/s1" ||
+		got[1].Text != "Looks right to me.\nAcross two lines." {
+		t.Errorf("second entry = %+v", got[1])
+	}
+
+	if Entries("") != nil || Entries("   \n\n") != nil {
+		t.Error("an empty section has no entries")
+	}
+}
+
+// TestEntriesKeepsWhatAPersonHandWrote is the case the format has to survive.
+// A ticket is meant to be editable, so somebody will write prose into Comments
+// without the stamp this tool emits. Dropping it would lose a comment a person
+// actually left, so it comes back with no actor and no time instead.
+func TestEntriesKeepsWhatAPersonHandWrote(t *testing.T) {
+	got := Entries("Just a line somebody typed.")
+	if len(got) != 1 {
+		t.Fatalf("got %d entries, want 1: %+v", len(got), got)
+	}
+	if got[0].Actor != "" || got[0].At != "" {
+		t.Errorf("an unstamped entry should carry neither: %+v", got[0])
+	}
+	if got[0].Text != "Just a line somebody typed." {
+		t.Errorf("text = %q", got[0].Text)
+	}
+
+	// Prose above a stamped entry is its own entry, and the numbering runs
+	// over both.
+	mixed := Entries("Hand-written preamble.\n\n" +
+		"**human:sothr** at 2026-09-30T00:00:00Z\n\nStamped.")
+	if len(mixed) != 2 {
+		t.Fatalf("got %d entries, want 2: %+v", len(mixed), mixed)
+	}
+	if mixed[0].Actor != "" || mixed[0].Text != "Hand-written preamble." || mixed[0].Index != 1 {
+		t.Errorf("first = %+v", mixed[0])
+	}
+	if mixed[1].Actor != "human:sothr" || mixed[1].Text != "Stamped." || mixed[1].Index != 2 {
+		t.Errorf("second = %+v", mixed[1])
+	}
+
+	// The other side of the same rule, and the one worth stating. An entry runs
+	// to the next stamp, so prose appended below a stamped entry joins it and
+	// reads as that author's. Splitting on the blank line would not fix the
+	// attribution, because the fragment sits under that stamp either way, and it
+	// would take every multi-paragraph comment apart.
+	trailing := Entries("**human:sothr** at 2026-09-30T00:00:00Z\n\n" +
+		"Stamped.\n\nAppended later by hand.")
+	if len(trailing) != 1 {
+		t.Fatalf("got %d entries, want 1: %+v", len(trailing), trailing)
+	}
+	if trailing[0].Text != "Stamped.\n\nAppended later by hand." {
+		t.Errorf("trailing prose should join the entry above it: %q", trailing[0].Text)
+	}
+}
+
+// TestEntriesMatchesWhatTheToolWrites ties the reading to the writer. Comments
+// and Notes both go through appendEntry, so a change to the stamp that this
+// derivation cannot read back fails here rather than in a consumer.
+func TestEntriesMatchesWhatTheToolWrites(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Two comments and a note")
+
+	mustApply(t, s, tk.ID, AppendComment{Text: "First question."})
+	res := mustApply(t, s, tk.ID, AppendComment{Text: "Second question."})
+
+	got := Entries(res.Ticket.Body.Comments)
+	if len(got) != 2 {
+		t.Fatalf("got %d comments, want 2:\n%s", len(got), res.Ticket.Body.Comments)
+	}
+	for i, want := range []string{"First question.", "Second question."} {
+		if got[i].Text != want {
+			t.Errorf("comment %d text = %q, want %q", i+1, got[i].Text, want)
+		}
+		if got[i].Actor != testActor.ID {
+			t.Errorf("comment %d actor = %q, want %q", i+1, got[i].Actor, testActor.ID)
+		}
+		if got[i].At == "" {
+			t.Errorf("comment %d carries no time", i+1)
+		}
+	}
+
+	// Notes use the same writer, so the same reading works on them.
+	res = mustApply(t, s, tk.ID, AppendNote{Text: "The skew is 40s."})
+	if notes := Entries(res.Ticket.Body.Notes); len(notes) != 1 || notes[0].Text != "The skew is 40s." {
+		t.Errorf("notes = %+v", notes)
+	}
+}
+
 // TestParsePreservesUnknowns pins the two drift behaviours of plan 5.4 and 5.2
 // that a round-trip test alone would not explain if it failed.
 func TestParsePreservesUnknowns(t *testing.T) {

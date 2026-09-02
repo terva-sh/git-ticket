@@ -328,6 +328,82 @@ func TestAbsentCollectionsAreEmptyArrays(t *testing.T) {
 	}
 }
 
+// TestCommentsAreDerivedFromTheSection pins the other derived view of plan
+// 10.1. body.comments stays the section as written and comments is the reading
+// of it, so a consumer draws a thread without parsing Markdown.
+//
+// The hand-written block is the case that matters. A ticket is a file a person
+// edits, so prose without the stamp comment writes still has to come back, with
+// a null actor and a null time rather than being dropped.
+func TestCommentsAreDerivedFromTheSection(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir))
+
+	// Written by hand, the way somebody editing the file would, and before any
+	// stamp so it stands as its own entry.
+	path := filepath.Join(dir, ".tickets", "tickets", id+".md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	section := "\n## Comments\n\nTyped straight into the file.\n"
+	if err := os.WriteFile(path, append(data, []byte(section)...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct{ actor, text string }{
+		{"human:sothr", "Second pair of eyes wanted."},
+		{"agent:terva/mieli", "Looks right to me.\nAcross two lines."},
+	} {
+		got := runCLI(t, dir, nil, "comment", id, c.text, "--actor", c.actor)
+		if got.code != exitOK {
+			t.Fatalf("comment: %s%s", got.stdout, got.stderr)
+		}
+	}
+
+	show := runCLI(t, dir, nil, "--json", "show", id)
+	if show.code != exitOK {
+		t.Fatalf("show: %s", show.stderr)
+	}
+	tk := decode(t, show.stdout)["ticket"].(map[string]any)
+
+	raw := tk["body"].(map[string]any)["comments"].(string)
+	if !strings.Contains(raw, "**human:sothr** at ") {
+		t.Errorf("body.comments should carry the section verbatim:\n%s", raw)
+	}
+
+	got := tk["comments"].([]any)
+	if len(got) != 3 {
+		t.Fatalf("got %d comments, want 3: %v", len(got), got)
+	}
+
+	first := got[0].(map[string]any)
+	if first["actor"] != nil || first["at"] != nil {
+		t.Errorf("an unstamped entry carries neither actor nor time: %v", first)
+	}
+	if first["index"].(float64) != 1 || first["text"] != "Typed straight into the file." {
+		t.Errorf("first = %v", first)
+	}
+
+	second := got[1].(map[string]any)
+	if second["index"].(float64) != 2 || second["actor"] != "human:sothr" {
+		t.Errorf("second = %v", second)
+	}
+	if second["at"] == nil {
+		t.Error("a comment the tool wrote carries a time")
+	}
+	if second["text"] != "Second pair of eyes wanted." {
+		t.Errorf("second text = %v", second["text"])
+	}
+
+	// The newline inside an entry belongs to that entry.
+	third := got[2].(map[string]any)
+	if third["index"].(float64) != 3 || third["actor"] != "agent:terva/mieli" ||
+		third["text"] != "Looks right to me.\nAcross two lines." {
+		t.Errorf("third = %v", third)
+	}
+}
+
 // TestBodyAndChecklistsAgree pins plan 10.1: body carries the section as
 // written and checklists is the derived view, with the index that ac and dod
 // take rather than an array position.

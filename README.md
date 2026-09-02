@@ -215,6 +215,12 @@ log. `plan` and `summary` set. Each is one statement rather than a log: a plan
 says how the work will go and a summary says where it landed, and a log of
 either is what the first two already are.
 
+`--json` splits that comment log back out as `comments`, one record with an
+actor, a time, and the text. An entry runs from its stamp to the next one, so a
+comment can have several paragraphs. Text with no stamp above it, which is what
+somebody editing the file by hand leaves, comes back with a null actor rather
+than being dropped.
+
 `files PATH` goes the other way, from a path to the tickets that recorded a
 reference to it. A reference is written by `link --ref X --path P`, so `files`
 reports what agents wrote and is only as complete as they were. Nothing derives
@@ -319,8 +325,9 @@ Phase 2 settled three more, all in the plan. Store precedence is `--store`, then
 `GIT_TICKET_STORE`, then discovery, and a named store that does not exist is an
 error rather than a reason to go looking elsewhere, per 12.1. Exit statuses are
 Git's: 0 or 1, with the detail in the error code, per 10.2. A ticket's JSON
-carries every body section as raw text and derives `checklists` from it, each
-item numbered the way `ac --check N` counts, per 10.1.
+carries every body section as raw text and derives two views from it, per 10.1:
+`checklists`, each item numbered the way `ac --check N` counts, and `comments`,
+one record per stamp so a reader draws a thread without parsing Markdown.
 
 Wiring `check` settled a fourth, recorded as 10.3. `--strict` moves no finding
 between `errors` and `warnings`, because those arrays report severity as the

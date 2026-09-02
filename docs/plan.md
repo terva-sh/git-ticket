@@ -703,7 +703,7 @@ answers.
     "definitionOfDone": "",
     "implementationPlan": "",
     "notes": "",
-    "comments": "",
+    "comments": "**human:sothr** at 2026-08-31T12:05:00Z\n\nSecond pair of eyes wanted.",
     "summary": "",
     "extra": [{ "heading": "Risks", "text": "…" }]
   },
@@ -714,6 +714,14 @@ answers.
     ],
     "definitionOfDone": []
   },
+  "comments": [
+    {
+      "index": 1,
+      "actor": "human:sothr",
+      "at": "2026-08-31T12:05:00Z",
+      "text": "Second pair of eyes wanted."
+    }
+  ],
   "readiness": {
     "isReady": false,
     "isBlocked": true,
@@ -739,6 +747,23 @@ is no question which one wins.
 lines only, so a consumer never computes it from an array position. A checklist
 section that also holds prose keeps that prose in `body` and leaves the indexes
 unmoved.
+
+The top-level `comments` is the other derived view, and runs the same way: it
+reads the stamps `comment` writes out of `body.comments`, which stays the whole
+section verbatim. A consumer draws a thread without parsing Markdown.
+
+An entry begins at a stamp and runs to the next one. A blank line inside an
+entry does not end it, because a comment may have several paragraphs. Prose with
+no stamp above it comes back as an entry with `actor` and `at` null rather than
+being dropped, because a ticket is a file a person edits and text somebody typed
+is still a comment they left. The consequence is that prose appended below a
+stamped entry joins that entry and reads as its author's. Splitting on the blank
+line would not fix the attribution, since the fragment sits under that stamp
+either way, and it would take every multi-paragraph comment apart.
+
+`notes` uses the same stamp, so the same reading applies to it. Only `comments`
+is carried in the contract, because a note is written for the ticket and a
+comment is written to somebody.
 
 ### 10.2 Exit statuses
 

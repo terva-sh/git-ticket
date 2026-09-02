@@ -627,6 +627,79 @@ func Checklist(text string) []ChecklistItem {
 	return out
 }
 
+// entryHeader matches the stamp appendEntry writes: the actor in bold, then the
+// instant. A line a person wrote by hand does not match, and the text under it
+// is kept as an entry carrying neither.
+var entryHeader = regexp.MustCompile(`^\*\*(.+?)\*\* at (\S+)\s*$`)
+
+// Entry is one stamped item in a log section. Notes and Comments are both
+// written by appendEntry, so both read back with Entries.
+type Entry struct {
+	// Index counts entries from one, in the order they appear.
+	Index int
+
+	// Actor and At come from the stamp, and are empty for an entry somebody
+	// wrote by hand without one. The format is meant to be hand-edited, so that
+	// is an ordinary case rather than a broken file, and dropping such an entry
+	// would lose a comment a person actually left.
+	Actor string
+	At    string
+
+	Text string
+}
+
+// Entries reads a log section back as records.
+//
+// It is a view over the raw text and runs one way only, like Checklist: the
+// section is the document and this is a reading of it, so the two cannot
+// disagree and there is no question which one wins.
+//
+// An entry runs from its stamp to the next stamp. A blank line inside one does
+// not end it, because a comment may have several paragraphs. The consequence is
+// that prose somebody appends by hand below a stamped entry joins that entry
+// and reads as its author's. Splitting on the blank line instead would not help:
+// the fragment still sits under that stamp and would still carry that actor,
+// and every multi-paragraph comment would come apart. This way the reading
+// matches what a person sees in the file, which is the same conclusion they
+// would draw from the Markdown.
+func Entries(text string) []Entry {
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+
+	var out []Entry
+	var cur *Entry
+	var body []string
+	flush := func() {
+		if cur == nil {
+			return
+		}
+		cur.Text = trimBlankLines(body)
+		cur.Index = len(out) + 1
+		out = append(out, *cur)
+		cur, body = nil, nil
+	}
+
+	for _, line := range strings.Split(text, "\n") {
+		if m := entryHeader.FindStringSubmatch(line); m != nil {
+			flush()
+			cur = &Entry{Actor: m[1], At: m[2]}
+			continue
+		}
+		if cur == nil {
+			// Prose ahead of any stamp is its own entry. A blank line is not,
+			// or the separator between two entries would start a third.
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			cur = &Entry{}
+		}
+		body = append(body, line)
+	}
+	flush()
+	return out
+}
+
 func setChecklistItem(text string, index int, checked bool) (string, error) {
 	if index < 1 {
 		return "", codedError(CodeInvalidField, "checklist items count from 1")

@@ -168,10 +168,3 @@ func TestParsePreservesUnknowns(t *testing.T) {
 func expectedPath(mdPath string) string {
 	return mdPath[:len(mdPath)-len(".md")] + ".expected.json"
 }
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}

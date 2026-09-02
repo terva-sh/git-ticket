@@ -313,16 +313,22 @@ machine reads is covered and the human output is not; and a store never upgrades
 itself, so a new binary cannot make a repository unreadable to a colleague still
 on the old one. The module stays `v0.x` until Phase 3 lands.
 
-What remains is deferred rather than open: seven questions in plan section 15,
+The parent hierarchy is settled too, in section 8. `list --parent ID` gives an
+epic's direct children and `list --parent none` gives the tickets with no parent,
+which is what a board needs for its top level. `deps` still walks `dependencies`
+alone, but when its answer is empty and the ticket has children it now names the
+count and points at that filter, because "It depends on nothing." is true and
+useless on an epic.
+
+That question shrank when it was run rather than argued. `list --json` already
+carried every `parent` edge, so the tree was always reconstructable from one
+call and nothing was blocked. What was missing was the asking, not the data,
+which is why the answer is a filter and not a new field on the ticket.
+
+What remains is deferred rather than open: six questions in plan section 15,
 filed as tickets in `.tickets/`. Run `git ticket list` to see them. A question
 keeps its number for life, so a settled one leaves a gap rather than shifting
 the rest, and each entry names the ULID of its ticket.
-
-Q7 arrived the way the useful ones do. Filing this repository's own Phase 3
-epic, with four slices under it, turned up a hole: the format validates a parent
-hierarchy it gives no way to walk. `list` does not filter on `parent`, and
-`deps` reads `dependencies`, so on an epic it reports that it depends on
-nothing, which is true and useless.
 
 Q8 arrived the same way, out of settling the compatibility policy. Ruling that a
 store never upgrades itself leaves the migration a person would run undesigned,

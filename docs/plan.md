@@ -463,22 +463,45 @@ not a user's repository.
 
 ## 8. Query surface
 
-- `list` with filters on status, type, priority, label, assignee, and milestone.
-  Within one filter the values are alternatives and across filters they all have
-  to hold. Archived tickets are left out unless the caller asks for them, by
-  filtering on the `archived` status or by asking for them outright, because a
-  list of work is about work that is still live
+- `list` with filters on status, type, priority, label, assignee, milestone, and
+  parent. Within one filter the values are alternatives and across filters they
+  all have to hold. Archived tickets are left out unless the caller asks for
+  them, by filtering on the `archived` status or by asking for them outright,
+  because a list of work is about work that is still live
 - `ready`: status `ready`, no live claim, and every dependency satisfied per 6.3.
   Only direct dependencies are read, so a dependency cycle cannot make this loop
 - `show` for one complete ticket
 - `search` over title, description, acceptance criteria, definition of done,
   notes, comments, summary, and references. Case-insensitive substring by
   default, `--regex` for RE2
-- `deps` for direct and transitive dependencies, `--dependents` for the reverse
+- `deps` for direct and transitive dependencies, `--dependents` for the reverse.
+  It walks `dependencies` and nothing else. When the answer is empty and the
+  ticket has children, the human output names the count and points at
+  `list --parent`, because "it depends on nothing" is true and useless on an
+  epic. That is a pointer to the other command, not a second edge kind in the
+  result, and `--json` does not carry it
 - `files PATH` for tickets referencing a path. This searches recorded `file:`
   references and is only as complete as the agents that wrote them. It is
   advisory and not derived from Git history, and the help text says so
 - `check`, described in section 10
+
+The parent filter answers what is under an epic, which is the one hierarchy
+question this format could record and not read back. It matches direct children
+only, and little is lost by that: `list` already returns every ticket with its
+`parent`, so a caller wanting a whole tree builds it from a single call. A
+filter that walked the hierarchy would have to precompute a descendant set
+before it could answer a question about one ticket, which is not what a filter
+is.
+
+`--parent none` selects the tickets that have no parent, which is what a board
+needs for its top level. `none` cannot be mistaken for an ID because every ID
+begins with `TKT-`. The library spells the same thing as an empty string, which
+is how the milestone filter already reads an absent value.
+
+The CLI resolves a parent the way it resolves every other ID, so a prefix works
+and an ID matching nothing is `ticket_not_found`. Filtering on a parent that
+does not exist is a mistake worth reporting, and a silent empty result reads
+exactly like an epic with no children.
 
 Search reads every file on every call. At the scale this format targets,
 hundreds to a few thousand tickets, that is a few milliseconds and needs no
@@ -792,7 +815,7 @@ check is skipped there and reports nothing, per 5.5.
 
 ```text
 git ticket init   [--instructions]
-git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M]
+git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P]
 git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
@@ -1102,17 +1125,6 @@ should expose.
 **Q5** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`). When Backlog.md import and a local
 view are worth building.
 
-**Q7** (`TKT-01M1FCMN7QEWM584N192NBC7TD`). How a caller reads the parent
-hierarchy back. Section 8 filters `list` on status, type, priority, label,
-assignee, and milestone, and `deps` walks `dependencies` rather than `parent`,
-so nothing lists the children of an epic. The field is settable in 12.1 and
-validated in 11 by `parent_missing` and `parent_cycle`, which makes this a hole
-rather than a decision: the format records a hierarchy it cannot show. Filing
-this repository's own Phase 3 epic is what found it. A `--parent` filter on
-`list` is the obvious answer and probably the right one, but `show` rendering
-children, and `deps --children`, are both defensible and the choice affects the
-JSON contract in 10.1.
-
 **Q8** (`TKT-01M1H9X166M1ATNK9S7ET26BVQ`). What an explicit schema migration
 looks like. 12.4 settles that a store never upgrades itself and moves only
 through a migration a person runs, which leaves that operation undesigned:
@@ -1121,7 +1133,7 @@ or one ticket, what it does about a store other clones cannot read yet, and how
 `check` reports a store caught halfway. Nothing needs it until there is a schema
 2, and nothing should bump the schema before it exists.
 
-Seven questions have left this list. The six that went before this section
+Eight questions have left this list. The six that went before this section
 stopped renumbering had the numbers close up behind them, which is why a ticket
 closed back then can cite a number that now means something else:
 `TKT-01M1F8XG6KXN6QXYWF6EHVB88P` calls itself question 7, and so does the parent
@@ -1134,9 +1146,22 @@ machine reads is covered and human output is not. A covered surface breaks only
 when something that worked stops working or changes meaning, so adding beside
 the old thing is always minor. The module version tracks the Go API alone, which
 makes a `schema` bump an ordinary minor release rather than a `/v2`. A store
-never upgrades itself. `v1.0.0` waits for Phase 3, because Q7 is a break we can
-already see coming and tagging a major immediately before spending it would
-teach a consumer that the number means nothing. Settling Q6 is what raised Q8.
+never upgrades itself. `v1.0.0` waits for Phase 3, because the parent hierarchy
+was a break we could already see coming and tagging a major immediately before
+spending it would teach a consumer that the number means nothing. Settling Q6 is
+what raised Q8.
+
+Q7, how a caller reads the parent hierarchy back, is answered in section 8 by a
+`parent` filter on `list`. Running the question before answering it is what
+shrank it. The data was never missing: `list` already returns every ticket with
+its `parent`, so a consumer could always rebuild the tree from one call. What
+was missing was a way to ask for one epic's children without pulling the whole
+store, and any way at all for a person at a terminal to ask. A filter is
+additive under 12.4, so it ships as a minor release and 10.1 does not move,
+which is what settled it against the two richer answers: `show` rendering
+children would put data derived from other files onto the ticket object, and
+`deps --children` would overload a command whose whole contract is that it walks
+`dependencies`.
 
 Two were settled during Phase 1, before any reader had shipped, so adding
 `status_reason` to schema 1 cost no compatibility. Where a `blocked` reason

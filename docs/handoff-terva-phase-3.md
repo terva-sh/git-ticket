@@ -236,18 +236,39 @@ stops. Publishing is the user's ordinary Git workflow.
 3. **What a card shows.** Deferred to slice 4 deliberately, because using the
    tools first is cheaper than guessing.
 
-## One cross-repo dependency
+## The parent hierarchy, settled
 
-The board will probably want to show an epic's children, and **the format
-cannot do that yet**. `parent` is settable and validated, with `parent_missing`
-and `parent_cycle` in `check`, but `list` has no `--parent` filter and `deps`
-walks `dependencies`, so asking an epic what is under it truthfully reports
-that it depends on nothing.
+The board will want to show an epic's children, and it can. This was the one
+cross-repo dependency in the original handoff, listed there as unsettled. It is
+done.
 
-This is deferred question 7 in git-ticket's `docs/plan.md` and is tracked as
-`TKT-01M1FCMN`. It is a hole rather than a decision, and the fix affects the
-JSON contract, so it is being settled in the plan first. It blocks nothing
-before slice 4. If your board design needs it, say so and it moves up.
+In the library, which is what your tools use:
+
+```go
+kids, err := st.List(ctx, ticket.Filter{Parent: []string{epicID}})
+roots, err := st.List(ctx, ticket.Filter{Parent: []string{""}})
+```
+
+An empty string means "has no parent", which is your board's top level. The CLI
+spells the same two `list --parent ID` and `list --parent none`.
+
+Direct children only, and that costs you nothing. `List` already returns every
+ticket with its `Parent`, so one unfiltered call gives you every edge and you
+build the whole tree yourself. Reach for the filter when you want one epic's
+children without walking the store again.
+
+The library resolves nothing: pass a full ID, and an ID the store does not hold
+is simply no match. The CLI does resolve, so `--parent` takes a prefix and an
+unknown one is `ticket_not_found` rather than an empty list.
+
+`deps` still walks `dependencies` and nothing else. When its answer is empty and
+the ticket has children, the human output names the count and points at the
+filter. `--json` does not carry that, so nothing in your tool path sees it.
+
+`10.1` did not move. The `ticket-list` envelope still carries exactly
+`schemaVersion`, `kind`, and `tickets`, which under 12.4 makes this additive and
+therefore a minor release. It is on `main` and needs a tag before you can import
+it, so say the word and one gets cut.
 
 ## Asking for a library change
 

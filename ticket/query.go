@@ -22,6 +22,15 @@ type Filter struct {
 	Labels    []string
 	Assignees []string
 	Milestone []string
+	// Parent selects the direct children of a ticket. An empty string matches
+	// the tickets that have no parent at all, which is what a board needs for
+	// its top level, and which the CLI spells --parent none.
+	//
+	// Direct children only, per plan section 8. A caller that wants a whole
+	// tree already has every parent edge from one List call, and walking the
+	// hierarchy here would mean precomputing a descendant set before this could
+	// answer a question about one ticket.
+	Parent []string
 	// IncludeArchived adds archived tickets to the result. They are left out by
 	// default, because a list of work is about work that is still live. Asking
 	// for the archived status explicitly also brings them in.
@@ -52,16 +61,21 @@ func (f Filter) matches(t *Ticket) bool {
 	if !matchesAny(f.Labels, t.Labels) || !matchesAny(f.Assignees, t.Assignees) {
 		return false
 	}
-	if len(f.Milestone) > 0 {
-		milestone := ""
-		if t.Milestone != nil {
-			milestone = *t.Milestone
-		}
-		if !matchesOne(f.Milestone, milestone) {
-			return false
-		}
+	if !matchesOne(f.Milestone, deref(t.Milestone)) ||
+		!matchesOne(f.Parent, deref(t.Parent)) {
+		return false
 	}
 	return true
+}
+
+// deref reads an optional field. A nil pointer and an empty string mean the
+// same thing here, that the ticket does not have one, which is what lets a
+// filter ask for the tickets with no milestone or no parent.
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // matchesOne reports whether value is among the wanted ones. No wanted values

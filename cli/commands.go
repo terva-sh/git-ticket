@@ -268,6 +268,12 @@ func runShow(ctx *cmdContext, args []string) error {
 	return nil
 }
 
+// parentNone is what a caller types to ask for the tickets that have no parent,
+// which is what a board needs for its top level. It cannot be mistaken for a
+// reference because every ID begins with TKT-. The library spells the same
+// thing as an empty string, per plan section 8.
+const parentNone = "none"
+
 // runList prints the tickets that match the filters.
 func runList(ctx *cmdContext, args []string) error {
 	var (
@@ -277,6 +283,7 @@ func runList(ctx *cmdContext, args []string) error {
 		labels    stringList
 		assignees stringList
 		milestone stringList
+		parent    stringList
 		archived  bool
 	)
 	rest, err := ctx.parseFlags("list", args, func(fs *flag.FlagSet) {
@@ -286,6 +293,7 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.Var(&labels, "label", "a label to match, repeatable")
 		fs.Var(&assignees, "assignee", "an assignee to match, repeatable")
 		fs.Var(&milestone, "milestone", "a milestone to match, repeatable")
+		fs.Var(&parent, "parent", "a parent whose children to list, or "+parentNone+" for tickets with no parent, repeatable")
 		fs.BoolVar(&archived, "archived", false, "include archived tickets")
 	})
 	if err != nil {
@@ -304,6 +312,23 @@ func runList(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
+	// A parent resolves like every other ID, so a prefix works and one that
+	// names nothing fails with ticket_not_found. Without this an unresolvable
+	// parent would return an empty list, which reads exactly like an epic that
+	// has no children.
+	parents := make([]string, 0, len(parent))
+	for _, p := range parent {
+		if p == parentNone {
+			parents = append(parents, "")
+			continue
+		}
+		id, err := resolveID(s, p)
+		if err != nil {
+			return err
+		}
+		parents = append(parents, id)
+	}
+
 	tickets, err := s.List(context.Background(), ticket.Filter{
 		Status:          status,
 		Type:            kind,
@@ -311,6 +336,7 @@ func runList(ctx *cmdContext, args []string) error {
 		Labels:          labels,
 		Assignees:       assignees,
 		Milestone:       milestone,
+		Parent:          parents,
 		IncludeArchived: archived,
 	})
 	if err != nil {
@@ -617,7 +643,42 @@ func runDeps(ctx *cmdContext, args []string) error {
 	if dependents {
 		empty = "Nothing depends on it."
 	}
+	// An epic answering "nothing" is true and useless, per plan section 8. When
+	// the answer is empty and the ticket has children, name them and the command
+	// that lists them. deps still walks dependencies and nothing else: this is a
+	// pointer to the other command, not a second edge kind in the result. The
+	// lookups happen here rather than above so that they cost nothing on the
+	// ordinary path, and --json never pays for them at all.
+	if len(tickets) == 0 && !ctx.g.json {
+		if hint := childHint(s, rest[0]); hint != "" {
+			empty += " " + hint
+		}
+	}
 	return ctx.writeTicketList(s, tickets, empty)
+}
+
+// childHint describes a ticket's children, to add to an otherwise empty deps
+// answer.
+//
+// It returns an empty string when the ticket has none, and also when anything
+// goes wrong. A hint is a courtesy and must never turn a working command into a
+// failing one. The count comes from the same filter the message tells the
+// caller to run, so the number they are given is the number they will see.
+func childHint(s *ticket.Store, ref string) string {
+	id, err := resolveID(s, ref)
+	if err != nil {
+		return ""
+	}
+	kids, err := s.List(context.Background(), ticket.Filter{Parent: []string{id}})
+	if err != nil || len(kids) == 0 {
+		return ""
+	}
+	noun, pronoun := "children", "them"
+	if len(kids) == 1 {
+		noun, pronoun = "child", "it"
+	}
+	return fmt.Sprintf("It has %d %s; run git ticket list --parent %s to see %s.",
+		len(kids), noun, id, pronoun)
 }
 
 // runSearch looks through the title, the body sections, and the references,

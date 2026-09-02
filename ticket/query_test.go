@@ -102,6 +102,78 @@ func TestListFilters(t *testing.T) {
 	}
 }
 
+// The hierarchy fixture, which is the only store in the corpus whose parent
+// links are all valid. parent-missing and parent-cycle are deliberately broken
+// and cannot show what a correct hierarchy reads like.
+const (
+	hierEpic       = "TKT-01K401AAB00000000000000001"
+	hierChildReady = "TKT-01K401AAB00000000000000002"
+	hierChildDone  = "TKT-01K401AAB00000000000000003"
+	hierGrandchild = "TKT-01K401AAB00000000000000004"
+)
+
+// TestListFiltersOnParent covers plan section 8: the parent filter matches
+// direct children, and an empty string matches the tickets that have no parent.
+//
+// Terva reads this through Filter rather than through the CLI, per the Phase 3
+// handoff, so the library owns the behaviour and gets its own test.
+func TestListFiltersOnParent(t *testing.T) {
+	s := openFixtureStore(t, "hierarchy")
+	ctx := context.Background()
+
+	list := func(f Filter) []string {
+		t.Helper()
+		got, err := s.List(ctx, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ids(got)
+	}
+
+	// Direct children only. The grandchild hangs off hierChildReady, so a
+	// filter that walked the hierarchy would return three here instead of two.
+	// That is the assertion separating a direct match from a descendant walk.
+	kids := list(Filter{Parent: []string{hierEpic}})
+	if len(kids) != 2 || !contains(kids, hierChildReady) || !contains(kids, hierChildDone) {
+		t.Errorf("children of the epic = %v, want the two direct ones", kids)
+	}
+	if contains(kids, hierGrandchild) {
+		t.Error("the grandchild is not a direct child of the epic")
+	}
+
+	// One level down, the grandchild is the direct child.
+	if got := list(Filter{Parent: []string{hierChildReady}}); len(got) != 1 || got[0] != hierGrandchild {
+		t.Errorf("children of the first child = %v, want the grandchild", got)
+	}
+
+	// An empty string asks for the tickets with no parent, which is what a
+	// board needs for its top level and what the CLI spells --parent none.
+	roots := list(Filter{Parent: []string{""}})
+	if len(roots) != 1 || roots[0] != hierEpic {
+		t.Errorf("parentless tickets = %v, want only the epic", roots)
+	}
+
+	// Within one filter the values are alternatives, so this is the epic's
+	// children plus the first child's.
+	both := list(Filter{Parent: []string{hierEpic, hierChildReady}})
+	if len(both) != 3 {
+		t.Errorf("two parents = %v, want all three descendants", both)
+	}
+
+	// Across filters they all have to hold.
+	done := list(Filter{Parent: []string{hierEpic}, Status: []string{StatusDone}})
+	if len(done) != 1 || done[0] != hierChildDone {
+		t.Errorf("done children of the epic = %v, want one", done)
+	}
+
+	// The library matches the stored value and resolves nothing. Turning a
+	// prefix into an ID is the CLI's job, per the resolveID comment there, so
+	// an ID this store does not hold is simply no match rather than an error.
+	if got := list(Filter{Parent: []string{"TKT-01K401AAB0000000000000009Z"}}); len(got) != 0 {
+		t.Errorf("an unknown parent matched %v, want nothing", got)
+	}
+}
+
 func TestSearch(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

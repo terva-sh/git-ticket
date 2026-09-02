@@ -384,6 +384,67 @@ func TestDepsOutput(t *testing.T) {
 	}
 }
 
+// TestDepsPointsAtChildren covers the section 8 rule that an empty deps answer
+// names the ticket's children, because "It depends on nothing." is true and
+// useless on an epic. deps still walks dependencies alone: this is a pointer at
+// list --parent, not a second edge kind mixed into the result.
+func TestDepsPointsAtChildren(t *testing.T) {
+	dir := newStore(t)
+	withParent := func(title, parent string) string {
+		t.Helper()
+		got := runCLI(t, dir, nil, "--json", "create", "--title", title,
+			"--parent", parent, "--actor", "human:sothr")
+		if got.code != exitOK {
+			t.Fatalf("create %q: %s", title, got.stderr)
+		}
+		return ticketID(t, decode(t, got.stdout))
+	}
+
+	epic := makeTicket(t, dir, "An epic with two slices")
+	withParent("First slice", epic)
+	withParent("Second slice", epic)
+	solo := makeTicket(t, dir, "An epic with one slice")
+	withParent("The only slice", solo)
+	leaf := makeTicket(t, dir, "No children at all")
+
+	// The case the plan complains about: an epic answering "nothing".
+	got := runCLI(t, dir, nil, "deps", epic)
+	if !strings.Contains(got.stdout, "It depends on nothing.") {
+		t.Errorf("the direction message went missing:\n%s", got.stdout)
+	}
+	if !strings.Contains(got.stdout, "2 children") ||
+		!strings.Contains(got.stdout, "list --parent "+epic) {
+		t.Errorf("deps on an epic should name the children and the command:\n%s", got.stdout)
+	}
+
+	// One child reads as English rather than as "1 children".
+	if got := runCLI(t, dir, nil, "deps", solo); !strings.Contains(got.stdout, "1 child;") {
+		t.Errorf("a single child should be singular:\n%s", got.stdout)
+	}
+
+	// A childless ticket keeps the bare message it always had.
+	if got := runCLI(t, dir, nil, "deps", leaf); strings.Contains(got.stdout, "child") {
+		t.Errorf("a childless ticket should get no hint:\n%s", got.stdout)
+	}
+
+	// The reverse direction keeps its own wording and still points.
+	got = runCLI(t, dir, nil, "deps", epic, "--dependents")
+	if !strings.Contains(got.stdout, "Nothing depends on it.") ||
+		!strings.Contains(got.stdout, "2 children") {
+		t.Errorf("dependents on an epic:\n%s", got.stdout)
+	}
+
+	// The hint is for a person. The JSON contract does not carry it, so the
+	// envelope keeps exactly the three keys 10.1 gives a ticket-list.
+	envelope := decode(t, runCLI(t, dir, nil, "--json", "deps", epic).stdout)
+	if len(envelope) != 3 || envelope["kind"] != "ticket-list" {
+		t.Errorf("the JSON envelope gained something: %v", envelope)
+	}
+	if tickets, ok := envelope["tickets"].([]any); !ok || len(tickets) != 0 {
+		t.Errorf("tickets = %v, want an empty array", envelope["tickets"])
+	}
+}
+
 // TestCreateAcceptsAnIDPrefix covers the same 5.5 rule on create, which passed
 // its --depends-on and --parent through to the library unresolved.
 func TestCreateAcceptsAnIDPrefix(t *testing.T) {

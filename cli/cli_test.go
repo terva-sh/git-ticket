@@ -378,6 +378,88 @@ func TestListFilters(t *testing.T) {
 	}
 }
 
+// TestListFiltersOnParent covers the --parent filter of plan section 8: direct
+// children, the none sentinel for a board's top level, prefix resolution, and a
+// parent naming nothing failing loudly instead of looking like a childless epic.
+func TestListFiltersOnParent(t *testing.T) {
+	dir := newStore(t)
+	mk := func(title string, extra ...string) string {
+		t.Helper()
+		args := append([]string{"--json", "create", "--title", title,
+			"--actor", "human:sothr"}, extra...)
+		got := runCLI(t, dir, nil, args...)
+		if got.code != exitOK {
+			t.Fatalf("create %q: %s", title, got.stderr)
+		}
+		return ticketID(t, decode(t, got.stdout))
+	}
+	epic := mk("The epic", "--type", "epic")
+	loose := mk("No parent at all")
+	childA := mk("First slice", "--parent", epic)
+	childB := mk("Second slice", "--parent", epic)
+	grandchild := mk("Under the first slice", "--parent", childA)
+
+	has := func(list []string, want string) bool {
+		for _, v := range list {
+			if v == want {
+				return true
+			}
+		}
+		return false
+	}
+	list := func(args ...string) []string {
+		t.Helper()
+		got := runCLI(t, dir, nil, append([]string{"--json", "list"}, args...)...)
+		if got.code != exitOK {
+			t.Fatalf("list %v: %s", args, got.stderr)
+		}
+		var out []string
+		for _, raw := range decode(t, got.stdout)["tickets"].([]any) {
+			out = append(out, raw.(map[string]any)["id"].(string))
+		}
+		return out
+	}
+
+	// Direct children only: the grandchild hangs off childA, not the epic.
+	kids := list("--parent", epic)
+	if len(kids) != 2 || !has(kids, childA) || !has(kids, childB) {
+		t.Errorf("children of the epic = %v, want the two direct ones", kids)
+	}
+	if has(kids, grandchild) {
+		t.Error("a grandchild is not a direct child")
+	}
+
+	// none is what a board asks for its top level.
+	roots := list("--parent", parentNone)
+	if len(roots) != 2 || !has(roots, epic) || !has(roots, loose) {
+		t.Errorf("parentless tickets = %v, want the epic and the loose one", roots)
+	}
+
+	// A prefix resolves, like every other ID this CLI takes.
+	if got := list("--parent", epic[:len(epic)-8]); len(got) != 2 {
+		t.Errorf("a prefix should find the same two children, got %v", got)
+	}
+
+	// Across filters they all have to hold.
+	if got := list("--parent", epic, "--status", "draft"); len(got) != 2 {
+		t.Errorf("draft children of the epic = %v, want 2", got)
+	}
+	if got := list("--parent", epic, "--type", "epic"); len(got) != 0 {
+		t.Errorf("the children are tasks, so this should be empty, got %v", got)
+	}
+
+	// A parent that names nothing is an error, not an empty list. An empty
+	// list here reads exactly like an epic that has no children.
+	unknown := runCLI(t, dir, nil, "--json", "list", "--parent",
+		"TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZZZ")
+	if unknown.code != exitError {
+		t.Fatalf("an unknown parent should fail, got exit %d", unknown.code)
+	}
+	if code := errCode(t, unknown); code != "ticket_not_found" {
+		t.Errorf("code = %q, want ticket_not_found", code)
+	}
+}
+
 // TestHumanOutput checks the shape a person sees, which no JSON test covers.
 func TestHumanOutput(t *testing.T) {
 	dir := newStore(t)

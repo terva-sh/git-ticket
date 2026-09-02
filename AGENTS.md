@@ -352,3 +352,18 @@ Adding a frontmatter field means editing every fixture that carries one, because
 5.3 renders an absent scalar as `null` rather than omitting it. The round-trip
 test fails on all 32 of them until they agree with the renderer. `status_reason`
 cost exactly that.
+
+A `##` heading inside text passed to `--description` becomes a section rather
+than part of the description. `parseBody` splits on any line starting with
+`## `, so a long description written with Markdown subheadings comes back with
+`body.description` holding only the prose above the first one and everything
+after it in `body.extra`. Write `###` instead: the prefix test carries the
+trailing space, so three hashes do not match. A `## ` inside a fenced code block
+is already safe, because `parseBody` tracks fences.
+
+Nothing catches that. `check` passes, `show` prints every section in order, and
+the file reads correctly, which is why `TKT-01M1HVMQ` was filed that way and had
+to be filed again. Repairing it after the fact is worse than it sounds: there is
+no delete command, and `update --description` replaces the description alone, so
+the stray sections survive and the content ends up duplicated. Catch it before
+the commit, remove the file, and create the ticket again.

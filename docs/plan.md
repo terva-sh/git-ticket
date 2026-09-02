@@ -940,6 +940,64 @@ terva. `cli` may import `ticket`, and never the reverse.
 process-local adapter, not a service. It performs no permission decisions of its
 own; the host decides what a caller may do.
 
+### 12.4 Compatibility
+
+Three numbers move here, and treating them as one is the easiest mistake to
+make:
+
+| Number | Where it lives | What it tracks |
+|---|---|---|
+| the module version | Git tags, and a consumer's `go.mod` | the Go API of `ticket` and `cli` |
+| `schema` | the frontmatter of every ticket, and `ticket.SchemaVersion` | the on-disk file format |
+| `schemaVersion` | the JSON envelope, published by `git ticket schema` | the machine-readable output |
+
+They are independent. Section 10.4 already says the last two move separately,
+and the module version moves separately from both.
+
+Everything a machine reads is covered by the compatibility promise: the `ticket`
+package API, `cli.Run` and `Env`, the JSON envelope and its kinds per section
+10, the exit statuses in 10.2, the error and finding codes, and the on-disk
+format in sections 4 through 11. `cli` is covered for the same reason it is
+exported at all, per 12.2: a command surface a host cannot rely on across a
+minor release is one no host can build on.
+
+Human-readable output is not covered. It is written for a person at a terminal
+and may be reworded, recolumned, or reordered in any release. A consumer parsing
+it has picked an interface this project does not offer, and `--json` exists so
+that nobody needs to.
+
+A covered surface breaks when something that worked stops working or changes
+meaning. Adding beside the old thing is not a break. So a new frontmatter field,
+a new error code, a new envelope kind, and a new `schema` the reader also
+understands are all minor changes. Removing a field, renaming a code, changing
+what a value means, and dropping support for a `schema` that used to parse are
+all major ones.
+
+The module version tracks the Go API alone. A `schema` bump is not a Go major:
+learning to read schema 2 while schema 1 still parses is additive, so it ships
+as an ordinary minor release and the import path does not move. A consumer that
+needs to know what it is talking to reads `ticket.SchemaVersion` at runtime,
+which is why that constant is exported. The module goes to `/v2` when the Go
+API breaks, and not because the file format moved.
+
+A store never upgrades itself. When the library learns to write a newer schema,
+an existing store stays where it is: reading never rewrites, and a mutation
+writes back the schema the file already declared. Upgrading a binary therefore
+cannot make a repository unreadable to a colleague who has not upgraded, which
+is the failure this rule exists to prevent. A store moves only through an
+explicit migration that a person runs, and what that operation looks like is
+deferred question 8.
+
+The module is `v0.x` and stays there until Phase 3 lands. Plain semver reads
+`v0` as promising nothing, which is not what this section means: while the
+module is `v0.x`, a break in a covered surface bumps the minor and a fix bumps
+the patch, so `v0.2` to `v0.3` carries the warning that `v1` to `v2` will carry
+later. Terva is the first real consumer and the first thing that will find the
+gaps. Deferred question 7 is already one of them, and it changes the JSON
+contract in 10.1. Tagging `v1.0.0` immediately before making a break we can
+already see coming would spend the major on it and teach a consumer that the
+number means nothing.
+
 ## 13. Phases
 
 ### Phase 0: format and fixtures
@@ -1025,25 +1083,60 @@ Concurrency:
 
 ## 15. Deferred questions
 
-1. How a caller renews an existing claim rather than replacing it.
-2. Whether custom statuses are worth the cost, decided after a real workflow
-   asks for one.
-3. Whether a later release adds sync helpers around ordinary Git commands.
-4. What tool discovery the stdio adapter should expose.
-5. When Backlog.md import and a local view are worth building.
-6. The compatibility policy for the Go module after the first stable schema.
-7. How a caller reads the parent hierarchy back. Section 8 filters `list` on
-   status, type, priority, label, assignee, and milestone, and `deps` walks
-   `dependencies` rather than `parent`, so nothing lists the children of an
-   epic. The field is settable in 12.1 and validated in 11 by `parent_missing`
-   and `parent_cycle`, which makes this a hole rather than a decision: the
-   format records a hierarchy it cannot show. Filing this repository's own
-   Phase 3 epic is what found it. A `--parent` filter on `list` is the obvious
-   answer and probably the right one, but `show` rendering children, and
-   `deps --children`, are both defensible and the choice affects the JSON
-   contract in 10.1.
+A question keeps its number for life. A settled one leaves a gap rather than
+closing the numbers up, and each entry carries the ULID of its ticket, which is
+the identifier that was already unique and never moves.
 
-Six questions have left this list, and the numbers have closed up behind them.
+**Q1** (`TKT-01M1F7Z2XAV593RH0KAVBYZQSR`). How a caller renews an existing claim
+rather than replacing it.
+
+**Q2** (`TKT-01M1F7Z2Y5H1ZJAHRGF3XE6F91`). Whether custom statuses are worth the
+cost, decided after a real workflow asks for one.
+
+**Q3** (`TKT-01M1F7Z2Z33HW6FW44TCQVWB7M`). Whether a later release adds sync
+helpers around ordinary Git commands.
+
+**Q4** (`TKT-01M1F7Z2ZXFX7W4MJ9H1KB8SFZ`). What tool discovery the stdio adapter
+should expose.
+
+**Q5** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`). When Backlog.md import and a local
+view are worth building.
+
+**Q7** (`TKT-01M1FCMN7QEWM584N192NBC7TD`). How a caller reads the parent
+hierarchy back. Section 8 filters `list` on status, type, priority, label,
+assignee, and milestone, and `deps` walks `dependencies` rather than `parent`,
+so nothing lists the children of an epic. The field is settable in 12.1 and
+validated in 11 by `parent_missing` and `parent_cycle`, which makes this a hole
+rather than a decision: the format records a hierarchy it cannot show. Filing
+this repository's own Phase 3 epic is what found it. A `--parent` filter on
+`list` is the obvious answer and probably the right one, but `show` rendering
+children, and `deps --children`, are both defensible and the choice affects the
+JSON contract in 10.1.
+
+**Q8** (`TKT-01M1H9X166M1ATNK9S7ET26BVQ`). What an explicit schema migration
+looks like. 12.4 settles that a store never upgrades itself and moves only
+through a migration a person runs, which leaves that operation undesigned:
+whether it is a CLI command or a library call, whether it converts a whole store
+or one ticket, what it does about a store other clones cannot read yet, and how
+`check` reports a store caught halfway. Nothing needs it until there is a schema
+2, and nothing should bump the schema before it exists.
+
+Seven questions have left this list. The six that went before this section
+stopped renumbering had the numbers close up behind them, which is why a ticket
+closed back then can cite a number that now means something else:
+`TKT-01M1F8XG6KXN6QXYWF6EHVB88P` calls itself question 7, and so does the parent
+hierarchy question above. They are different questions. That collision is the
+reason the numbers are now fixed and the reason each entry names its ULID.
+
+Q6, the compatibility policy, is answered in 12.4. The module version, the file
+`schema`, and the envelope `schemaVersion` move independently. Everything a
+machine reads is covered and human output is not. A covered surface breaks only
+when something that worked stops working or changes meaning, so adding beside
+the old thing is always minor. The module version tracks the Go API alone, which
+makes a `schema` bump an ordinary minor release rather than a `/v2`. A store
+never upgrades itself. `v1.0.0` waits for Phase 3, because Q7 is a break we can
+already see coming and tagging a major immediately before spending it would
+teach a consumer that the number means nothing. Settling Q6 is what raised Q8.
 
 Two were settled during Phase 1, before any reader had shipped, so adding
 `status_reason` to schema 1 cost no compatibility. Where a `blocked` reason

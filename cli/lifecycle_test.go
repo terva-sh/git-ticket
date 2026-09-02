@@ -106,11 +106,12 @@ func TestLifecycle(t *testing.T) {
 
 	// The reason is in the archive block, which is where 5.1 puts it.
 	//
-	// It lives there and nowhere else, so unarchiving drops it: the block goes
-	// when the archive does. A status reason is deliberately written to Notes
-	// as well for exactly that reason, and an archive reason is not. Plan
-	// question 15.7 is open on whether that asymmetry is intended, so this
-	// asserts only what the plan guarantees today.
+	// It lands in Notes as well, per 6.3, and for the reason 6.3 gives:
+	// unarchive deletes the block, so without the note a ticket archived as
+	// "shipped in v1.2" and then unarchived would keep nothing saying why it was
+	// ever closed out. A status reason lands in two places for the same reason,
+	// so there is no asymmetry between them. This asserts the block, and
+	// TestArchiveMovesTheFileAndRecordsFromStatus asserts the note.
 	if reason := final["archive"].(map[string]any)["reason"]; reason != "shipped in v1.2" {
 		t.Errorf("archive reason = %v, want the reason the command was given", reason)
 	}

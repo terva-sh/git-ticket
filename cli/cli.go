@@ -105,6 +105,7 @@ func commands() []command {
 		{"files", "print tickets that recorded a reference to a path", "PATH", runFiles},
 		{"ac", "edit the acceptance criteria", "ID --add T | --check N | --uncheck N", runAC},
 		{"dod", "edit the definition of done", "ID --add T | --check N | --uncheck N", runDoD},
+		{"plan", "set the implementation plan, replacing it", "ID TEXT", runPlan},
 		{"note", "append a note", "ID TEXT", runNote},
 		{"comment", "append a comment", "ID TEXT", runComment},
 		{"summary", "set the summary, replacing it", "ID TEXT", runSummary},

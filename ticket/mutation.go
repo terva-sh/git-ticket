@@ -476,6 +476,18 @@ func (m SetDescription) apply(t *Ticket, env mutEnv) error {
 	return nil
 }
 
+// SetImplementationPlan replaces the plan. It replaces rather than appends for
+// the reason SetSummary does: a plan is one statement of how the work will go,
+// and a log of what happened on the way is what Notes already is. An agent that
+// rewrites its plan halfway through means the first one to be gone, not to be
+// read alongside the second.
+type SetImplementationPlan struct{ Text string }
+
+func (m SetImplementationPlan) apply(t *Ticket, env mutEnv) error {
+	t.Body.ImplementationPlan = strings.TrimSpace(m.Text)
+	return nil
+}
+
 // ChecklistSection names one of the two checkbox sections.
 type ChecklistSection string
 

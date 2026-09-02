@@ -29,6 +29,13 @@ records who is working, on which branch, from which commit. It is advisory and
 reserves nothing, so it tells another agent what is in flight rather than
 locking anything.
 
+Then read the code and write the approach into the ticket with
+`git ticket plan ID "..."`. Do that after you claim rather than when you file
+the ticket. A plan written before anybody read the code is a guess, and it goes
+stale between filing and starting. It replaces rather than appends, so revising
+it when the approach changes leaves one plan rather than a stack of them.
+Somebody who wants to redirect you reads it before there is code to throw away.
+
 While you work:
 
 - `git ticket note ID "..."` records what the next person will need and does

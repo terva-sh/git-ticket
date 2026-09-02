@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -123,7 +124,10 @@ type CreateOptions struct {
 	Parent       *string
 	Dependencies []string
 	Description  string
-	Actor        Actor
+	// ImplementationPlan seeds the plan section. Writing it after the fact is
+	// SetImplementationPlan.
+	ImplementationPlan string
+	Actor              Actor
 	// Entropy is the source for the ID's random half. Nil means crypto/rand.
 	Entropy io.Reader
 }
@@ -214,7 +218,14 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		UpdatedAt:    Now(now),
 		CreatedBy:    &Actor{ID: actor.ID, Name: actor.Name},
 		UpdatedBy:    &Actor{ID: actor.ID, Name: actor.Name},
-		Body:         Body{Description: o.Description},
+		// Trimmed for the reason every Set* mutation on a body section trims:
+		// the renderer writes section text verbatim and the parser strips
+		// blank lines around it, so padded input here renders bytes that do
+		// not survive the round trip plan 5.3 requires.
+		Body: Body{
+			Description:        strings.TrimSpace(o.Description),
+			ImplementationPlan: strings.TrimSpace(o.ImplementationPlan),
+		},
 	}
 	return s.writeTicket(t, "")
 }

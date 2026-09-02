@@ -561,9 +561,10 @@ is not an operation the API offers.
 - `link` and `unlink` for dependencies and references
 - `ac` and `dod` to add, check, and uncheck criteria items
 - `note` and `comment` to append
-- `summary` to set. It replaces rather than appends, because a summary is one
-  statement of where the ticket landed and a log of those is what `Notes` and
-  `Comments` already are
+- `plan` and `summary` to set. Each replaces rather than appends, because each
+  is one statement rather than a log: a plan says how the work will go and a
+  summary says where it landed. A log of either is what `Notes` and `Comments`
+  already are
 - `archive`, `unarchive`
 
 Each returns the resulting ticket, its new revision, and the paths changed.
@@ -875,7 +876,7 @@ git ticket list   [--status S --type T --priority P --label L --assignee A --mil
 git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
-git ticket create --title T [--type --priority --label --assignee --parent --depends-on --description]
+git ticket create --title T [--type --priority --label --assignee --parent --depends-on --description --plan]
 git ticket update ID [--title --type --priority --milestone --parent --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
@@ -884,6 +885,7 @@ git ticket link   ID [--depends-on OTHER | --ref proposal:x [--path P]]
 git ticket unlink ID [--depends-on OTHER | --ref proposal:x]
 git ticket ac     ID [--add TEXT | --check N | --uncheck N]
 git ticket dod    ID [--add TEXT | --check N | --uncheck N]
+git ticket plan   ID TEXT
 git ticket note   ID TEXT
 git ticket comment ID TEXT
 git ticket summary ID TEXT

@@ -129,6 +129,7 @@ func TestInstructionsWorkflowRuns(t *testing.T) {
 		{"git ticket status ID ready", []string{"status", id, "ready"}},
 		{"git ticket claim ID", []string{"claim", id}},
 		{"git ticket status ID in-progress", []string{"status", id, "in-progress"}},
+		{"git ticket plan ID", []string{"plan", id, "1. Reproduce with a stepped clock\n2. Widen the window"}},
 		{"git ticket note ID", []string{"note", id, "the skew is 40s, not the 5s we assumed"}},
 		{"git ticket ac ID --check N", []string{"ac", id, "--check", "1"}},
 		{"git ticket summary ID", []string{"summary", id, "widened the window"}},

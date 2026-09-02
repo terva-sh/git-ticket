@@ -174,6 +174,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		kind        string
 		priority    string
 		description string
+		plan        string
 		parent      string
 		labels      stringList
 		assignees   stringList
@@ -184,6 +185,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		fs.StringVar(&kind, "type", "", "task, bug, chore, spike, or epic")
 		fs.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
 		fs.StringVar(&description, "description", "", "the Description section")
+		fs.StringVar(&plan, "plan", "", "the Implementation plan section")
 		fs.StringVar(&parent, "parent", "", "the epic or ticket this belongs to")
 		fs.Var(&labels, "label", "a label, repeatable")
 		fs.Var(&assignees, "assignee", "an assignee, repeatable")
@@ -214,14 +216,15 @@ func runCreate(ctx *cmdContext, args []string) error {
 		deps = append(deps, id)
 	}
 	opts := ticket.CreateOptions{
-		Title:        title,
-		Type:         kind,
-		Priority:     priority,
-		Description:  description,
-		Labels:       labels,
-		Assignees:    assignees,
-		Dependencies: deps,
-		Actor:        ctx.actor(s),
+		Title:              title,
+		Type:               kind,
+		Priority:           priority,
+		Description:        description,
+		ImplementationPlan: plan,
+		Labels:             labels,
+		Assignees:          assignees,
+		Dependencies:       deps,
+		Actor:              ctx.actor(s),
 	}
 	if parent != "" {
 		id, err := resolveID(s, parent)
@@ -753,9 +756,10 @@ func runFiles(ctx *cmdContext, args []string) error {
 	return ctx.writeTicketList(s, tickets, "No ticket recorded a reference to that path.")
 }
 
-// runNote, runComment, and runSummary each take an ID and one piece of text.
-// The first two append; a summary replaces, per plan section 9, because it is
-// one statement of where the ticket landed and Notes is already the log.
+// runNote, runComment, runPlan, and runSummary each take an ID and one piece
+// of text. The first two append; a plan and a summary replace, per plan section
+// 9, because each is one statement rather than a log and Notes is already the
+// log. A plan says how the work will go and a summary says where it landed.
 func runNote(ctx *cmdContext, args []string) error {
 	return runTextEntry(ctx, "note", args, "noted on",
 		func(text string) ticket.Mutation { return ticket.AppendNote{Text: text} })
@@ -764,6 +768,11 @@ func runNote(ctx *cmdContext, args []string) error {
 func runComment(ctx *cmdContext, args []string) error {
 	return runTextEntry(ctx, "comment", args, "commented on",
 		func(text string) ticket.Mutation { return ticket.AppendComment{Text: text} })
+}
+
+func runPlan(ctx *cmdContext, args []string) error {
+	return runTextEntry(ctx, "plan", args, "plan set on",
+		func(text string) ticket.Mutation { return ticket.SetImplementationPlan{Text: text} })
 }
 
 func runSummary(ctx *cmdContext, args []string) error {

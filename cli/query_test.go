@@ -180,11 +180,45 @@ func TestSummaryReplaces(t *testing.T) {
 	}
 }
 
+// TestPlanReplaces is the same decision as TestSummaryReplaces, applied to the
+// section plan 5.2 defined and nothing could write until now. A plan is one
+// statement of how the work will go, so rewriting it means the first one to be
+// gone rather than read alongside the second.
+func TestPlanReplaces(t *testing.T) {
+	dir := newStore(t)
+	a := makeTicket(t, dir, "A")
+
+	runCLI(t, dir, nil, "plan", a, "1. Read the verifier", "--actor", "human:sothr")
+	if got := bodyOf(t, dir, a)["implementationPlan"]; got != "1. Read the verifier" {
+		t.Errorf("implementationPlan = %v", got)
+	}
+
+	runCLI(t, dir, nil, "plan", a, "1. Roll the key first", "--actor", "human:sothr")
+	plan := bodyOf(t, dir, a)["implementationPlan"].(string)
+	if plan != "1. Roll the key first" {
+		t.Errorf("implementationPlan = %q, want the second one alone", plan)
+	}
+	if strings.Contains(plan, "Read the verifier") {
+		t.Error("the plan appended rather than replaced")
+	}
+}
+
+// TestCreateSeedsAPlan covers the other half of the gap: a ticket filed with
+// its plan already written needs no second call.
+func TestCreateSeedsAPlan(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir, "--plan", "1. Measure before optimizing"))
+
+	if got := bodyOf(t, dir, id)["implementationPlan"]; got != "1. Measure before optimizing" {
+		t.Errorf("implementationPlan = %v", got)
+	}
+}
+
 func TestTextEntryUsage(t *testing.T) {
 	dir := newStore(t)
 	a := makeTicket(t, dir, "A")
 
-	for _, name := range []string{"note", "comment", "summary"} {
+	for _, name := range []string{"note", "comment", "plan", "summary"} {
 		// The text is required.
 		if got := runCLI(t, dir, nil, "--json", name, a, "--actor", "human:sothr"); errCode(t, got) != codeUsage {
 			t.Errorf("%s with no text should be a usage error", name)
@@ -277,14 +311,14 @@ func TestReadsEmitTicketLists(t *testing.T) {
 	}
 }
 
-// TestTextEntriesEmitMutationResults keeps the three new writes in the
+// TestTextEntriesEmitMutationResults keeps every runTextEntry write in the
 // contract, and honours the precondition every other write does.
 func TestTextEntriesEmitMutationResults(t *testing.T) {
 	dir := newStore(t)
 	a := makeTicket(t, dir, "A")
 	stale, _ := showTicket(t, dir, a)["revision"].(string)
 
-	for _, name := range []string{"note", "comment", "summary"} {
+	for _, name := range []string{"note", "comment", "plan", "summary"} {
 		got := runCLI(t, dir, nil, "--json", name, a, "some text", "--actor", "human:sothr")
 		if got.code != exitOK {
 			t.Fatalf("%s: %s", name, got.stderr)
@@ -299,8 +333,8 @@ func TestTextEntriesEmitMutationResults(t *testing.T) {
 	}
 
 	// The first write above moved the ticket on, so the revision read before
-	// them is stale for all three.
-	for _, name := range []string{"note", "comment", "summary"} {
+	// them is stale for all of them.
+	for _, name := range []string{"note", "comment", "plan", "summary"} {
 		got := runCLI(t, dir, nil, "--json", name, a, "more text",
 			"--if-revision", stale, "--actor", "human:sothr")
 		if got.code != exitError {
@@ -323,7 +357,7 @@ func TestHelpCoversTheAdvisoryCaveat(t *testing.T) {
 	if !strings.Contains(help.stdout, "advisory") {
 		t.Errorf("the help text does not say files is advisory:\n%s", help.stdout)
 	}
-	for _, name := range []string{"search", "ready", "note", "comment", "summary", "files"} {
+	for _, name := range []string{"search", "ready", "note", "comment", "plan", "summary", "files"} {
 		if !strings.Contains(help.stdout, name) {
 			t.Errorf("help does not mention %q", name)
 		}

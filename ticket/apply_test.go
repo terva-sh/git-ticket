@@ -553,6 +553,76 @@ func TestChecklistOperations(t *testing.T) {
 	}
 }
 
+// TestImplementationPlanIsWritable covers the gap that plan 5.2 defined the
+// section and nothing could fill it: it parsed, rendered, and was searched,
+// while no mutation reached it.
+func TestImplementationPlanIsWritable(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Rotate the signing key without downtime")
+
+	if tk.Body.ImplementationPlan != "" {
+		t.Fatalf("a new ticket starts with a plan: %q", tk.Body.ImplementationPlan)
+	}
+
+	res := mustApply(t, s, tk.ID, SetImplementationPlan{Text: "1. Read the verifier\n2. Teach it both keys"})
+	if res.Ticket.Body.ImplementationPlan != "1. Read the verifier\n2. Teach it both keys" {
+		t.Errorf("plan = %q", res.Ticket.Body.ImplementationPlan)
+	}
+
+	// The section reaches the file, not just the value in memory.
+	data, err := os.ReadFile(res.Ticket.Path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !strings.Contains(string(data), "## Implementation plan\n\n1. Read the verifier") {
+		t.Errorf("the plan did not render into the file:\n%s", data)
+	}
+
+	// It replaces rather than appends, which is the SetSummary rule: a plan is
+	// one statement of how the work will go, and the log is Notes.
+	res = mustApply(t, s, tk.ID, SetImplementationPlan{Text: "1. Actually, roll the key first"})
+	if got := res.Ticket.Body.ImplementationPlan; got != "1. Actually, roll the key first" {
+		t.Errorf("a second write should replace the first, got %q", got)
+	}
+}
+
+// TestCreateTrimsBodySectionsItSeeds pins the reason Create trims. The renderer
+// writes section text verbatim and the parser strips the blank lines around it,
+// so text padded on the way in renders bytes that do not survive the round trip
+// plan 5.3 requires. Every Set* mutation on a body section already trimmed;
+// Create did not, and create --description could reach it.
+func TestCreateTrimsBodySectionsItSeeds(t *testing.T) {
+	s := newTestStore(t)
+	res, err := s.Create(context.Background(), CreateOptions{
+		Title:              "Seeded with padded prose",
+		Description:        "\n\nThe description.\n\n",
+		ImplementationPlan: "\n1. The plan.\n\n",
+		Actor:              testActor,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if res.Ticket.Body.Description != "The description." {
+		t.Errorf("description = %q", res.Ticket.Body.Description)
+	}
+	if res.Ticket.Body.ImplementationPlan != "1. The plan." {
+		t.Errorf("plan = %q", res.Ticket.Body.ImplementationPlan)
+	}
+
+	// The bytes on disk are the ones a second render would produce.
+	data, err := os.ReadFile(res.Ticket.Path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	again, err := Parse(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got := string(Render(again)); got != string(data) {
+		t.Errorf("a seeded ticket does not round trip\n%s", diffLines(string(data), got))
+	}
+}
+
 func TestDependencyMutationsRefuseTheImpossible(t *testing.T) {
 	s := newTestStore(t)
 	a := mustCreate(t, s, "Cycle member A")

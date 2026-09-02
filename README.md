@@ -144,6 +144,9 @@ git ticket deps TKT-01K3ZZ2J --transitive
 git ticket status TKT-01K3ZZ2J ready
 git ticket claim TKT-01K3ZZ2J     # records your branch and HEAD
 git ticket status TKT-01K3ZZ2J in-progress
+git ticket plan TKT-01K3ZZ2J "1. Reproduce with a stepped clock
+2. Widen the window
+3. Pin the source"
 git ticket note TKT-01K3ZZ2J "the skew is 40s, not the 5s we assumed"
 git ticket ac TKT-01K3ZZ2J --check 1
 git ticket summary TKT-01K3ZZ2J "Widened the window and pinned the clock source"
@@ -182,10 +185,11 @@ and search inside that. `ready` answers one question: which open tickets are
 not blocked and have every dependency closed. That is the queue, and it is what
 an agent asks for when it wants work.
 
-`note`, `comment`, and `summary` write the three text sections of plan section
+`note`, `comment`, `plan`, and `summary` write the text sections of plan section
 9. `note` and `comment` append with a timestamp and an actor, so they read as a
-log. `summary` sets. A summary is one statement of where the ticket landed, and
-a log of those is what the other two already are.
+log. `plan` and `summary` set. Each is one statement rather than a log: a plan
+says how the work will go and a summary says where it landed, and a log of
+either is what the first two already are.
 
 `files PATH` goes the other way, from a path to the tickets that recorded a
 reference to it. A reference is written by `link --ref X --path P`, so `files`

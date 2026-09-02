@@ -75,6 +75,53 @@ func TestVersionFlag(t *testing.T) {
 	}
 }
 
+// TestSubcommandHelp holds --help to being an answer rather than a refusal.
+//
+// The standard library reports it as flag.ErrHelp, which parseFlags used to
+// funnel into a usage error, so `git ticket ready --help` printed "flag: help
+// requested" on stderr and exited 1. An agent probing what a command takes read
+// that as the command failing.
+func TestSubcommandHelp(t *testing.T) {
+	// A bare directory, because asking what a command takes must not need a
+	// store any more than --version does.
+	dir := t.TempDir()
+
+	for _, name := range []string{"ready", "list", "show", "create"} {
+		for _, form := range [][]string{{name, "--help"}, {name, "-h"}} {
+			got := runCLI(t, dir, nil, form...)
+			if got.code != exitOK {
+				t.Errorf("%v exited %d, want 0: %s", form, got.code, got.stderr)
+			}
+			if got.stderr != "" {
+				t.Errorf("%v wrote to stderr: %q", form, got.stderr)
+			}
+			if want := "usage: git ticket " + name; !strings.Contains(got.stdout, want) {
+				t.Errorf("%v stdout = %q, want it to contain %q", form, got.stdout, want)
+			}
+			// The globals are registered on every subcommand, so each one
+			// lists at least these. A help page with no flags on it means
+			// the FlagSet walk broke.
+			for _, flagName := range []string{"--json", "--store"} {
+				if !strings.Contains(got.stdout, flagName) {
+					t.Errorf("%v omits %s: %s", form, flagName, got.stdout)
+				}
+			}
+		}
+	}
+
+	// The flag list is walked from the FlagSet rather than written out, so a
+	// command's own flags appear without anybody maintaining a second copy.
+	if got := runCLI(t, dir, nil, "list", "--help"); !strings.Contains(got.stdout, "--status") {
+		t.Errorf("list --help omits its own --status flag: %s", got.stdout)
+	}
+
+	// A flag that really is wrong still fails, or this fix would have turned
+	// every parse error into a help page.
+	if got := runCLI(t, dir, nil, "ready", "--nope"); got.code == exitOK {
+		t.Errorf("ready --nope succeeded, want it refused: %s", got.stdout)
+	}
+}
+
 // newStore makes a directory with an initialized store in it.
 func newStore(t *testing.T) string {
 	t.Helper()

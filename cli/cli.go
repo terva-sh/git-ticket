@@ -171,6 +171,9 @@ func Run(args []string, env Env) int {
 		}
 		ctx := &cmdContext{g: g, env: env, out: env.Stdout}
 		if err := c.run(ctx, argv); err != nil {
+			if errors.Is(err, errHelpShown) {
+				return exitOK
+			}
 			// A command that already said its piece exits nonzero without
 			// an error envelope on top of it.
 			if errors.Is(err, errReported) {
@@ -214,6 +217,14 @@ func (ctx *cmdContext) parseFlags(name string, args []string, register func(*fla
 	var positional []string
 	for {
 		if err := fs.Parse(args); err != nil {
+			// --help is a question, not a mistake. The standard library
+			// reports it as an error like any other, and answering it with
+			// "flag: help requested" on stderr tells a caller who asked what
+			// a command takes that they got it wrong.
+			if errors.Is(err, flag.ErrHelp) {
+				writeCommandUsage(ctx.env.Stdout, name, fs)
+				return nil, errHelpShown
+			}
 			return nil, usageErr("%v", err)
 		}
 		rest := fs.Args()
@@ -225,6 +236,11 @@ func (ctx *cmdContext) parseFlags(name string, args []string, register func(*fla
 	}
 	return append(positional, literal...), nil
 }
+
+// errHelpShown means the command printed its own usage because the caller
+// asked for it. Like errReported it travels as an error so that parseFlags can
+// stop the command, but the exit status is zero: asking is not failing.
+var errHelpShown = errors.New("usage was printed")
 
 // errReported means the command ran, wrote its own output, and the verdict is
 // no. check returns it for a store with findings: the report is already on
@@ -379,6 +395,39 @@ func displayPaths(s *ticket.Store, paths []string) []string {
 		out = append(out, displayPath(s, p))
 	}
 	return out
+}
+
+// writeCommandUsage prints one subcommand's usage in answer to --help: the
+// argument line from the dispatch table, and every flag the FlagSet carries.
+//
+// It walks the FlagSet rather than repeating the flags in prose, so a flag
+// added to a command shows up here without anybody remembering to write it
+// down. The globals are registered on every subcommand's FlagSet, so they
+// appear too, which is true: each one is accepted here.
+func writeCommandUsage(w io.Writer, name string, fs *flag.FlagSet) {
+	line := name
+	for _, c := range commands() {
+		if c.name != name {
+			continue
+		}
+		if c.usage != "" {
+			line += " " + c.usage
+		}
+		fmt.Fprintf(w, "%s\n\n", c.summary)
+		break
+	}
+	fmt.Fprintf(w, "usage: git ticket %s\n\nflags:\n", line)
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fs.VisitAll(func(f *flag.Flag) {
+		// Two dashes, because that is the form every other page of this
+		// project writes. The flag package accepts one or two either way.
+		spec := "--" + f.Name
+		if placeholder, _ := flag.UnquoteUsage(f); placeholder != "" {
+			spec += " " + placeholder
+		}
+		fmt.Fprintf(tw, "  %s\t%s\n", spec, f.Usage)
+	})
+	tw.Flush()
 }
 
 func writeUsage(w io.Writer) {

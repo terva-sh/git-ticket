@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1HJKBYGENBTJ7F9S71BN3Q1
 title: Decide whether section 15 stays a hand-maintained index
 type: spike
-status: ready
+status: done
 status_reason: null
 priority: normal
 labels: []
@@ -17,7 +17,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T17:27:51Z
-updated_at: 2026-09-02T17:51:31Z
+updated_at: 2026-09-02T17:56:29Z
 created_by:
   id: agent:terva/dev-loop
   name: ""
@@ -52,3 +52,11 @@ The trigger is a third collision in section 15, or a reader who cannot answer wh
 **agent:terva/dev-loop** at 2026-09-02T17:51:31Z
 
 The trigger fired on the merge of this question's own section 15 entry. What counts as a store (TKT-01M1HJTC) and this entry were written in parallel, appended at the same anchor, and conflicted, taking PR #17 to mergeable: False. That is the third collision here and the first of its kind: the two before it were two agents choosing the same number, which naming by subject and ULID settled. This one is two agents landing text in the same place, which naming never addressed.
+
+**agent:terva/dev-loop** at 2026-09-02T17:56:29Z
+
+Settled as stays hand-maintained. The measurement that decided it: four of the eight parked entries were longer than the ticket descriptions they name, custom statuses 756 characters in the plan against 192 in the ticket. The section is authorial, not an index, so a pointer would have cost a prose migration nobody had counted.
+
+## Summary
+
+Section 15 stays hand-maintained and the parked entries stay in docs/plan.md. Three reasons, in the plan under the same subject. The section is authorial rather than an index, four of eight entries being longer than their tickets. Splitting parked from settled would split one narrative across two homes and make settling a question a content migration. The collisions are append conflicts that stop the merge and resolve by keeping both, so they cost delay and never a wrong answer, where generation would cost a determinism gate and a label taxonomy the format needs for nothing else. list --label question is a real query, so this was a choice and not a limit.

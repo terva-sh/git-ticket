@@ -21,7 +21,10 @@ The agent workflow block lives at `cli/instructions.md`, embedded with
 `go:embed`. Edit the Markdown, not a Go string.
 `TestInstructionsNameRealCommands` holds every command and flag it names to what
 the binary has, because prose telling a reader to run something that does not
-exist is worse than no prose.
+exist is worse than no prose. `TestInstructionsWorkflowRuns` goes further and
+runs the sequence against a real store, in the order the block prints it,
+because every command can exist and the order still be wrong. It was: the block
+said claim before ready, and a draft cannot be claimed.
 
 Both Phase 2 exit criteria are met. The scripted end-to-end run is
 `TestLifecycle` in `cli/lifecycle_test.go`. The other is `git ticket
@@ -42,13 +45,36 @@ later phase before an earlier one meets its criteria.
 There are two remotes. `origin` is the internal Forgejo and `main` tracks it.
 `github` is the public mirror at `github.com/terva-sh/git-ticket`, which settles
 the module path: `go.mod` already declared it, so nothing changes. Plan 12.2
-holds the rule. `main` and every tag are on both, at identical SHAs.
-
-Push to both, and push `origin` first so CI has a chance to say no:
+holds the rule. `main` and every tag are on both, at identical SHAs. Check one
+without adding a remote, because a clone has `origin` alone:
 
 ```sh
-git push && git push github main --follow-tags
+TAG=$(git describe --tags --abbrev=0)
+go list -m -json "github.com/terva-sh/git-ticket@$TAG"   # Origin.Hash
+git rev-parse "$TAG^{commit}"                            # what it should equal
 ```
+
+The two remotes move at different speeds, and that is deliberate. Push to
+`origin` often: it is the working remote, its runners are internal, and CI there
+is how a branch finds out it is wrong. The mirror is not a backup and does not
+want your daily commits. Push it when there is something to release, which means
+a tag, and let a release carry the commits behind it.
+
+The reason is where the work runs. `origin` builds on the instance's own
+runners, which cost nothing but their own capacity. The mirror is on public
+infrastructure, so every push there spends somebody else's runners on work that
+is not finished.
+
+`main` moves by merging a PR, so the mirror push comes after the merge, from a
+local `main` that has just been fast-forwarded:
+
+```sh
+git checkout main && git pull --ff-only && git push github main --follow-tags
+```
+
+A fresh clone has `origin` alone. Add the mirror when you need it, which is at
+release time and not before:
+`git remote add github git@github.com:terva-sh/git-ticket.git`.
 
 The mirror is a plain `git push`, not a built tree: same commits, same tags, one
 history. That works because the prose never names the internal hosts. Write "the
@@ -62,18 +88,95 @@ else, check what you are about to publish:
 git grep -n -E "$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')" -- . ':!.forgejo'
 ```
 
-## Commands
+## Branches and pull requests
+
+Work lands on `main` through a pull request. Do not commit to `main` and do not
+push to it, not even for a one-line documentation fix.
+
+The reason is concurrency, not ceremony. Several agents work this repository at
+once, in separate worktrees, and each one holds a `main` it believes is current.
+A direct push makes every other agent's next push a rebase over commits they
+cannot see, and the ticket store is the worst place for that: two agents each
+adding a file under `.tickets/tickets/` merge cleanly and each editing the same
+ticket does not. A PR gives the collision one place to happen and a reviewer to
+notice it.
+
+The loop:
 
 ```sh
-go test ./...                       # the whole suite
-go build -o git-ticket ./cmd/git-ticket && ./git-ticket check --strict
+git switch -c fix/some-slug        # off an up-to-date main
+just ci                            # the same steps the PR will run
+git push -u origin HEAD
 ```
 
-To read a CI result rather than guess at one, ask the API for the commit's
-statuses. `terva/scripts/pr.sh` holds the token resolver this borrows:
-`$TERVA_FORGE_TOKEN`, or the login block matching the host in
-`~/Library/Application Support/tea/config.yml`. Take the forge host from the
-`origin` remote rather than writing it down, so this file names no host.
+Then open the PR with `tea`, which is installed and logged in to the instance.
+Name the ticket in the body, because a reviewer arriving from `git ticket show`
+should find the review from the ticket and the ticket from the review:
+
+```sh
+tea pr create --base main --title "..." -d "$(cat body.md)"$'\n'
+tea pr ls                          # open PRs
+tea pr 1                           # one PR, body and all
+tea pr merge 1 --style rebase      # server-side, once CI is green
+```
+
+That trailing `$'\n'` is not superstition. Bash's `$(...)` strips trailing
+newlines, so the body arrives one byte short of the file. tea itself is exact:
+a body posted with `curl` and the same body sent through `tea pr edit` compare
+byte for byte on the server.
+
+Write the body to a file and pass the file. A PR body is prose, and prose
+assembled in a shell argument is prose nobody proofread.
+
+A branch prefix says what the change is: `fix/`, `feat/`, `docs/`, `build/`,
+`test/`, matching the commit type it will carry.
+
+Merge server-side with `tea pr merge` or the web UI. Pushing a local merge
+commit can leave the PR open with its commits already in `main`, which is a
+state somebody then has to clean up by hand.
+
+If you branched after committing to `main` by mistake, move the commits rather
+than re-doing them, and use `git branch -f` rather than `reset --hard` so
+nothing is destroyed if you got it wrong:
+
+```sh
+git switch -c fix/some-slug        # carries the commits
+git branch -f main origin/main     # main is where the remote has it
+```
+
+## Commands
+
+`just` drives the local loop. `just --list` names every recipe.
+
+```sh
+just ci        # lint, test-race, check: the same steps CI runs, in the same order
+just test      # the whole suite, without the race detector
+just install   # git-ticket into GOBIN, so `git ticket` resolves outside this tree
+```
+
+The recipes wrap plain `go` invocations and hold no logic of their own, so
+`go test ./...` still works when you want one. `just ci` is the gate to run
+before you push.
+
+To read a CI result rather than guess at one, ask for the commit's statuses.
+`tea api` carries the login, so there is no token to resolve and no host to
+write down:
+
+```sh
+tea api "repos/terva-sh/git-ticket/commits/$(git rev-parse HEAD)/statuses"
+tea api "repos/terva-sh/git-ticket/actions/tasks?limit=5"   # when there is no status yet
+```
+
+One context carries several rows at different timestamps, `pending` then
+`success`, so read the newest and not the first. The row that gates a PR is the
+one whose context ends in `(pull_request)`.
+
+Without tea, the same call needs a token: `$TERVA_FORGE_TOKEN`, or the login
+block matching the host in tea's `config.yml`, which is
+`~/.config/tea/config.yml` on Linux and under `~/Library/Application Support`
+on macOS. `terva/scripts/pr.sh` holds an awk parser for it. Take the forge host
+from the `origin` remote rather than writing it down, so this file names no
+host:
 
 ```sh
 FORGE=$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')
@@ -81,18 +184,22 @@ curl -sS -H "Authorization: token $TERVA_FORGE_TOKEN" \
   "https://$FORGE/api/v1/repos/terva-sh/git-ticket/commits/HEAD_SHA/statuses"
 ```
 
-`.../actions/tasks?limit=5` on the same host lists recent runs when a commit
-has no status yet.
-
 The suite includes the tests that hold the corpus to the plan. Run it after
 touching anything under `testdata/` or section 11 of the plan.
 
-The second line is what CI runs against this repository's own store. The binary
-is gitignored, because the README tells a reader to build it right there.
+`.forgejo/workflows/ci.yml` keeps its steps inline rather than calling `just`,
+because the runner image is `golang:1.25-alpine` and installing just there would
+buy nothing. That makes the justfile a mirror, so a change to one belongs in the
+other.
+
+`just build` and `just check` put the binary in the repository root, where the
+README tells a reader to find it. It is gitignored for that reason.
 
 This repository uses its own tool. Work that outlives a session belongs in a
-ticket rather than in a comment: `./git-ticket ready` says what is startable,
-and `./git-ticket create --title "..."` files what you found on the way.
+ticket rather than in a comment: `git ticket ready` says what is startable, and
+`git ticket create --title "..."` files what you found on the way. After
+`just install` those work as Git subcommands; `just ready` runs the first one
+from the tree without an install.
 
 ## Layout
 

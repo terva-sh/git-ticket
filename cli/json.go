@@ -33,6 +33,17 @@ type ticketListEnvelope struct {
 	Unreadable []findingJSON `json:"unreadable"`
 }
 
+// versionEnvelope answers --version for a host. It describes the binary rather
+// than a store, so it carries no ticket and no findings.
+type versionEnvelope struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	Kind          string `json:"kind"`
+	Version       string `json:"version"`
+	Commit        string `json:"commit"`
+	Go            string `json:"go"`
+	Modified      bool   `json:"modified"`
+}
+
 type mutationEnvelope struct {
 	SchemaVersion int             `json:"schemaVersion"`
 	Kind          string          `json:"kind"`

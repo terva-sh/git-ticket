@@ -577,9 +577,9 @@ Every machine-readable operation emits a versioned envelope on stdout:
 ```
 
 Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, `error`,
-`schema`, and `instructions`. Absent scalars are `null` and absent collections
-are `[]`, always present rather than omitted, so a consumer never has to
-distinguish missing from empty.
+`schema`, `instructions`, and `version`. Absent scalars are `null` and absent
+collections are `[]`, always present rather than omitted, so a consumer never
+has to distinguish missing from empty.
 
 A mutation result:
 
@@ -901,6 +901,14 @@ Global flags: `--json`, `--store PATH`, `--if-revision R`, `--actor ID`,
 `--lock-timeout D`. They are accepted before or after the subcommand, because
 `git ticket --json list` and `git ticket list --json` are both what a person
 types.
+
+`--version` prints what the binary is and exits. It is top level only, and a
+subcommand refuses it, because a flag a command accepts and then ignores is
+worse than one it rejects. Nothing is stamped at link time. `go build` already
+records the module version, the commit, and whether the tree was dirty, and
+`runtime/debug` reads them back, so there is no ldflags recipe and no version
+variable to keep in step with a tag. A build with no tag reachable says `devel`.
+It needs no store, because it describes the binary and not a ledger.
 
 The store is found in this order: `--store`, then `GIT_TICKET_STORE`, then
 discovery walking up from the current directory to the Git root. `config.yml`

@@ -36,6 +36,45 @@ func runCLI(t *testing.T, dir string, env map[string]string, args ...string) res
 	return result{stdout: stdout.String(), stderr: stderr.String(), code: code}
 }
 
+// TestVersionFlag covers the --version rule in plan 12.1. It reports what the
+// Go toolchain already embedded, so nothing is stamped at link time, and it
+// describes the binary rather than a store.
+func TestVersionFlag(t *testing.T) {
+	// Deliberately a bare directory. --version must not need a store.
+	dir := t.TempDir()
+
+	got := runCLI(t, dir, nil, "--version")
+	if got.code != exitOK {
+		t.Fatalf("--version outside a store: %s", got.stderr)
+	}
+	if !strings.HasPrefix(got.stdout, "git-ticket ") {
+		t.Errorf("stdout = %q, want it to start with the program name", got.stdout)
+	}
+
+	envelope := decode(t, runCLI(t, dir, nil, "--version", "--json").stdout)
+	if envelope["kind"] != "version" {
+		t.Errorf("kind = %v, want version", envelope["kind"])
+	}
+	for _, key := range []string{"version", "commit", "go"} {
+		if s, _ := envelope[key].(string); s == "" {
+			t.Errorf("%s is empty in %v", key, envelope)
+		}
+	}
+	if _, ok := envelope["modified"].(bool); !ok {
+		t.Errorf("modified = %v, want a bool", envelope["modified"])
+	}
+
+	// Either order, the same as every other global flag.
+	if other := decode(t, runCLI(t, dir, nil, "--json", "--version").stdout); other["kind"] != "version" {
+		t.Errorf("--json before --version gave %v", other)
+	}
+
+	// A subcommand rejects it rather than accepting a flag it would ignore.
+	if got := runCLI(t, dir, nil, "list", "--version"); got.code == exitOK {
+		t.Errorf("list --version succeeded, want it refused: %s", got.stdout)
+	}
+}
+
 // newStore makes a directory with an initialized store in it.
 func newStore(t *testing.T) string {
 	t.Helper()

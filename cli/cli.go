@@ -140,9 +140,18 @@ func Run(args []string, env Env) int {
 	top.SetOutput(io.Discard)
 	top.Usage = func() {}
 	g.register(top)
+	// --version is top level only, and deliberately not one of the globals.
+	// Registering it on every subcommand would let `git ticket list --version`
+	// set a flag the command then ignores.
+	var showVersion bool
+	top.BoolVar(&showVersion, "version", false, "print the build version and exit")
 
 	if err := top.Parse(args); err != nil {
 		return fail(env, g, usageErr("%v", err))
+	}
+	if showVersion {
+		writeVersion(env.Stdout, g.json)
+		return exitOK
 	}
 	rest := top.Args()
 	if len(rest) == 0 {

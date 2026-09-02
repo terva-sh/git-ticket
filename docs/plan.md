@@ -1355,9 +1355,17 @@ collisions it avoids.
 Those collisions are cheap and they announce themselves. Two entries appended
 in parallel conflict in Git, which stops the merge and is resolved by keeping
 both. The failure is a delay, never a wrong answer. Generation would trade it
-for a determinism gate that drifts quietly and a label taxonomy the format
-needs for nothing else. `git ticket list --label question` is a real query, so
-this was a choice rather than a limit.
+for a determinism gate that drifts quietly, which is the cost that still
+stands.
+
+The other half of that objection is spent. It said a generated list would need
+a label taxonomy the format wants for nothing else, and `question` is now in
+the `config.yml` allowlist with all seven parked tickets carrying it, so
+`git ticket list --label question` answers today. The label was worth having on
+its own, for asking the store what is open without reading this section. It
+does not reopen the question, because the two reasons above never depended on
+it: the entries are longer than the tickets they name, and splitting the parked
+half from the settled half would still split one narrative across two homes.
 
 The friction is real and stays. A new entry lands where the last one did. Keep
 both and put the newer one last, which is the order the ULIDs already give.

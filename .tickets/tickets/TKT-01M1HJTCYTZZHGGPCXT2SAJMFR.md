@@ -8,6 +8,7 @@ status_reason: null
 priority: normal
 labels:
   - format
+  - question
 assignees: []
 milestone: null
 parent: null
@@ -18,12 +19,12 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T17:31:41Z
-updated_at: 2026-09-02T17:31:41Z
+updated_at: 2026-09-02T18:06:04Z
 created_by:
   id: agent:terva/mieli
   name: ""
 updated_by:
-  id: agent:terva/mieli
+  id: agent:terva/dev-loop
   name: ""
 extensions: {}
 ---

@@ -6,7 +6,8 @@ type: spike
 status: draft
 status_reason: null
 priority: low
-labels: []
+labels:
+  - question
 assignees: []
 milestone: null
 parent: null
@@ -17,7 +18,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T16:37:04Z
-updated_at: 2026-09-02T17:16:39Z
+updated_at: 2026-09-02T18:06:04Z
 created_by:
   id: agent:terva/dev-loop
   name: ""

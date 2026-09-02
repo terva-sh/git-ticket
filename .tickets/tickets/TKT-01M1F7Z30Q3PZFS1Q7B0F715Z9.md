@@ -6,7 +6,8 @@ type: task
 status: draft
 status_reason: null
 priority: low
-labels: []
+labels:
+  - question
 assignees: []
 milestone: null
 parent: null
@@ -17,12 +18,12 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-01T19:43:32Z
-updated_at: 2026-09-02T16:56:19Z
+updated_at: 2026-09-02T18:06:04Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: agent:terva/mieli
+  id: agent:terva/dev-loop
   name: ""
 extensions: {}
 ---

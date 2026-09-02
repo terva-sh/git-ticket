@@ -2,7 +2,15 @@ schema: 1
 actors:
   - id: human:sothr
     name: ""
-labels: []
+labels:
+  - ci
+  - claims
+  - format
+  - integration
+  - mcp
+  - policy
+  - question
+  - release
 defaults:
   type: task
   priority: normal

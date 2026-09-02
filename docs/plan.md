@@ -1767,6 +1767,58 @@ is the shape rather than the severity: a `Repair` today is a rename, carrying
 `From` and `To`, and rewriting a generated file is not a rename. However that
 lands it is an implementation cost, not a second format decision.
 
+Three more were settled for a deadline on a ticket
+(`TKT-01M1HPCVRK1989NDNR9PJS36S4`), which is not built yet, so the answers live
+here until 5.1, 8, and 11 carry them.
+
+The field is `due_on` and it holds a date, `2026-10-14`, meaning the end of that
+day in UTC. Neither name the ticket offered survives, because the naming
+question and the precision question turned out to be one question. `due_at` was
+the option that fit the convention, and the convention it fits is that `_at`
+holds an RFC3339 instant, which every timestamp in 5.1 does. A `due_at` holding
+a date would teach a reader that `_at` sometimes means a day, and `expires_at`
+on the claim block is what goes ambiguous then. One new suffix carries a
+distinction a reader needs anyway: `_at` is an instant, `_on` is a date.
+`complete_by` reads better in a sentence and says nothing about which of the two
+it holds.
+
+The date is stored as written rather than expanded to an instant, because
+expanding it throws away what somebody meant. A deadline is a claim about a
+calendar day, and no deadline was ever 23:59:59Z. Expanding at write time also
+has to pick a zone. The writer's local zone stores two different instants for
+the same typed date depending on who typed it, and UTC is the end-of-day rule
+above with fake precision spelled into the file. Either way the file stops
+recording that somebody said the 14th, and no reader can then tell an expanded
+date from an instant somebody chose. Backlog.md stores a minute-precision
+instant and rejects date-only input, which is both halves of this wrong at once.
+
+`ready` orders by `due_on` ascending with no flag, undated last, ID as the
+tiebreak. The tradeoff the ticket described does not survive that tiebreak. A
+store where nothing carries a deadline sorts exactly as it sorts today, because
+the date key does nothing until somebody sets a date, and setting one is a
+deliberate act by the person who wants the order to change. The default
+reorders no existing caller, and the flag would have been a thing to learn
+before getting behaviour the reader had already asked for by typing a date.
+
+Undated last is "closest to late first" with never at the far end. That order is
+part of what `ready` answers rather than an index into it. `ready` recommends
+what to start next, so its ranking is the recommendation, while `list` reports
+what exists and stays chronological.
+
+This settles one sort key and does not make `ready` rank by priority.
+`TKT-01M1J2YR9D5242F6H7TPEV4M8K` holds that question, which the deadline key
+raised rather than created, because `ready` sorts by ID today and an urgent
+ticket already places below a low one filed before it.
+
+`check` reports a `due_on` it cannot parse and never reports one that has
+passed. Validation is about the store, and a date going by changes no file. A
+`check` that went red because a calendar day turned would fail CI for a reason
+no commit caused, which is how a team learns to stop passing `--strict`.
+
+Every fixture carrying frontmatter gains the field when this lands, because 5.3
+renders an absent scalar as `null` rather than omitting it. That is 44 files
+today. It is an implementation cost and not a fourth decision.
+
 ## 16. References
 
 - [Backlog.md](https://github.com/MrLesk/Backlog.md) and its

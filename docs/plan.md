@@ -1223,13 +1223,33 @@ closing the numbers up, and each entry carries the ULID of its ticket, which is
 the identifier that was already unique and never moves.
 
 **Q2** (`TKT-01M1F7Z2Y5H1ZJAHRGF3XE6F91`). Whether custom statuses are worth the
-cost, decided after a real workflow asks for one.
+cost. The trigger is a workflow that needs a state the seven in 6.1 cannot
+express and that a label plus `status_reason` cannot express either. That second
+half is the part worth checking, because labels are already open and
+`status_reason` already answers "why is this blocked now", so most requests for a
+new status are really requests for one of those. The cost, if the trigger is ever
+met, is that the transition table in 6.2 stops being a constant and becomes data
+`check` validates against, 4.1 stops being able to say configuration cannot add a
+status, and the status enum `git ticket schema` publishes becomes store-specific,
+so no consumer can hard-code it again.
 
 **Q4** (`TKT-01M1F7Z2ZXFX7W4MJ9H1KB8SFZ`). What tool discovery the stdio adapter
-should expose.
+should expose. Phase 4, and not started. The trigger is a host that wants to
+drive git-ticket and cannot embed the `cli` package, which is the only reason an
+adapter exists at all. Terva is not that host, because 12.2 exports `cli` for it
+to embed. Much of the answer is already built. `git ticket schema` publishes the
+enums, the error codes and the finding codes, so an adapter can generate most of
+a tool description rather than restating it and drifting. What is undecided is
+whether every command becomes a tool, or only the ones an agent should reach
+for.
 
 **Q5** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`). When Backlog.md import and a local
-view are worth building.
+view are worth building. These are two questions with two triggers. Import waits
+for a real Backlog.md project somebody wants to move, and the count of tickets in
+it is the evidence, because an importer for a backlog nobody has is guesswork
+about a format read from the outside. The local view has its trigger written
+already in Phase 4, which is that the file and agent contracts have held through
+at least one real project. Neither is blocked on anything in this repository.
 
 **Q9** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`). Whether git-ticket ships a Git merge
 driver for ticket files. Two agents each adding a ticket merge cleanly and two

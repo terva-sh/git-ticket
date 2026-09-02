@@ -1664,6 +1664,49 @@ disagreeing. Settling it also caught the per-writer trims using `TrimSpace`,
 which is stronger than the round trip needs and would have reindented a section
 opening with an indented code block.
 
+One was settled before any code, because it decides the format and the format is
+decided first. Whether an epic can block on its children
+(`TKT-01M1HXHJWR806ETJQCE49AEZB3`) is answered here rather than in a numbered
+section, because 5.1, 8, 10.2, and 11 describe what the binary does today and
+this is not built yet.
+
+An epic states the rule once instead of maintaining a set. `blocks_on` takes
+`none`, `listed`, or `children`, and defaults to `none`, so every ticket and
+every fixture that exists is unchanged. `listed` is the current behaviour, an
+enumerated `dependencies` list. `children` derives the blocking set from the
+direct children at read time, stores nothing, and enumerates nothing.
+
+Enumerating was the alternative, and it loses on concurrency rather than on
+expressiveness. An epic that lists its children is edited by every decomposition,
+so two agents adding two unrelated children collide on one line of a file neither
+of them was working on. The enum moves that edit off the epic and onto the child,
+where `parent` already records the relationship and two additions are two
+separate files.
+
+An epic with `blocks_on: children` and no children is not blocked, and `check`
+warns instead. Blocking it would put a ticket in the `blocked` state with nothing
+to name as the blocker, which section 8 already refuses for a draft and for a
+ticket somebody else holds, on the grounds that it sends a reader looking for a
+dependency that is not there. Status is the guard that matters here. A new ticket
+is `draft` and never reaches `ready`, so an undecomposed epic can only be offered
+as startable after somebody promotes it by hand, and that is an authoring mistake
+rather than a readiness verdict.
+
+Children get their own field in `readiness` rather than joining
+`blockingDependencies`. That field is published in 10.2 and versioned under 12.4,
+and a consumer rendering "waiting on" from it would print a child ID labelled as
+a dependency with nothing to signal the difference. A new field is additive, so a
+consumer that ignores it behaves exactly as it does today. The cost is that
+`Blocked` widens to cover both edge kinds, so a consumer showing
+`blockingDependencies` whenever `Blocked` is true prints an empty list for a
+children-blocked epic. Missing beats wrong, and widening `Blocked` is the right
+answer to "can this be started", which is the question the field exists to
+answer.
+
+`deps` does not change. Section 8 keeps it to `dependencies` alone, and mixing a
+second edge kind into one dependency walk is what that section declined on
+purpose.
+
 ## 16. References
 
 - [Backlog.md](https://github.com/MrLesk/Backlog.md) and its

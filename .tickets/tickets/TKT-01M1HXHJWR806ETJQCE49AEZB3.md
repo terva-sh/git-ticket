@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1HXHJWR806ETJQCE49AEZB3
 title: Let an epic block on its children without enumerating them
 type: task
-status: draft
+status: ready
 status_reason: null
 priority: normal
 labels:
@@ -19,7 +19,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T20:39:07Z
-updated_at: 2026-09-02T20:39:30Z
+updated_at: 2026-09-02T20:50:00Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -33,13 +33,29 @@ extensions: {}
 
 An epic that gates on its children can only say so today by listing them in `dependencies`. That works, and 6.3 already makes the epic go ready exactly when the listed children are done. It makes the epic file a hot spot: adding a child edits the epic's dependency list, so two agents decomposing the same epic collide on one line of one file. AGENTS.md names that collision as the reason this repository uses pull requests at all.
 
-Proposal: let an epic state the rule once instead of maintaining a set.
+All three decisions are settled and recorded at the end of plan section 15. What follows states the answers and their reasoning. The plan is the record.
 
-```yaml
-blocks_on: none | listed | children
-```
+### Settled: the shape is an enum, not a list
 
-`none` is today's behaviour and the default, so every existing ticket and every fixture is unchanged. `listed` is today's `dependencies` list. `children` derives the blocking set from the direct children at read time and enumerates nothing.
+`blocks_on` takes `none`, `listed`, or `children`, and defaults to `none`.
+
+`none` is today's behaviour, so every existing ticket and every fixture is unchanged. `listed` is today's enumerated `dependencies` list. `children` derives the blocking set from the direct children at read time and enumerates nothing.
+
+Enumerating was the alternative and it loses on concurrency rather than on expressiveness. An epic that lists its children is edited by every decomposition. The enum moves that edit off the epic and onto the child, where `parent` already records the relationship and two additions are two separate files that merge cleanly.
+
+### Settled: an epic with blocks_on children and no children is not blocked
+
+`check` warns instead. The proposed code is `blocks_on_no_children`, a warning, and section 11 gains it in the commit that builds this, together with its corpus fixture.
+
+Blocking it would put a ticket in the `blocked` state with nothing to name as the blocker. Section 8 already refuses that for a draft and for a ticket somebody else holds, on the grounds that it sends a reader looking for a dependency that is not there.
+
+Status is the guard that matters here. A new ticket is `draft` and never reaches `ready`, so an undecomposed epic can only be offered as startable after somebody promotes it by hand. That is an authoring mistake, and a warning is the instrument for an authoring mistake.
+
+### Settled: children get their own field in readiness
+
+Not `blockingDependencies`. That field is published in 10.2 and versioned under 12.4, and a consumer rendering "waiting on" from it would print a child ID labelled as a dependency, with nothing to signal the difference.
+
+A new field is additive, so a consumer that ignores it behaves exactly as it does today. The cost is that `Blocked` widens to cover both edge kinds, so a consumer showing `blockingDependencies` whenever `Blocked` is true prints an empty list for a children-blocked epic. Missing beats wrong, and widening `Blocked` is the right answer to "can this be started", which is the question that field exists to answer.
 
 ### What this deliberately does not change
 
@@ -53,28 +69,6 @@ Milestones stay out of it. A milestone string is a shipping event with no accept
 
 The blocking set for `blocks_on: children` is computed at read time and never written to a file, like `readiness`, `revision`, and `path`. `readinessOf` already receives the whole store, so this is a second pass over tickets already in memory rather than a new read. At the scale section 8 targets, hundreds to a few thousand, that is not a new complexity class. The plan should say so rather than leave a reader to assume it is free per ticket.
 
-### Decision 1: the shape
-
-Option A, `blocks_on: none | listed | children` as above. One enum on the epic, no new edge kind, no hot file.
-
-Option B, no field at all. The epic keeps enumerating in `dependencies` and the store accepts the hot file. Zero format change, and the merge pain is real but bounded by how often an epic gains a child.
-
-### Decision 2: an epic with blocks_on children and no children
-
-Option A, it is unblocked and therefore ready. Consistent with an empty dependency list, and wrong in practice: `ready` then offers an agent a ticket titled `v1.2`, and an agent claims it and starts working on a release.
-
-Option B, it is blocked. Strict, and defensible, because an epic that gates on children it does not have is not startable.
-
-Option A plus a `check` warning is the middle and is probably right. The state is nearly always a decomposition somebody has not written yet, which is a store observation rather than a readiness verdict.
-
-### Decision 3: where children appear in readiness
-
-`Readiness` carries `Ready`, `Blocked`, `Blocking`, and `Missing`, and its doc comment says blocked is about dependencies alone. That comment stops being true.
-
-Option A, children go into `Blocking` beside dependencies. Less for a consumer to learn, and the distinction between the two edge kinds is lost.
-
-Option B, a separate field. Keeps "blocked means dependencies" true and lets a board draw the two differently, at the cost of one more field in the JSON contract under 12.4.
-
 ### deps stays pure
 
 Section 8 keeps `deps` to `dependencies` and nothing else, and when the answer is empty on an epic the human output points at `list --parent`. Once children actually block, `deps` reports nothing about a ticket that is genuinely blocked, so that pointer stops being a courtesy and becomes a gap.
@@ -85,15 +79,15 @@ The fix belongs in `readiness`, which already carries what stands in the way, an
 
 `parent_cycle` and dependency cycles are checked separately, which is correct while the two edges point in opposite directions. An epic blocking on its children, plus a child depending on that epic, is a real cycle that neither check sees, because each edge kind alone is acyclic.
 
-That finding has to exist before `blocks_on: children` ships. It is the one item here that is a correctness problem rather than a design preference.
+That finding has to exist before `blocks_on: children` ships. It is the one item here that is a correctness problem rather than a design preference, and it is the reason this ticket is larger than one field.
 
 ### Not a directory
 
-Epics stay in `tickets/` with everything else. The store partitions on status or not at all, per the decision recorded on TKT-01M1HVMQ.
+Epics stay in `tickets/` with everything else. The store partitions on status or not at all, per the decision recorded on TKT-01M1HVMQQQE3K6VZG7793RXVXN.
 
 ## Acceptance criteria
 
-- [ ] All three decisions in the description are settled and recorded in docs/plan.md before any code lands.
+- [x] All three decisions in the description are settled and recorded in docs/plan.md before any code lands.
 - [ ] blocks_on defaults to none, so every existing ticket and every fixture is unchanged.
 - [ ] The blocking set for blocks_on children is derived at read time and never stored.
 - [ ] check reports a cycle that alternates parent and dependency edges, which neither existing cycle check sees.

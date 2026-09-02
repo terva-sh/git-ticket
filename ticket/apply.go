@@ -188,8 +188,18 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		return nil, &Error{Code: CodeValidationFailed, Message: "generated an ID that already exists: " + id}
 	}
 
+	// Plan 12.5: a new ticket is written at the store's declared schema, not at
+	// this binary's maximum. Otherwise a newer binary working in an older store
+	// drifts it upward with no migration run, and the files a colleague's older
+	// binary cannot read are the newest ones. A store that declares nothing
+	// falls back to this reader's version, which is what Init writes anyway.
+	schema := s.config.Schema
+	if schema <= 0 {
+		schema = SchemaVersion
+	}
+
 	t := &Ticket{
-		Schema:       SchemaVersion,
+		Schema:       schema,
 		ID:           id,
 		Title:        o.Title,
 		Type:         kind,

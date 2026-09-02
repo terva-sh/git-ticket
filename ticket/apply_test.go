@@ -496,6 +496,36 @@ func TestUnreadableTicketIsNotAbsent(t *testing.T) {
 	}
 }
 
+// TestCreateWritesTheStoreSchema covers the rule in plan 12.5. A new ticket is
+// written at the store's declared schema rather than at this binary's maximum,
+// so a newer binary cannot drift an older store upward with no migration run.
+//
+// The interesting half cannot be tested in tree while SchemaVersion is 1,
+// because the store's level and the binary's maximum are then the same number.
+// It was verified by building a copy with SchemaVersion = 2 and creating a
+// ticket in a schema-1 store. With the rule the file says schema 1 and a
+// schema-1 reader sees every ticket. Without it the file says schema 2, and
+// that reader drops to two rows of three and one error, losing the newest
+// ticket. What is testable here is that Create consults the declaration at all,
+// and the fallback when a store declares nothing.
+func TestCreateWritesTheStoreSchema(t *testing.T) {
+	s := newTestStore(t)
+
+	tk := mustCreate(t, s, "Written at the level the store declares")
+	if tk.Schema != s.config.Schema {
+		t.Errorf("schema = %d, want the store's declared %d", tk.Schema, s.config.Schema)
+	}
+
+	// A store that declares nothing gets this reader's version. Without the
+	// fallback the ticket would carry schema 0, which renders as a level no
+	// reader claims and parses back as something else again.
+	s.config.Schema = 0
+	zero := mustCreate(t, s, "Written where the store declares nothing")
+	if zero.Schema != SchemaVersion {
+		t.Errorf("schema = %d with nothing declared, want %d", zero.Schema, SchemaVersion)
+	}
+}
+
 func TestChecklistOperations(t *testing.T) {
 	s := newTestStore(t)
 	tk := mustCreate(t, s, "Measure cold start before optimizing it")

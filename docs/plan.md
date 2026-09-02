@@ -892,6 +892,7 @@ git ticket files  PATH   # the tickets that reference a path
 git ticket check  [--strict]
 git ticket archive ID [--reason R]
 git ticket unarchive ID
+git ticket migrate [--to N] [--dry-run]
 git ticket instructions
 git ticket schema
 ```
@@ -1060,12 +1061,12 @@ which is why that constant is exported. The module goes to `/v2` when the Go
 API breaks, and not because the file format moved.
 
 A store never upgrades itself. When the library learns to write a newer schema,
-an existing store stays where it is: reading never rewrites, and a mutation
-writes back the schema the file already declared. Upgrading a binary therefore
-cannot make a repository unreadable to a colleague who has not upgraded, which
-is the failure this rule exists to prevent. A store moves only through an
-explicit migration that a person runs, and what that operation looks like is
-deferred question 8.
+an existing store stays where it is. Reading never rewrites, a mutation writes
+back the schema the file already declared, and a new ticket is written at the
+store's declared schema rather than the binary's maximum. Upgrading a binary
+therefore cannot make a repository unreadable to a colleague who has not
+upgraded, which is the failure this rule exists to prevent. A store moves only
+through an explicit migration that a person runs, described in 12.5.
 
 The module is `v0.x` and stays there until Phase 3 lands. Plain semver reads
 `v0` as promising nothing, which is not what this section means: while the
@@ -1076,6 +1077,52 @@ gaps. Deferred question 7 is already one of them, and it changes the JSON
 contract in 10.1. Tagging `v1.0.0` immediately before making a break we can
 already see coming would spend the major on it and teach a consumer that the
 number means nothing.
+
+### 12.5 Schema migration
+
+`config.yml` declares the store's schema. It is the level the store's files are
+written at and the lowest a reader has to understand, which is why a reader
+refuses a store declaring more than it supports. Only a migration changes it.
+
+That declaration is what keeps a store from drifting. `create` stamps the store's
+declared schema and not the binary's maximum, so a newer binary working in an
+older store writes files that store's colleagues can still read. Without the
+rule a store becomes mixed through ordinary use, and the tickets an older binary
+cannot read are the newest ones, which are the ones being worked on.
+
+`git ticket migrate` and `Store.Migrate` perform the change. A person runs the
+command and a host embedding the library calls the method, because both need it
+and neither can drive the other.
+
+It converts the whole store in one pass, under the store lock, and it is
+idempotent. A run interrupted by a crash or a full disk is finished by running it
+again, because a ticket already at the target is skipped rather than rewritten.
+
+`config.yml` is written first, before any ticket. The two failure modes are not
+symmetric. A config a reader does not understand refuses the whole store, loudly
+and on every command, while a ticket it does not understand drops out of queries
+and is reported only by `check`. An interrupted migration should therefore leave
+a store an old reader refuses outright rather than one it reads with tickets
+missing. Announcing the change up front is honest and going quiet halfway is not.
+
+Migration writes files and does not commit. Publishing stays the user's ordinary
+Git workflow, per 7.4 and the Q3 decision in section 15.
+
+There is no downgrade. A field added in a later schema has nowhere to go in an
+earlier one, and a migration that quietly dropped it would lose work.
+
+`check` warns when a store's files disagree with its `config.yml`, naming how
+many and pointing at `migrate`. It warns rather than errors, because such a store
+is correct for a reader that understands both levels. A half-finished job should
+still not be invisible.
+
+Only the `create` rule is built. The command, the method, and the warning land
+with schema 2, along with the fixtures that prove them and the finding code
+registered in section 11. Building them now would mean untested code for a state
+that cannot occur. A ticket declaring more than the reader supports does not
+parse, so no fixture can hold a store whose files merely disagree with its
+config. The `create` rule ships now because it is load-bearing whether or not a
+second schema ever arrives.
 
 ## 13. Phases
 
@@ -1176,14 +1223,6 @@ should expose.
 **Q5** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`). When Backlog.md import and a local
 view are worth building.
 
-**Q8** (`TKT-01M1H9X166M1ATNK9S7ET26BVQ`). What an explicit schema migration
-looks like. 12.4 settles that a store never upgrades itself and moves only
-through a migration a person runs, which leaves that operation undesigned:
-whether it is a CLI command or a library call, whether it converts a whole store
-or one ticket, what it does about a store other clones cannot read yet, and how
-`check` reports a store caught halfway. Nothing needs it until there is a schema
-2, and nothing should bump the schema before it exists.
-
 **Q9** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`). Whether git-ticket ships a Git merge
 driver for ticket files. Two agents each adding a ticket merge cleanly and two
 editing the same ticket do not, which 7.1 hands to Git and leaves there. A driver
@@ -1207,7 +1246,7 @@ for the others. And `extensions` has no mutation, so the one place 5.1 reserves
 for a consumer's own fields round-trips through parse and render but can only be
 written by hand-editing the file.
 
-Ten questions have left this list. The six that went before this section
+Eleven questions have left this list. The six that went before this section
 stopped renumbering had the numbers close up behind them, which is why a ticket
 closed back then can cite a number that now means something else:
 `TKT-01M1F8XG6KXN6QXYWF6EHVB88P` calls itself question 7, and so does the parent
@@ -1262,6 +1301,18 @@ would automate the fetch, rebase, and push this project now tells its own agents
 not to do. Phase 4 no longer holds a slot for one. What the friction did raise is
 Q9, which is a different question, because merging two edits of one ticket needs
 no network and no writing Git command.
+
+Q8, what an explicit schema migration looks like, is answered in 12.5, and
+designing it before there is a schema 2 is what turned up the reason to do it
+early. `config.schema` was read in exactly two places, to refuse a store the
+reader is too old for and to write itself back, and nothing consulted it when
+writing a ticket. `create` stamped the binary's maximum, so a newer binary would
+have written newer files into an older store with no migration run at all, and
+the tickets a colleague could not read would have been the newest ones. That rule
+ships now. The command, the library call, and the `check` warning are specified
+in 12.5 and land with schema 2, because a ticket declaring a schema the reader
+does not support fails to parse, so no fixture can express a store that is merely
+mixed, and code no test can reach is worse than code not yet written.
 
 Two were settled during Phase 1, before any reader had shipped, so adding
 `status_reason` to schema 1 cost no compatibility. Where a `blocked` reason

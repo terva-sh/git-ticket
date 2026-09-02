@@ -23,7 +23,7 @@ this integration is that there is exactly one implementation of the format.
 
 ## What already exists, and is published
 
-`github.com/terva-sh/git-ticket`, tagged **`v0.2.0`**. One dependency,
+`github.com/terva-sh/git-ticket`, tagged **`v0.3.0`**. One dependency,
 `gopkg.in/yaml.v3`. `go` directive `1.25`, so it does not constrain terva,
 which declares `1.25.0`.
 
@@ -68,7 +68,7 @@ Ordered so each is useful alone. Nothing in git-ticket blocks any of them.
 
 ### Slice 1: the dependency and the command
 
-Require `github.com/terva-sh/git-ticket v0.2.0`. Add `terva ticket` as a
+Require `github.com/terva-sh/git-ticket v0.3.0`. Add `terva ticket` as a
 delegation:
 
 ```go
@@ -267,8 +267,12 @@ filter. `--json` does not carry that, so nothing in your tool path sees it.
 
 `10.1` did not move. The `ticket-list` envelope still carries exactly
 `schemaVersion`, `kind`, and `tickets`, which under 12.4 makes this additive and
-therefore a minor release. It is on `main` and needs a tag before you can import
-it, so say the word and one gets cut.
+therefore a minor release. It is released as `v0.3.0`, so requiring that version
+is all you need.
+
+One caveat if you construct a `Filter` anywhere: it has only exported fields, so
+an unkeyed composite literal will not compile against the new one. Use keyed
+fields, which is what `go vet` wants regardless.
 
 ## Asking for a library change
 
@@ -324,7 +328,7 @@ func main() {
 
 ```sh
 go mod init example.com/probe
-go get github.com/terva-sh/git-ticket@v0.2.0
+go get github.com/terva-sh/git-ticket@v0.3.0
 go run . /path/to/a/repo/with/dot-tickets
 ```
 

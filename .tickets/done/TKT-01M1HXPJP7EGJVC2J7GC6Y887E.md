@@ -3,9 +3,10 @@ schema: 1
 id: TKT-01M1HXPJP7EGJVC2J7GC6Y887E
 title: Record that CI verifies generated artifacts and never commits them
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - ci
   - policy
@@ -20,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T20:41:51Z
-updated_at: 2026-09-02T22:01:55Z
+updated_at: 2026-09-03T01:35:49Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -85,8 +86,24 @@ No new command, if decision 1 lands on option A. The deliverable is a plan secti
 
 ## Acceptance criteria
 
-- [ ] The plan records that CI verifies generated artifacts and never commits them, with the reasons.
-- [ ] The plan records that no writing git command joins the 7.4 table for this purpose.
-- [ ] check --fix --dry-run is documented as the CI verification entry point.
-- [ ] The agent workflow block names the command that repairs a red check.
-- [ ] The open decision, whether one command covers artifacts outside the store, is settled and recorded before any generate command ships.
+- [x] The plan records that CI verifies generated artifacts and never commits them, with the reasons.
+- [x] The plan records that no writing git command joins the 7.4 table for this purpose.
+- [x] check --fix --dry-run is documented as the CI verification entry point.
+- [x] The agent workflow block names the command that repairs a red check.
+- [x] The open decision, whether one command covers artifacts outside the store, is settled and recorded before any generate command ships.
+
+## Summary
+
+Settled and recorded. Plan section 11 gained "Verifying generated artifacts in CI", 7.4 gained a pointer saying that table binds the tool and not a workflow, and section 15 records both answers.
+
+The open decision landed on Option A. Artifacts inside and outside the store stay under separate commands: `check --fix` owns `.tickets/`, `instructions --write` owns the workflow block at the consumer's repository root. A verification that rewrites a project's own AGENTS.md would eventually clobber something written by hand, and the flag that did it would read as harmless.
+
+Working the ticket corrected its own premise, which is the part worth carrying forward. The description said `check --fix --dry-run` exits 1 when a repair is pending, probed against a misnamed file. That is an error. `epics_index_stale` is a warning, so the same command exits 0 on a stale index. A four-case matrix pinned it: warning without --strict exits 0, warning with --strict exits 1, error exits 1 either way, and nothing is written in any of the four. The documented entry point is therefore `check --fix --dry-run --strict`.
+
+Be precise about what changed for this repository, because it is less than it looks. CI already ran `check --strict`, which already gated a stale index, since --strict promotes the warning. Moving to `check --fix --dry-run --strict` adds the "would rewrite" line naming the repair. It does not change what passes or fails here. The --strict finding matters for anyone writing a fresh workflow from the ticket's original wording, which would have gone green over the condition it was added to catch.
+
+The agent workflow block gained a "When the store check fails" subsection naming both commands. justfile, .forgejo/workflows/ci.yml, README.md, and AGENTS.md moved to the documented entry point, and a `just fix` recipe is the local repair half.
+
+Verified by mutation: a deliberately stale .tickets/epics.md made `just check` print the repair and exit 1, `just fix` restored it, and no residue remained.
+
+No new command shipped, as the ticket predicted for Option A.

@@ -714,6 +714,60 @@ a repair and never commits one.
 Test code is exempt and runs `git init` freely, because a fixture repository is
 not a user's repository.
 
+### 7.5 Merging ticket files
+
+git-ticket ships a merge driver. `TKT-01M1JPW1QJR3QM4SE9T3GDTZBX` builds it, and
+this section is the design it builds to.
+
+7.1 hands content resolution to Git and stops, which is right for a format made
+of text files and incomplete about what Git then does to them. Two agents each
+filing a ticket merge cleanly, because each writes a file the other does not
+have. Two agents editing one ticket conflict, and the reason is not what it
+looks like.
+
+Every mutation rewrites `updated_at` and `updated_by`. Two edits with nothing in
+common still change those lines, so Git sees both sides modify one region and
+stops. Branch A setting `priority` against branch B adding a label conflicts on
+`updated_by` alone: Git merges the priority and the label without complaint and
+hands back a file whose only disputed lines are the two neither agent typed.
+Whether that is a reason to keep the fields is
+`TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, because a driver that resolves them quietly is
+also a driver that hides the question.
+
+Position is the second source. `Notes` and `Comments` grow by appending, so two
+appends land at the same offset and collide as one hunk, though nothing in
+either entry contradicts the other.
+
+Both are resolvable without adjudicating anybody's data, which is what makes a
+driver worth shipping rather than a rule telling people not to do that.
+
+| Field | Rule |
+|---|---|
+| `schema`, `id`, `created_at`, `created_by` | conflict. These never change, so a difference is corruption and not a merge |
+| `updated_at` | the later of the two |
+| `updated_by` | the actor belonging to that later `updated_at`, so the pair stays one fact |
+| `title`, `type`, `status`, `status_reason`, `priority`, `due_on`, `milestone`, `parent`, `blocks_on` | take the side that changed, and conflict when both changed to different values |
+| `labels`, `assignees`, `dependencies`, `references` | union. These are unordered sets, so two additions are compatible |
+| `claim` | conflict whenever the sides differ. A claim is a mutual exclusion record, and resolving it silently hands one ticket to two agents, each holding a file that says it is theirs |
+| `archive` | conflict, for the reason `claim` does. Two sides archiving out of different statuses disagree about history |
+| `extensions` | merge by key, and conflict on a key both sides changed |
+| `Description`, `Implementation plan`, `Summary` | prose, so conflict when both sides changed it |
+| `Notes`, `Comments` | union, ordered by timestamp, dropping an entry identical on both sides |
+| `Acceptance criteria`, `Definition of done` | union by item, and conflict on an item both sides changed |
+
+A driver stays inside the 7.4 promise. Git invokes it, and it runs no Git
+command itself, so the table does not grow.
+
+Installing one takes two pieces and a repository can supply one. A
+`.gitattributes` entry naming the driver is a tracked file, so `init` can write
+it and a clone gets it. The `merge.*.driver` config line is not tracked, and Git
+refuses on purpose to take an executable name from a repository, because a clone
+would otherwise run a command the person cloning never chose.
+
+That boundary is correct and not an obstacle to route around. It makes the
+config line a person's decision every time, so the tool's job is to make it one
+command they run rather than a paragraph they transcribe.
+
 ## 8. Query surface
 
 - `list` with filters on status, type, priority, label, assignee, milestone, and
@@ -1969,14 +2023,32 @@ about a format read from the outside. The local view has its trigger written
 already in Phase 4, which is that the file and agent contracts have held through
 at least one real project. Neither is blocked on anything in this repository.
 
-**A merge driver for ticket files** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`). Whether
-git-ticket ships one. Two agents each adding a ticket merge cleanly and two
-editing the same ticket do not, which 7.1 hands to Git and leaves there. A driver
-stays inside the 7.4 promise, because Git invokes the driver and the driver runs
-no Git command itself. It would have to say which fields merge by union, which
-are last-writer-wins, and which must always conflict, and how a user installs
-one, since a driver needs both a `.gitattributes` entry and a `git config` line
-that a repository cannot set for itself.
+**A merge driver for ticket files** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`) is
+answered in 7.5. git-ticket ships one, and 7.5 holds the field rules and the
+install story. Building it is `TKT-01M1JPW1QJR3QM4SE9T3GDTZBX`, kept separate
+because the question was whether to ship a driver and not what its code looks
+like.
+
+Running the question changed what the driver is for. The ticket framed the work
+as deciding which fields merge by union, which are last-writer-wins, and which
+always conflict, which assumed the conflicts are about the data. They are mostly
+not. Two branches were made to edit one ticket in ways that share nothing, one
+setting `priority` and one adding a label, and they conflicted on `updated_by`
+alone while Git merged both edits without complaint. Every mutation rewrites
+that field and `updated_at` beside it, so any two concurrent edits collide on
+lines neither agent typed. `Notes` and `Comments` supply the rest by appending
+at the same offset.
+
+That makes the first useful driver a small one. Resolving two provenance stamps
+and two append-only sections clears the conflicts a real workflow hits, and
+adjudicates nothing anybody wrote. The full table in 7.5 exists so the rest is
+decided rather than discovered later, and most of its rows say conflict.
+
+It also raised `TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, on whether `updated_at` and
+`updated_by` earn their cost at all. 5.3 defends them, saying the diff should
+report who touched a ticket and when. The conflict evidence is the bill for
+that, and a driver that resolves them silently settles the symptom while hiding
+the question, which is why the question is filed rather than folded in.
 
 **External tracker integration** (`TKT-01M1HFQ5F4D4KF45A5PFQ39XST`). How
 git-ticket integrates with one. Storing the identifier works, because 5.1 leaves

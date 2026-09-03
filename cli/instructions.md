@@ -70,6 +70,17 @@ If you cannot proceed, `git ticket status ID blocked --reason "..."`. The
 reason is required, because a blocked ticket that does not say why tells the
 next person nothing.
 
+### When the store check fails
+
+CI verifies the store with `git ticket check --fix --dry-run --strict`. That
+plans every repair, prints what it would do, writes nothing, and exits 1 when
+one is pending. A ticket under the wrong filename, a ticket in the directory its
+status does not imply, and a stale `.tickets/epics.md` all land there.
+
+Run `git ticket check --fix` and commit what it changed. CI reports the repair
+and never commits it for you, the same way it reports unformatted code rather
+than reformatting it behind your back.
+
 ### Filing new work
 
 `git ticket create --title "..." --type bug --priority high` files a ticket.

@@ -55,11 +55,22 @@ lint:
 tidy:
     go mod tidy
 
-# --strict fails on warnings too: an expired claim, or a ticket in-progress with
-# nobody holding it, is how a store starts to drift.
-# Validate this repository's own ticket store with the binary from this tree.
+# The verification command of plan section 11. It plans every repair, prints
+# what it would do, writes nothing, and exits 1 when one is pending.
+#
+# --strict is the flag doing the work. epics_index_stale is a warning, so
+# without it a stale index exits 0 and this step goes green over the condition
+# it is here to catch. It also fails on an expired claim, or a ticket
+# in-progress with nobody holding it, which is how a store starts to drift.
+# Verify this repository's own ticket store with the binary from this tree.
 check: build
-    ./git-ticket check --strict
+    ./git-ticket check --fix --dry-run --strict
+
+# The repair half of `just check`. CI reports what is pending and never commits
+# it, per plan section 11, so this is the local command that settles it.
+# Repair what check reports: ticket file placement and the generated epics index.
+fix: build
+    ./git-ticket check --fix
 
 # What is startable right now, from this repository's own store.
 ready: build

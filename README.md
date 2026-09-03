@@ -463,6 +463,9 @@ before that exists.
 `just test` runs everything, including the tests that hold the fixture corpus to
 the plan: every code in section 11 has a fixture, and every fixture reproduces
 the findings recorded beside it. `just ci` adds the race detector, gofmt, vet,
-and `check --strict` over this repository's own store, which is what CI runs.
+and `check --fix --dry-run --strict` over this repository's own store, which is
+what CI runs. That plans every repair and writes nothing, so a pending one fails
+the build and `just fix` settles it locally. Plan section 11 is why CI reports
+the repair rather than committing it.
 The recipes are plain `go` invocations, so working without just costs you
 nothing but typing.

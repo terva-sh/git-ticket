@@ -49,7 +49,11 @@ in 29 seconds. Runs 1 through 3 were red, every one of them for the instance
 convention in Gotchas below rather than for anything the workflow runs.
 
 `.forgejo/workflows/ci.yml` runs gofmt, vet, `go test -race ./...`, and
-`check --strict` over this repository's own ticket store.
+`check --fix --dry-run --strict` over this repository's own ticket store. That
+last one is the verification command of plan section 11: it plans every repair,
+writes nothing, and exits 1 when one is pending. `--strict` is load-bearing,
+because `epics_index_stale` is a warning and without it a stale index exits 0.
+CI never commits a repair. Run `just fix` and commit what it changed.
 
 "With no network" in that exit criterion describes `check` itself, per section
 11: the command performs no network access. It is not a requirement that the CI

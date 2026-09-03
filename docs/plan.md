@@ -662,6 +662,11 @@ three, and a new helper fails the second rather than slipping past the third.
 No writing command joins this table. Section 15 records that decision under sync
 helpers, so a change that needs `fetch` or `push` is a change to the plan first.
 
+This table binds the tool and not a workflow, which can run plain `git` with the
+tool nowhere in the pipe. Section 11 carries that rule separately, under
+verifying generated artifacts in CI, and reaches the same answer: a job verifies
+a repair and never commits one.
+
 Test code is exempt and runs `git init` freely, because a fixture repository is
 not a user's repository.
 
@@ -1280,6 +1285,62 @@ creating the ticket, and only a person knows which was meant. `label_unknown`
 and `milestone_unknown` are each either a typo in the ticket or a gap in the
 allowlist. A tool that guessed at those would be wrong about half of them and
 silent about it, which is worse than reporting and stopping.
+
+### Verifying generated artifacts in CI
+
+A store holds generated state: `epics.md`, and the directory and filename every
+ticket should sit under. CI verifies both and commits neither.
+
+The verification command is `check --fix --dry-run --strict`. It plans every
+repair, prints what it would do, writes nothing, and exits 1 when anything is
+pending.
+
+`--strict` is the flag doing the work, and leaving it off is the mistake worth
+naming here. `epics_index_stale` is a warning, so `check --fix --dry-run` alone
+exits 0 on a stale index and a job built on it goes green over the exact
+condition it was added to catch. An error such as `filename_id_mismatch` exits 1
+either way, which is what makes the gap easy to miss: the command looks correct
+until the first warning-severity artifact arrives, and then it is silently
+wrong rather than broken.
+
+The obvious next step from "CI can detect this" is "CI should fix it and push",
+and this plan refuses that step.
+
+CI needs no write credential today. A leaked read token and a leaked write token
+are not the same incident, and adding the second one buys a convenience.
+
+A push to a pull request branch races whoever opened it. Concurrent agents in
+separate worktrees are the reason this project lands work through pull requests
+at all, and a job committing into a branch somebody is working in is that same
+collision with one more participant that cannot be asked to wait.
+
+A push to `main` from a job breaks the rule that nothing pushes to `main`, and
+leaves every local `main` behind by a commit nobody wrote.
+
+A push from CI also retriggers CI, so it needs a skip marker, and that is a
+second mechanism to maintain for as long as the first one exists.
+
+gofmt is the honest comparison. Nobody wants CI to reformat their code and push
+it. They want CI to say the code is unformatted and one local command that fixes
+it. `check --fix` is that command, and the agent workflow block names it, so an
+agent reading a red check is told what to run.
+
+Section 7.4 enumerates the Git commands this code runs and both only read. That
+constrains the tool and not a workflow, because a workflow can run plain `git`
+with the tool nowhere in the pipe. This section is the rule for the workflow. No
+writing command joins 7.4 for this purpose, and no job commits a repair.
+
+The two generated things sit at different scopes, and they stay under separate
+commands. `epics.md` and file placement are inside `.tickets/`, which
+`check --fix` owns and already walks. The agent workflow block is outside it, at
+the consumer's repository root, where `instructions --write` puts it.
+
+One flag covering both was considered and declined. `check` is the
+store-integrity command, and a consumer's `AGENTS.md` is a prose file that
+project owns. A tool that rewrites it as a side effect of a verification will
+eventually clobber something somebody wrote by hand, and the flag that did it
+would read as harmless. A workflow verifying both therefore runs two commands.
+That is the smaller price.
 
 ## 12. Interfaces
 
@@ -2039,12 +2100,13 @@ its own copy of in the store. The generator may be reusable inside the binary.
 The choice of what it renders is not the store's to make.
 
 A stale index is a warning, and the tradeoff this looked like does not exist.
-`--strict` promotes warnings to errors, per 10.3, and CI runs `check --strict`,
-so a warning is enforced exactly as hard as an error everywhere enforcement
-happens. Keeping it a warning holds the line that a derived file falling behind
-is not a malformed store, which is the same line that keeps "this ticket is
-late" out of `check` entirely. `TKT-01M1HXPJP7EGJVC2J7GC6Y887E` records the same
-answer, because the two cannot be allowed to diverge.
+`--strict` promotes warnings to errors, per 10.3, and every CI invocation in
+this plan carries it, so a warning is enforced exactly as hard as an error
+everywhere enforcement happens. Keeping it a warning holds the line that a
+derived file falling behind is not a malformed store, which is the same line
+that keeps "this ticket is late" out of `check` entirely.
+`TKT-01M1HXPJP7EGJVC2J7GC6Y887E` records the same answer, because the two cannot
+be allowed to diverge.
 
 Severity does not gate repair, which is the fact that makes the warning free.
 `planRepairs` recomputes where each file belongs rather than walking the
@@ -2178,6 +2240,30 @@ which is silence about two directories rather than a parse failure.
 `archive_location_mismatch` became `location_mismatch` in the same change,
 because the condition outgrew the name the moment a second directory could be
 wrong.
+
+Two more were settled for verifying generated artifacts in CI
+(`TKT-01M1HXPJP7EGJVC2J7GC6Y887E`), and 11 carries both.
+
+CI verifies and never commits. The step from "CI can detect this" to "CI should
+fix it and push" is refused, and 11 gives the reasons: the write credential CI
+does not need today, the race against whoever opened the branch, every local
+`main` left behind by a commit nobody wrote, and the skip marker a
+self-triggering job then maintains forever. 7.4 gained a pointer, because that
+table binds the tool and a workflow can run plain `git` with the tool nowhere in
+the pipe.
+
+Artifacts inside and outside the store stay under separate commands.
+`check --fix` owns `.tickets/`, and `instructions --write` owns the workflow
+block at the consumer's repository root. One flag covering both was declined. A
+verification that rewrites a project's own `AGENTS.md` will eventually clobber
+something written by hand, and the flag that did it would read as harmless.
+
+Settling this corrected the entry point the ticket proposed. That had been
+probed against `filename_id_mismatch`, an error, where `check --fix --dry-run`
+exits 1. `epics_index_stale` is a warning, so the same command exits 0 on a
+stale index. The verification command is `check --fix --dry-run --strict`, and
+without `--strict` a job goes green over the exact condition it was added to
+catch.
 
 ## 16. References
 

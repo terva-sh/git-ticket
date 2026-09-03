@@ -1,6 +1,7 @@
 # Forgejo CI: gofmt, vet, the test suite with the race detector, and
-# `git ticket check --strict` over this repository's own ticket store. That
-# last step is the second Phase 2 exit criterion in docs/plan.md section 13.
+# `git ticket check --fix --dry-run --strict` over this repository's own ticket
+# store. That last step is the second Phase 2 exit criterion in docs/plan.md
+# section 13, and section 11 is why it verifies without committing.
 #
 # Conventions follow the instance's other repositories, and the first version
 # of this file followed none of them and was red on its first run. Two rules
@@ -65,9 +66,17 @@ jobs:
 
       - name: check the ticket store
         # This repository keeps its own tickets in .tickets/, so check runs
-        # against a real store rather than a fixture. --strict fails on warnings
-        # too: an expired claim, or a ticket in-progress with nobody holding it,
-        # is how a store starts to drift.
+        # against a real store rather than a fixture.
+        #
+        # This is the verification command of plan section 11: it plans every
+        # repair, writes nothing, and exits 1 when one is pending. The job
+        # reports the repair and never commits it, which that section argues at
+        # length. Run `just fix` locally and commit the result.
+        #
+        # --strict is the flag doing the work. epics_index_stale is a warning,
+        # so without it a stale index exits 0 and this step goes green over the
+        # condition it is here to catch. It also fails on an expired claim, or a
+        # ticket in-progress with nobody holding it.
         run: |
           go build -o git-ticket ./cmd/git-ticket
-          ./git-ticket check --strict
+          ./git-ticket check --fix --dry-run --strict

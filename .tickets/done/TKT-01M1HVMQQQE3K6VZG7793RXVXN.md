@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1HVMQQQE3K6VZG7793RXVXN
 title: Partition the store into draft, tickets, done, and archive directories
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T20:05:53Z
-updated_at: 2026-09-03T00:09:57Z
+updated_at: 2026-09-03T00:23:12Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -93,15 +93,15 @@ Directories keyed on anything but status are refused, type included. A path is o
 
 ## Acceptance criteria
 
-- [ ] docs/plan.md section 4 carries the four-directory layout and the status-to-directory mapping before any code lands.
-- [ ] Placement is mandatory and derived from status: draft/ for draft, tickets/ for ready, in-progress, blocked and review, done/ for done, archive/ for archived.
-- [ ] location_mismatch replaces archive_location_mismatch in section 11, in the code, and in every sidecar naming it.
-- [ ] check reports a file in the wrong directory for all four directories, and check --fix moves it in one pass.
-- [ ] No schema bump and no dependency on migrate: no ticket file changes, only its path.
-- [ ] A store that has not been migrated still reads correctly, because 6.3 already rules that the status wins over the directory.
-- [ ] A corpus fixture covers a store with a misplaced file, with its sidecar.
-- [ ] This repository's own store is migrated by check --fix in one rename-only commit.
-- [ ] The plan refuses directories for ready, in-progress, blocked and review, and refuses partitioning on anything but status, type included.
+- [x] docs/plan.md section 4 carries the four-directory layout and the status-to-directory mapping before any code lands.
+- [x] Placement is mandatory and derived from status: draft/ for draft, tickets/ for ready, in-progress, blocked and review, done/ for done, archive/ for archived.
+- [x] location_mismatch replaces archive_location_mismatch in section 11, in the code, and in every sidecar naming it.
+- [x] check reports a file in the wrong directory for all four directories, and check --fix moves it in one pass.
+- [x] No schema bump and no dependency on migrate: no ticket file changes, only its path.
+- [x] A store that has not been migrated still reads correctly, because 6.3 already rules that the status wins over the directory.
+- [x] A corpus fixture covers a store with a misplaced file, with its sidecar.
+- [x] This repository's own store is migrated by check --fix in one rename-only commit.
+- [x] The plan refuses directories for ready, in-progress, blocked and review, and refuses partitioning on anything but status, type included.
 
 ## Notes
 
@@ -128,3 +128,17 @@ The case for closing was that TKT-01M1J755Q274KHQX9XFXAK6A55 fixes the tool view
 It does not answer this ticket, because the audiences are different. `list` serves whoever has the binary. The directory split serves a person reading the store in a forge web UI or through `ls`, and a generated index is a second artifact that can go stale where a directory cannot lie about which files are in it.
 
 Three things changed shape as a result. The layout is mandatory rather than opt-in, so the config-key decision the earlier draft raised is moot and there is no `directories` key. The pipeline is four directories rather than two added to two, with `draft/` as where a ticket is filed and `done/` as where recently finished work rests before a periodic sweep into `archive/`. And the migration is `check --fix` with no schema bump, because placement is store layout rather than file format and no ticket file changes.
+
+## Summary
+
+Shipped in PR #42. The store partitions into `draft/`, `tickets/`, `done/`, and `archive/`, keyed on status and mandatory. Against this repository `tickets/` went from 45 files to 1, which is the single ready ticket.
+
+The shape changed twice before it shipped. Closing this ticket was recommended and rejected: `list` answering with open work serves whoever has the binary, and this serves a person reading the store in a forge web UI, which is a different audience. Mandatory rather than opt-in then removed decision 1 entirely, because there is no config key to shape when the layout is the format.
+
+Decision 2 went to a rename. `archive_location_mismatch` became `location_mismatch`, recorded as a break in 12.4 and taken while the module is v0.x.
+
+Migration is `check --fix` with no schema bump, because a ticket file does not change when its path does. It moved 45 files here in one pass at 100% similarity. 12.4 records the cost that is not a break: an older binary walks two directories and answers quietly short against a migrated store, so migrating a shared store waits until its readers have the newer binary.
+
+Implementation collapsed five placement sites into one `statusDir` mapping. The fixture gained a draft in `tickets/` and a done in `draft/`, which are the cases that fail a half-rewritten rule where the archived case alone passes. Verified by mutation.
+
+Plan 4 carries the layout, 6.3 the authority rule, 11 the finding, 12.4 the break, and 15 the decision.

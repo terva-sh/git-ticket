@@ -401,9 +401,17 @@ after it in `body.extra`. Write `###` instead: the prefix test carries the
 trailing space, so three hashes do not match. A `## ` inside a fenced code block
 is already safe, because `parseBody` tracks fences.
 
-Nothing catches that. `check` passes, `show` prints every section in order, and
-the file reads correctly, which is why `TKT-01M1HVMQ` was filed that way and had
-to be filed again. Repairing it after the fact is worse than it sounds: there is
-no delete command, and `update --description` replaces the description alone, so
-the stray sections survive and the content ends up duplicated. Catch it before
-the commit, remove the file, and create the ticket again.
+The CLI now warns on stderr when you do it, naming the heading it found and
+`###` as the fix. It covers `create --description`, `create --plan`,
+`update --description`, `plan`, `summary`, `note`, and `comment`. It warns
+rather than refuses, because passing several sections in one string works and is
+sometimes meant, so the write still happens and the exit status does not move.
+Read your stderr.
+
+Nothing downstream catches it, which is why the warning is at the point of
+writing. `check` passes, `show` prints every section in order, and the file reads
+correctly, which is why `TKT-01M1HVMQ` was filed that way and had to be filed
+again. Repairing it after the fact is worse than it sounds: there is no delete
+command, and `update --description` replaces the description alone, so the stray
+sections survive and the content ends up duplicated. Catch it before the commit,
+remove the file, and create the ticket again.

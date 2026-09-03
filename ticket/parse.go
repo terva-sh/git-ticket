@@ -457,6 +457,56 @@ func findConflictMarker(text string) (int, bool) {
 	return 0, false
 }
 
+// fenceScanner decides which lines open a section. It exists as one
+// implementation on purpose: parseBody splits the body on what it returns, and
+// SectionHeadings reports the same lines to a caller about to write text into a
+// single section. A second copy of the rule would drift, and a warning that
+// disagreed with the parser would be worse than no warning.
+type fenceScanner struct{ fence string }
+
+// heading returns the section a line opens, and advances the fence state. Call
+// it once per line and in order, because whether a line sits inside a fenced
+// block is only knowable from the lines before it.
+//
+// The fence test reads the trimmed line and the heading test reads the raw one.
+// That is deliberate rather than an oversight: an indented fence still closes
+// the block it opened, and an indented "## " is not a section.
+func (f *fenceScanner) heading(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case f.fence != "":
+		if strings.HasPrefix(trimmed, f.fence) {
+			f.fence = ""
+		}
+	case strings.HasPrefix(trimmed, "```"):
+		f.fence = "```"
+	case strings.HasPrefix(trimmed, "~~~"):
+		f.fence = "~~~"
+	}
+	if f.fence == "" && strings.HasPrefix(line, "## ") {
+		return strings.TrimSpace(line[3:]), true
+	}
+	return "", false
+}
+
+// SectionHeadings returns the headings parseBody would find in text, in the
+// order it would find them.
+//
+// It is exported for the warning the CLI prints when text destined for one
+// body section carries a line that would end it. Passing several sections in
+// one string works and is sometimes meant, so this reports rather than judges,
+// and the caller decides what to do about it.
+func SectionHeadings(text string) []string {
+	var out []string
+	var fs fenceScanner
+	for _, line := range strings.Split(text, "\n") {
+		if h, ok := fs.heading(line); ok {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
 // parseBody splits the Markdown below the frontmatter into sections. A heading
 // inside a fenced code block is text, not a heading.
 func parseBody(body string) Body {
@@ -468,22 +518,11 @@ func parseBody(body string) Body {
 	var preamble []string
 	var sections []rawSection
 	cur := -1
-	fence := ""
+	var fs fenceScanner
 
 	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case fence != "":
-			if strings.HasPrefix(trimmed, fence) {
-				fence = ""
-			}
-		case strings.HasPrefix(trimmed, "```"):
-			fence = "```"
-		case strings.HasPrefix(trimmed, "~~~"):
-			fence = "~~~"
-		}
-		if fence == "" && strings.HasPrefix(line, "## ") {
-			sections = append(sections, rawSection{heading: strings.TrimSpace(line[3:])})
+		if heading, ok := fs.heading(line); ok {
+			sections = append(sections, rawSection{heading: heading})
 			cur = len(sections) - 1
 			continue
 		}

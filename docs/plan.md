@@ -382,6 +382,17 @@ Known sections, in this order:
 content. Unknown sections survive a round trip and are appended after the known
 ones in their original relative order.
 
+A section opens on any line beginning with `## `, and nowhere else. A line
+inside a fenced code block is text, and an indented one is text, so a ticket may
+quote Markdown without the quotation becoming structure. The heading is not
+matched against the list above before the split, which is what lets an unknown
+section survive rather than being refused.
+
+That rule reaches further than it looks. Text written into one section that
+carries such a line ends that section early: the text above stays and everything
+below becomes a section of its own. Nothing downstream reports it, so the CLI
+warns at the point of writing, per section 10.
+
 ### 5.3 Deterministic rendering
 
 The renderer must be a pure function of the parsed ticket. Two writers producing
@@ -906,6 +917,16 @@ An error leaves stdout empty in human mode and writes the envelope to stdout in
   }
 }
 ```
+
+A warning is not an error and does not behave like one. It goes to stderr in
+both modes, never touches stdout, and moves no exit status, so a caller parsing
+the envelope never has to know one was printed.
+
+One exists today: text written into a body section carrying a line 5.2 would
+read as the start of another. The write still happens, because passing several
+sections in one string works and is sometimes deliberate, and refusing would
+break a path that functions in order to prevent a mistake. The warning names the
+heading it found and `###` as the fix.
 
 Stable codes, which callers may switch on:
 

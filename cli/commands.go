@@ -292,6 +292,10 @@ func runCreate(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
+	// After the write, so the warning describes what the file now holds rather
+	// than what a failed command would have done.
+	warnSectionHeadings(ctx.env.Stderr, "--description", description)
+	warnSectionHeadings(ctx.env.Stderr, "--plan", plan)
 	return ctx.writeMutation(s, res, fmt.Sprintf("Created %s  %s", res.Ticket.ID, res.Ticket.Title))
 }
 
@@ -582,6 +586,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
+	warnSectionHeadings(ctx.env.Stderr, "--description", description)
 	return ctx.writeMutation(s, res, fmt.Sprintf("%s updated: %s",
 		res.Ticket.ID, strings.Join(changedFields(given, rmLabels, addLabels, unassign, assign), ", ")))
 }
@@ -916,6 +921,9 @@ func runTextEntry(ctx *cmdContext, name string, args []string, verb string,
 	if err != nil {
 		return err
 	}
+	// One call covers note, comment, plan, and summary, which is the reason they
+	// share this function.
+	warnSectionHeadings(ctx.env.Stderr, name, rest[1])
 	return ctx.writeMutation(s, res, fmt.Sprintf("%s %s", verb, res.Ticket.ID))
 }
 

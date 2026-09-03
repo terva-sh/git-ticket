@@ -1451,18 +1451,19 @@ func runSchema(ctx *cmdContext, args []string) error {
 
 	if ctx.g.json {
 		writeJSON(ctx.out, schemaEnvelope{
-			SchemaVersion: schemaVersion,
-			Kind:          "schema",
-			TicketSchema:  ticket.SchemaVersion,
-			Kinds:         envelopeKinds,
-			Statuses:      ticket.Statuses,
-			OpenStatuses:  ticket.OpenStatuses,
-			Types:         ticket.Types,
-			Priorities:    ticket.Priorities,
-			BlocksOn:      ticket.BlocksOnValues,
-			Transitions:   transitions,
-			ErrorCodes:    errorCodes,
-			FindingCodes:  findings,
+			SchemaVersion:  schemaVersion,
+			Kind:           "schema",
+			TicketSchema:   ticket.SchemaVersion,
+			Kinds:          envelopeKinds,
+			Statuses:       ticket.Statuses,
+			OpenStatuses:   ticket.OpenStatuses,
+			Types:          ticket.Types,
+			Priorities:     ticket.Priorities,
+			BlocksOn:       ticket.BlocksOnValues,
+			UnreadyReasons: ticket.UnreadyReasons,
+			Transitions:    transitions,
+			ErrorCodes:     errorCodes,
+			FindingCodes:   findings,
 		})
 		return nil
 	}
@@ -1474,6 +1475,7 @@ func runSchema(ctx *cmdContext, args []string) error {
 	fmt.Fprintf(ctx.out, "types       %s\n", strings.Join(ticket.Types, " "))
 	fmt.Fprintf(ctx.out, "priorities  %s\n", strings.Join(ticket.Priorities, " "))
 	fmt.Fprintf(ctx.out, "blocks on   %s\n", strings.Join(ticket.BlocksOnValues, " "))
+	fmt.Fprintf(ctx.out, "unready     %s\n", strings.Join(ticket.UnreadyReasons, " "))
 
 	fmt.Fprintln(ctx.out, "\ntransitions")
 	tw := tabwriter.NewWriter(ctx.out, 0, 0, 2, ' ', 0)

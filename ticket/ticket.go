@@ -70,6 +70,50 @@ func TerminalStatus(status string) bool {
 	return false
 }
 
+// The two unready reasons that are not a status echo, per plan section 8.
+//
+// ReasonWaitingOnDependencies is spelled out rather than called "blocked"
+// because Readiness.Blocked and the isBlocked key already mean "a dependency or
+// a blocking child is in the way", while StatusBlocked means a person marked
+// the ticket blocked and wrote a reason. Both senses of the word are load
+// bearing and neither can be renamed, so the new field takes a third name and
+// each word keeps one meaning per field: "blocked" in a reason is always the
+// status, isBlocked is always the dependency graph.
+//
+// ReasonClaimed is "claimed" and not "claimed_by_other", because readiness is
+// computed from the store and a clock with no actor anywhere in the call. It
+// cannot tell your own claim from somebody else's, so a name asserting the
+// difference would be a claim the code cannot check. A caller that wants it
+// compares claim.by against itself, which it can do and this cannot.
+const (
+	ReasonWaitingOnDependencies = "waiting_on_dependencies"
+	ReasonClaimed               = "claimed"
+)
+
+// UnreadyReasons lists every value Readiness.Reason can carry. The empty string
+// a ready ticket carries is not in it, because it is the absence of a reason
+// rather than one of them.
+//
+// The status half is derived rather than written out, for the reason
+// OpenStatuses is: a status added to Statuses becomes a reason here with no
+// edit, where a hand-written list would silently lack it and a consumer
+// switching on the field would fall through. Whether this format grows custom
+// statuses is still open in section 15, so that is not hypothetical.
+var UnreadyReasons = unreadyReasons()
+
+func unreadyReasons() []string {
+	out := make([]string, 0, len(Statuses)+1)
+	for _, s := range Statuses {
+		// Every status except ready is its own reason. Ready is missing because a
+		// ticket that is ready and startable has no reason at all, and one that is
+		// ready but held or waiting reports what actually stands in the way.
+		if s != StatusReady {
+			out = append(out, s)
+		}
+	}
+	return append(out, ReasonWaitingOnDependencies, ReasonClaimed)
+}
+
 // Types lists every valid ticket type, per plan 5.1.
 var Types = []string{"task", "bug", "chore", "spike", "epic"}
 

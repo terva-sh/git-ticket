@@ -111,13 +111,17 @@ type schemaEnvelope struct {
 	// OpenStatuses is what a listing answers with by default, per plan 8. It is
 	// published so a consumer wanting the open set does not hard-code five
 	// strings and go wrong the day a sixth status arrives.
-	OpenStatuses []string            `json:"openStatuses"`
-	Types        []string            `json:"types"`
-	Priorities   []string            `json:"priorities"`
-	BlocksOn     []string            `json:"blocksOn"`
-	Transitions  map[string][]string `json:"transitions"`
-	ErrorCodes   []string            `json:"errorCodes"`
-	FindingCodes []findingCodeJSON   `json:"findingCodes"`
+	OpenStatuses []string `json:"openStatuses"`
+	Types        []string `json:"types"`
+	Priorities   []string `json:"priorities"`
+	BlocksOn     []string `json:"blocksOn"`
+	// UnreadyReasons is every value readiness.reason can carry, so a consumer
+	// switching on it does not hard-code the list and fall through the day a
+	// status is added. The empty string a ready ticket carries is not in it.
+	UnreadyReasons []string            `json:"unreadyReasons"`
+	Transitions    map[string][]string `json:"transitions"`
+	ErrorCodes     []string            `json:"errorCodes"`
+	FindingCodes   []findingCodeJSON   `json:"findingCodes"`
 }
 
 type findingCodeJSON struct {
@@ -203,6 +207,18 @@ type readinessJSON struct {
 	// a dependency with nothing to signal the difference. A new key is
 	// additive, so a consumer that ignores it reads what it read before.
 	BlockingChildren []string `json:"blockingChildren"`
+	// Reason names why the ticket cannot be picked up, and is empty exactly when
+	// isReady is true. The schema kind publishes every value it can carry.
+	//
+	// The keys above answer this for a dependency and said nothing about the
+	// common case: a draft came back not ready, not blocked, and with three
+	// empty arrays, so a consumer had to re-derive the answer from status and
+	// claim. That re-derivation is what this object exists to prevent.
+	//
+	// "blocked" here is always the status a person set. isBlocked is always the
+	// dependency graph. The dependency reason is spelled
+	// waiting_on_dependencies so the two senses never share a word.
+	Reason string `json:"reason"`
 }
 
 type referenceJSON struct {
@@ -326,6 +342,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 			BlockingDependencies: stringSlice(r.Blocking),
 			MissingDependencies:  stringSlice(r.Missing),
 			BlockingChildren:     stringSlice(r.BlockingChildren),
+			Reason:               r.Reason,
 		},
 	}
 	for _, r := range t.References {

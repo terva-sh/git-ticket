@@ -795,6 +795,41 @@ somebody else holds, are both unready with nothing in the way but their own
 state, and calling those blocked would send a reader looking for a dependency
 that is not there.
 
+`reason` names why, and is empty exactly when `isReady` is true. Without it the
+sentence above described a hole rather than a feature: a draft came back not
+ready, not blocked, and with three empty arrays, so a consumer had to re-derive
+the answer from `status` and `claim`. That re-derivation is what `readiness`
+exists to prevent, and in this repository's own store it was the answer for ten
+of the eleven open tickets.
+
+One field rather than a set of booleans, because more than one can be true at
+once and a consumer would then need the precedence. Answering it once here costs
+less than answering it in every consumer, and the real cost is two consumers
+answering it differently.
+
+The precedence is status, then dependencies, then the claim, and it reads as
+what has to change first. A draft waiting on a dependency reports `draft`,
+because promoting it is the move that comes first and nobody acts on the
+dependency of a ticket that is not in the queue. Nothing is hidden by the
+choice: `blockingDependencies` and `blockingChildren` are still populated, so
+the reason names the operative blocker and the arrays carry the rest.
+
+Every status except `ready` is its own reason, so a status added to 6.1 becomes
+a reason with no further decision. The two that are not statuses are
+`waiting_on_dependencies` and `claimed`.
+
+`waiting_on_dependencies` is spelled out rather than called `blocked` because
+both senses of that word are already load bearing and neither can be renamed.
+`isBlocked` means the dependency graph, and the `blocked` status means a person
+marked the ticket and wrote a reason. The third name keeps one meaning per
+field: `blocked` in a reason is always the status, `isBlocked` is always the
+graph.
+
+`claimed` is not `claimed_by_other`, because readiness is computed from the
+store and a clock with no actor in the call. It cannot tell your own claim from
+somebody else's, and a name asserting that difference would be one the code
+cannot check. A caller comparing `claim.by` against itself can, and should.
+
 The two edge kinds keep separate fields. `blockingDependencies` is published and
 versioned under 12.4, so a child arriving in it would make a consumer print a
 child ID labelled as a dependency with nothing to signal the difference.
@@ -1024,7 +1059,8 @@ answers.
     "isBlocked": true,
     "blockingDependencies": ["TKT-01K4001C…"],
     "missingDependencies": [],
-    "blockingChildren": []
+    "blockingChildren": [],
+    "reason": "waiting_on_dependencies"
   }
 }
 ```
@@ -1174,6 +1210,7 @@ values without reading this document or hard-coding them:
   "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
   "priorities": ["low", "normal", "high", "urgent"],
+  "unreadyReasons": ["draft", "in-progress", "blocked", "review", "done", "archived", "waiting_on_dependencies", "claimed"],
   "transitions": { "draft": ["ready", "archived"] },
   "errorCodes": ["store_not_found", "usage"],
   "findingCodes": [{ "code": "duplicate_id", "severity": "error" }]
@@ -1195,6 +1232,12 @@ published for the same reason the rest of this envelope is: a consumer that
 wants the open set otherwise hard-codes five strings and goes wrong the day a
 sixth status arrives. It is derived from `statuses` by removing the terminal
 ones, so the two cannot drift.
+
+`unreadyReasons` is every value `readiness.reason` can carry, per section 8, so
+a consumer switching on it does not hard-code the list and fall through the day
+a status arrives. It is derived the same way: `statuses` without `ready`, then
+`waiting_on_dependencies` and `claimed`. The empty string a ready ticket carries
+is not in it, because that is the absence of a reason rather than one of them.
 
 Every one of those values is read from the code that enforces it rather than
 copied into the command. A status the library accepts and this document forgot
@@ -1643,6 +1686,18 @@ Both are taken now for the reason this section already gives for staying at
 `v0.x`: nothing consumes these surfaces yet, so this is the cheapest either
 change will ever be. Waiting does not avoid a break, it moves it to a release
 where somebody has to be told.
+
+`readiness` gains `reason` and the schema kind gains `unreadyReasons`, per
+section 8 and 10.4. Both are additive, so a consumer that ignores the new keys
+reads exactly what it read before and this is a minor release. `Readiness` gains
+an exported field, which is additive for the same reason: it breaks an unkeyed
+composite literal, and nothing constructs a `Readiness` outside this module
+because the library computes them and hands them back.
+
+A status added later widens `unreadyReasons` without breaking anyone, which is
+what publishing the list buys. A consumer that hard-coded the eight values
+instead would fall through on the ninth, and that is the failure the key exists
+to prevent.
 
 The four-directory layout is not a schema break. A ticket file does not change
 when its path does, so `schema` stays at 1 and no store needs `migrate`. Every

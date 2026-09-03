@@ -323,6 +323,29 @@ type Readiness struct {
 	// would name no blocker, which section 8 refuses for a draft on the same
 	// grounds. check reports that state as blocks_on_no_children instead.
 	BlockingChildren []string
+
+	// Reason names why the ticket cannot be picked up, and is empty exactly when
+	// Ready is true. UnreadyReasons lists every value it can carry.
+	//
+	// The fields above answer this only for a dependency, which left the common
+	// case silent: a draft reported not ready, not blocked, and three empty
+	// slices, so a caller drawing a board had to re-derive the answer from
+	// status and claim. Re-deriving it is the duplication this type exists to
+	// prevent.
+	//
+	// One field rather than a set of booleans, because more than one thing can
+	// be true at once and a consumer would then need the precedence. Answering
+	// it once here is cheaper than answering it the same way in every consumer,
+	// and being answered differently in two of them is the real cost.
+	//
+	// The precedence is status, then dependencies, then the claim, and it reads
+	// as "what has to change first". A draft waiting on a dependency reports
+	// draft, because promoting it is the move that comes first and nobody can
+	// act on the dependency of a ticket that is not in the queue. Blocking and
+	// BlockingChildren are still populated in that case, so nothing is hidden by
+	// the choice: the reason names the operative one and the slices carry the
+	// rest.
+	Reason string
 }
 
 // Readiness answers for every ticket in the store, keyed by ID.
@@ -425,10 +448,30 @@ func readinessOf(all []*Ticket, now time.Time) map[string]Readiness {
 		// anyone, so the ticket is available again.
 		held := t.Claim != nil && !t.Claim.Expired(now)
 		r.Ready = t.Status == StatusReady && !r.Blocked && !held
+		r.Reason = unreadyReason(t.Status, r.Blocked, held)
 
 		out[t.ID] = r
 	}
 	return out
+}
+
+// unreadyReason names the one thing that has to change first, per plan section
+// 8. It takes the same three inputs the Ready verdict is built from, so the two
+// cannot disagree about a ticket: the reason is empty exactly when Ready is
+// true, which is the invariant worth holding rather than the list of values.
+func unreadyReason(status string, blocked, held bool) string {
+	switch {
+	case status != StatusReady:
+		// The status echo, which covers draft, in-progress, blocked, review,
+		// done, and archived without naming any of them here. A status added to
+		// 6.1 lands in this branch with no edit.
+		return status
+	case blocked:
+		return ReasonWaitingOnDependencies
+	case held:
+		return ReasonClaimed
+	}
+	return ""
 }
 
 // DepsOptions selects which edges to walk.

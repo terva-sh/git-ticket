@@ -75,6 +75,7 @@ func TestSchemaReportsWhatTheLibraryEnforces(t *testing.T) {
 		{"openStatuses", ticket.OpenStatuses},
 		{"types", ticket.Types},
 		{"priorities", ticket.Priorities},
+		{"unreadyReasons", ticket.UnreadyReasons},
 	} {
 		if got := strsOf(t, env, c.key); !sameStrings(got, c.want) {
 			t.Errorf("%s = %v, want %v", c.key, got, c.want)

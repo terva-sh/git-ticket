@@ -45,32 +45,46 @@ func TestListFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The clean store holds six live tickets and one archived one, and an
-	// unfiltered list is about live work.
-	if len(all) != 6 {
-		t.Errorf("unfiltered list returned %d, want the 6 live tickets", len(all))
+	// The clean store holds one ticket per status: five open, one done, and one
+	// archived. An empty Filter answers with open work, per plan section 8.
+	if len(all) != 5 {
+		t.Errorf("unfiltered list returned %d, want the 5 open tickets", len(all))
 	}
 	for _, tk := range all {
-		if tk.Archived() {
-			t.Errorf("%s is archived and should not be in an unfiltered list", tk.ID)
+		if TerminalStatus(tk.Status) {
+			t.Errorf("%s is %s and should not be in an unfiltered list", tk.ID, tk.Status)
 		}
 	}
 
-	withArchived, err := s.List(ctx, Filter{IncludeArchived: true})
+	everything, err := s.List(ctx, Filter{All: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(withArchived) != 7 {
-		t.Errorf("list with archived returned %d, want 7", len(withArchived))
+	if len(everything) != 7 {
+		t.Errorf("All returned %d, want all 7", len(everything))
 	}
 
-	// Naming the archived status is another way of asking for them.
-	archived, err := s.List(ctx, Filter{Status: []string{StatusArchived}})
-	if err != nil {
-		t.Fatal(err)
+	// Naming a terminal status is the other way of asking for it. A filter that
+	// dropped the status its caller named would be ignoring its argument.
+	for _, status := range TerminalStatuses {
+		got, err := s.List(ctx, Filter{Status: []string{status}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 {
+			t.Errorf("status %s returned %d, want 1", status, len(got))
+		}
 	}
-	if len(archived) != 1 {
-		t.Errorf("status archived returned %d, want 1", len(archived))
+
+	// OpenStatuses is derived from Statuses, so the two cannot drift and a
+	// status added later is open unless somebody also calls it terminal.
+	if want := len(Statuses) - len(TerminalStatuses); len(OpenStatuses) != want {
+		t.Errorf("OpenStatuses has %d entries, want %d", len(OpenStatuses), want)
+	}
+	for _, s := range OpenStatuses {
+		if TerminalStatus(s) {
+			t.Errorf("%s is in OpenStatuses and is terminal", s)
+		}
 	}
 
 	// Within a field the values are alternatives.
@@ -136,9 +150,20 @@ func TestListFiltersOnParent(t *testing.T) {
 	// Direct children only. The grandchild hangs off hierChildReady, so a
 	// filter that walked the hierarchy would return three here instead of two.
 	// That is the assertion separating a direct match from a descendant walk.
-	kids := list(Filter{Parent: []string{hierEpic}})
+	//
+	// All, because this is a claim about the hierarchy and hierChildDone is done.
+	// Without it the default exclusion hides that child and the count comes out
+	// right for the wrong reason.
+	kids := list(Filter{Parent: []string{hierEpic}, All: true})
 	if len(kids) != 2 || !contains(kids, hierChildReady) || !contains(kids, hierChildDone) {
 		t.Errorf("children of the epic = %v, want the two direct ones", kids)
+	}
+
+	// Parent is a filter like any other, so it takes the default of section 8
+	// and an epic's done children are out until the caller asks for them. A
+	// special case here would be a second rule to hold in mind.
+	if open := list(Filter{Parent: []string{hierEpic}}); len(open) != 1 || open[0] != hierChildReady {
+		t.Errorf("open children of the epic = %v, want the ready one alone", open)
 	}
 	if contains(kids, hierGrandchild) {
 		t.Error("the grandchild is not a direct child of the epic")
@@ -158,7 +183,7 @@ func TestListFiltersOnParent(t *testing.T) {
 
 	// Within one filter the values are alternatives, so this is the epic's
 	// children plus the first child's.
-	both := list(Filter{Parent: []string{hierEpic, hierChildReady}})
+	both := list(Filter{Parent: []string{hierEpic, hierChildReady}, All: true})
 	if len(both) != 3 {
 		t.Errorf("two parents = %v, want all three descendants", both)
 	}

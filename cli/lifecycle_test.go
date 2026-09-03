@@ -93,8 +93,8 @@ func TestLifecycle(t *testing.T) {
 	if n := len(step("list", "list")["tickets"].([]any)); n != 0 {
 		t.Errorf("the default listing still shows %d tickets", n)
 	}
-	if n := len(step("list --archived", "list", "--archived")["tickets"].([]any)); n != 1 {
-		t.Error("list --archived does not show the archived ticket")
+	if n := len(step("list --all", "list", "--all")["tickets"].([]any)); n != 1 {
+		t.Error("list --all does not show the archived ticket")
 	}
 
 	// The store this run produced is valid. A lifecycle that ends in a store

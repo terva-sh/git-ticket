@@ -96,17 +96,21 @@ type findingJSON struct {
 // otherwise have to read the plan to learn. Everything in it comes from the
 // code that enforces it, so it cannot drift from what the binary does.
 type schemaEnvelope struct {
-	SchemaVersion int                 `json:"schemaVersion"`
-	Kind          string              `json:"kind"`
-	TicketSchema  int                 `json:"ticketSchema"`
-	Kinds         []string            `json:"kinds"`
-	Statuses      []string            `json:"statuses"`
-	Types         []string            `json:"types"`
-	Priorities    []string            `json:"priorities"`
-	BlocksOn      []string            `json:"blocksOn"`
-	Transitions   map[string][]string `json:"transitions"`
-	ErrorCodes    []string            `json:"errorCodes"`
-	FindingCodes  []findingCodeJSON   `json:"findingCodes"`
+	SchemaVersion int      `json:"schemaVersion"`
+	Kind          string   `json:"kind"`
+	TicketSchema  int      `json:"ticketSchema"`
+	Kinds         []string `json:"kinds"`
+	Statuses      []string `json:"statuses"`
+	// OpenStatuses is what a listing answers with by default, per plan 8. It is
+	// published so a consumer wanting the open set does not hard-code five
+	// strings and go wrong the day a sixth status arrives.
+	OpenStatuses []string            `json:"openStatuses"`
+	Types        []string            `json:"types"`
+	Priorities   []string            `json:"priorities"`
+	BlocksOn     []string            `json:"blocksOn"`
+	Transitions  map[string][]string `json:"transitions"`
+	ErrorCodes   []string            `json:"errorCodes"`
+	FindingCodes []findingCodeJSON   `json:"findingCodes"`
 }
 
 type findingCodeJSON struct {

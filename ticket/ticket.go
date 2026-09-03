@@ -35,6 +35,41 @@ var Statuses = []string{
 	StatusBlocked, StatusReview, StatusDone, StatusArchived,
 }
 
+// TerminalStatuses are the statuses a listing leaves out by default, per plan
+// section 8. Done and archived both mean the work is over, and a list of work
+// is about work that is still live.
+var TerminalStatuses = []string{StatusDone, StatusArchived}
+
+// OpenStatuses is what a listing answers with by default: every status that is
+// not terminal.
+//
+// It is derived rather than written out, because section 8 requires the rule to
+// be an exclusion. A status added to Statuses is open unless somebody also
+// names it terminal, where a hand-written list of the open five would drop it
+// silently. Whether this format grows custom statuses is still open in section
+// 15, so that is not hypothetical.
+var OpenStatuses = openStatuses()
+
+func openStatuses() []string {
+	out := make([]string, 0, len(Statuses))
+	for _, s := range Statuses {
+		if !TerminalStatus(s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// TerminalStatus reports whether a status means the work is over.
+func TerminalStatus(status string) bool {
+	for _, s := range TerminalStatuses {
+		if s == status {
+			return true
+		}
+	}
+	return false
+}
+
 // Types lists every valid ticket type, per plan 5.1.
 var Types = []string{"task", "bug", "chore", "spike", "epic"}
 

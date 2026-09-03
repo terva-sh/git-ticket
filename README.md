@@ -197,11 +197,21 @@ criterion.
 second, because a path with no reference names nothing. `unlink` is the reverse,
 and removing something that is not there succeeds rather than complaining.
 
+`list` answers with open work: every status except `done` and `archived`. Naming
+a status brings it back, so `list --status done` still works, and `--all` drops
+the exclusion. The rule is an exclusion rather than a list of the open statuses,
+so a status added later is included without an edit. `git ticket schema`
+publishes the open set as `openStatuses` rather than making a consumer hard-code
+it.
+
 `search` takes a regular expression and matches it against the title and the
 body, and it takes every filter `list` takes, so you narrow by status or type
-and search inside that. `ready` answers one question: which open tickets are
-not blocked and have every dependency closed. That is the queue, and it is what
-an agent asks for when it wants work.
+and search inside that. It does not take the open default, though. Search is how
+you find what was already decided, and a decision lives in a done ticket.
+
+`ready` answers one question: which open tickets are not blocked and have every
+dependency closed. That is the queue, and it is what an agent asks for when it
+wants work.
 
 Every ticket also carries a `readiness`, derived from the whole store at read
 time and never stored. It holds the verdict `ready` filters on plus what stands
@@ -384,11 +394,14 @@ itself, so a new binary cannot make a repository unreadable to a colleague still
 on the old one. The module stays `v0.x` until Phase 3 lands.
 
 The parent hierarchy is settled too, in section 8. `list --parent ID` gives an
-epic's direct children and `list --parent none` gives the tickets with no parent,
-which is what a board needs for its top level. `deps` still walks `dependencies`
-alone, but when its answer is empty and the ticket has children it now names the
-count and points at that filter, because "It depends on nothing." is true and
-useless on an epic.
+epic's direct children that are still open, and `list --parent none` gives the
+tickets with no parent, which is what a board needs for its top level. `--parent`
+takes the open default like every other filter, so add `--all` for an epic's
+whole roster. Nothing that reasons about children reads a listing: `readiness`
+computes `blockingChildren` from the whole store, so a done child still counts
+as satisfied. `deps` still walks `dependencies` alone, but when its answer is
+empty and the ticket has children it now names the count and points at that
+filter, because "It depends on nothing." is true and useless on an epic.
 
 That question shrank when it was run rather than argued. `list --json` already
 carried every `parent` edge, so the tree was always reconstructable from one

@@ -12,6 +12,12 @@ closed. That is the queue. `git ticket list --status in-progress` shows what is
 already underway, and `git ticket search PATTERN` takes a regular expression
 over the title and body when you only roughly know what you are after.
 
+`git ticket list` answers with open work: every status except `done` and
+`archived`. Naming a status brings it back, so `git ticket list --status done`
+works, and `git ticket list --all` drops the exclusion. Search is the exception
+and spans everything, because finding what was already decided means reading a
+done ticket.
+
 A short queue does not mean there is little to do. Everything filed lands in
 `draft` and stays there until a person promotes it, so
 `git ticket list --status draft` is the rest of the backlog, and it is usually

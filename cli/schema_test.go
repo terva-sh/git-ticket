@@ -72,6 +72,7 @@ func TestSchemaReportsWhatTheLibraryEnforces(t *testing.T) {
 		want []string
 	}{
 		{"statuses", ticket.Statuses},
+		{"openStatuses", ticket.OpenStatuses},
 		{"types", ticket.Types},
 		{"priorities", ticket.Priorities},
 	} {

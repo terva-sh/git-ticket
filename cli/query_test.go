@@ -130,6 +130,55 @@ func TestReadyIsWhatCouldBeStarted(t *testing.T) {
 	}
 }
 
+// TestListDefaultsToOpenWork covers the section 8 default: a listing answers
+// with open work, and done and archived stay out until somebody asks for them.
+//
+// The old default was every ticket except archived. In this repository's own
+// store that was 44 rows with 30 of them done, so the command answered a
+// different question than the one an agent was asking.
+func TestListDefaultsToOpenWork(t *testing.T) {
+	dir := newStore(t)
+	const actor = "human:sothr"
+
+	stillOpen := makeTicket(t, dir, "a draft nobody has promoted")
+	finished := makeTicket(t, dir, "the work that already landed")
+	retired := makeTicket(t, dir, "the work retired from the ledger")
+
+	for _, id := range []string{finished, retired} {
+		for _, s := range []string{"ready", "in-progress", "done"} {
+			runCLI(t, dir, nil, "status", id, s, "--actor", actor)
+		}
+	}
+	if got := runCLI(t, dir, nil, "archive", retired, "--actor", actor); got.code != exitOK {
+		t.Fatalf("archive: %s", got.stderr)
+	}
+
+	// A draft is open work. Unready is not the same as over, which is the whole
+	// distinction the exclusion draws.
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "list")), stillOpen)
+
+	// --all drops the exclusion. It replaced --archived, which under the old
+	// default already meant everything.
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "list", "--all")),
+		stillOpen, finished, retired)
+
+	// Naming a terminal status brings it back on its own. A filter that dropped
+	// the status its caller named would be ignoring its argument.
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "list", "--status", "done")), finished)
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "list", "--status", "archived")), retired)
+
+	// Search does not take the default. It is how somebody finds what was
+	// already decided, and a decision lives in a done ticket.
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "search", "already landed")), finished)
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "search", "retired from")), retired)
+
+	// The old flag is gone rather than quietly ignored, so a script carrying it
+	// fails loudly instead of reading a different store than it thinks.
+	if got := runCLI(t, dir, nil, "list", "--archived"); got.code == exitOK {
+		t.Error("list --archived still parses; it was renamed --all")
+	}
+}
+
 // TestNoteAndCommentAppend keeps a log; each entry is stamped and the earlier
 // ones stay.
 func TestNoteAndCommentAppend(t *testing.T) {

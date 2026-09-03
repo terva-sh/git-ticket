@@ -42,18 +42,26 @@ type Filter struct {
 	// reuse deref and matchesOne: an absent value is not a candidate here, where
 	// for a milestone or a parent it is.
 	DueBy string
-	// IncludeArchived adds archived tickets to the result. They are left out by
-	// default, because a list of work is about work that is still live. Asking
-	// for the archived status explicitly also brings them in.
-	IncludeArchived bool
+	// All includes every ticket whatever its status. Without it a listing
+	// answers with open work, leaving out done and archived, per plan section 8.
+	//
+	// This replaced IncludeArchived, which under the old default meant the same
+	// thing: everything-except-archived plus archived was everything. 12.4
+	// records the rename.
+	All bool
 }
 
-func (f Filter) wantsArchived() bool {
-	if f.IncludeArchived {
+// wantsTerminal reports whether a terminal status belongs in the result. The
+// caller either asked for everything, or named that status outright.
+//
+// Naming it wins, because a filter that dropped the status its caller asked for
+// would be a filter that ignores its argument.
+func (f Filter) wantsTerminal(status string) bool {
+	if f.All {
 		return true
 	}
 	for _, s := range f.Status {
-		if s == StatusArchived {
+		if s == status {
 			return true
 		}
 	}
@@ -61,7 +69,7 @@ func (f Filter) wantsArchived() bool {
 }
 
 func (f Filter) matches(t *Ticket) bool {
-	if t.Archived() && !f.wantsArchived() {
+	if TerminalStatus(t.Status) && !f.wantsTerminal(t.Status) {
 		return false
 	}
 	if !matchesOne(f.Status, t.Status) ||
@@ -216,7 +224,14 @@ func (s *Store) Search(ctx context.Context, q Query) ([]*Ticket, error) {
 		match = func(hay string) bool { return strings.Contains(strings.ToLower(hay), needle) }
 	}
 
-	candidates, err := s.List(ctx, q.Filter)
+	// Search spans every status, done and archived included, per plan section 8.
+	// A listing answers what to work on, while a search is how somebody finds
+	// what was already decided, and a decision lives in a done ticket. The
+	// caller's own filters still narrow from there, so naming a status works
+	// exactly as it does on a listing.
+	f := q.Filter
+	f.All = true
+	candidates, err := s.List(ctx, f)
 	if err != nil {
 		return nil, err
 	}

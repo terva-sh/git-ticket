@@ -110,7 +110,7 @@ func commonPrefixLen(a, b string) int {
 // A failure here costs only brevity, so it falls back to full IDs rather than
 // failing a read the caller asked for.
 func storeAbbreviations(s *ticket.Store) map[string]string {
-	all, err := s.List(context.Background(), ticket.Filter{IncludeArchived: true})
+	all, err := s.List(context.Background(), ticket.Filter{All: true})
 	if err != nil {
 		return nil
 	}
@@ -360,7 +360,7 @@ func runList(ctx *cmdContext, args []string) error {
 		parent    stringList
 		dueBy     string
 		sortBy    string
-		archived  bool
+		all       bool
 	)
 	rest, err := ctx.parseFlags("list", args, func(fs *flag.FlagSet) {
 		fs.Var(&status, "status", "a status to include, repeatable")
@@ -372,7 +372,7 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.Var(&parent, "parent", "a parent whose children to list, or "+parentNone+" for tickets with no parent, repeatable")
 		fs.StringVar(&dueBy, "due-by", "", "only tickets due on or before this YYYY-MM-DD date")
 		fs.StringVar(&sortBy, "sort", sortByID, "order the result: "+sortByID+" or "+sortByDueOn)
-		fs.BoolVar(&archived, "archived", false, "include archived tickets")
+		fs.BoolVar(&all, "all", false, "include every status, done and archived too")
 	})
 	if err != nil {
 		return err
@@ -416,15 +416,15 @@ func runList(ctx *cmdContext, args []string) error {
 	}
 
 	tickets, err := s.List(context.Background(), ticket.Filter{
-		Status:          status,
-		Type:            kind,
-		Priority:        priority,
-		Labels:          labels,
-		Assignees:       assignees,
-		Milestone:       milestone,
-		Parent:          parents,
-		DueBy:           dueBy,
-		IncludeArchived: archived,
+		Status:    status,
+		Type:      kind,
+		Priority:  priority,
+		Labels:    labels,
+		Assignees: assignees,
+		Milestone: milestone,
+		Parent:    parents,
+		DueBy:     dueBy,
+		All:       all,
 	})
 	if err != nil {
 		return err
@@ -1438,6 +1438,7 @@ func runSchema(ctx *cmdContext, args []string) error {
 			TicketSchema:  ticket.SchemaVersion,
 			Kinds:         envelopeKinds,
 			Statuses:      ticket.Statuses,
+			OpenStatuses:  ticket.OpenStatuses,
 			Types:         ticket.Types,
 			Priorities:    ticket.Priorities,
 			BlocksOn:      ticket.BlocksOnValues,
@@ -1451,6 +1452,7 @@ func runSchema(ctx *cmdContext, args []string) error {
 	fmt.Fprintf(ctx.out, "envelope schema %d, ticket schema %d\n\n", schemaVersion, ticket.SchemaVersion)
 	fmt.Fprintf(ctx.out, "kinds       %s\n", strings.Join(envelopeKinds, " "))
 	fmt.Fprintf(ctx.out, "statuses    %s\n", strings.Join(ticket.Statuses, " "))
+	fmt.Fprintf(ctx.out, "open        %s\n", strings.Join(ticket.OpenStatuses, " "))
 	fmt.Fprintf(ctx.out, "types       %s\n", strings.Join(ticket.Types, " "))
 	fmt.Fprintf(ctx.out, "priorities  %s\n", strings.Join(ticket.Priorities, " "))
 	fmt.Fprintf(ctx.out, "blocks on   %s\n", strings.Join(ticket.BlocksOnValues, " "))

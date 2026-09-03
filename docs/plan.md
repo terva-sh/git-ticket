@@ -573,9 +573,9 @@ not a user's repository.
 
 - `list` with filters on status, type, priority, label, assignee, milestone, and
   parent. Within one filter the values are alternatives and across filters they
-  all have to hold. Archived tickets are left out unless the caller asks for
-  them, by filtering on the `archived` status or by asking for them outright,
-  because a list of work is about work that is still live. `--due-by` takes a
+  all have to hold. It answers with open work: every status except `done` and
+  `archived`. A caller who wants those names the status, or asks for everything
+  with `--all`. `--due-by` takes a
   date and selects the tickets due on or before it, which is the query the
   field exists for, because today's date answers what is late. It is a bound
   and not a set, so the alternatives rule above does not apply to it, and a
@@ -599,6 +599,58 @@ not a user's repository.
   references and is only as complete as the agents that wrote them. It is
   advisory and not derived from Git history, and the help text says so
 - `check`, described in section 10
+
+### What a listing answers by default
+
+`list` answers with open work. `done` and `archived` are left out, and every
+other status is in.
+
+The rule is an exclusion rather than a list, so a status added later is included
+without an edit here. Whether this format grows custom statuses is still open in
+section 15, and an inclusion list would silently drop any status that arrived.
+The epics index settles the same question the same way, and the two must not
+disagree.
+
+Naming a status brings it back. `--status done` answers with done tickets,
+because a caller who named the status has already said what they want, and a
+default that overrode them would be a filter that ignores its argument. `--all`
+drops the exclusion entirely.
+
+The default applies to every filter, `--parent` included, so `list --parent EPIC`
+answers with the children still open. That is the consistent reading and the
+reason to take it: a carve-out for one filter is a second rule to hold in mind,
+and the caller who wants an epic's whole roster asks with `--all`. Nothing that
+reasons about children reads a listing anyway. `readiness` computes
+`blockingChildren` from the whole store, so a done child still counts as
+satisfied whatever a listing shows.
+
+The old default was every ticket except archived. In this repository's own store
+that meant 44 rows with 30 of them done, so an agent asking what was open had to
+throw most of the answer away, which is the sign that a command answered a
+different question than the one asked. Archived was already excluded, so the
+default already hid terminal work. The line sat between two statuses that are
+terminal in the same way.
+
+`--archived` is renamed `--all`, and `Filter.IncludeArchived` becomes
+`Filter.All`. Under the old default, everything-except-archived plus archived
+was everything, so the flag already meant what `--all` now says, and keeping
+both would be two spellings of one behaviour.
+
+`search` does not take this default. It searches every status, `done` and
+`archived` included, and its filters narrow from there. The asymmetry is
+deliberate. `list` answers what to work on, while search is how somebody finds
+what was already decided, and what was already decided is what a done ticket
+holds. A search that hid the answers would be worth replacing.
+
+The library reads the same way as the CLI. `Filter{}` means open work rather
+than no filtering, so a host embedding `ticket` gets the answer the CLI gives
+without restating the status set. `Filter{All: true}` is everything.
+
+One caller inside this project needs everything and says so. The abbreviation
+table behind a listing shortens an ID against every ticket in the store, done
+and archived included, because what a listing prints gets pasted into a command
+that resolves against all of them. An abbreviation computed against open work
+alone would print a prefix that resolves to two tickets.
 
 Ordering by `due_on` puts the earliest date first, the undated tickets last, and
 breaks a tie on the ID. Never is the far end of "closest to late first". The ID
@@ -976,6 +1028,7 @@ values without reading this document or hard-coding them:
   "ticketSchema": 1,
   "kinds": ["ticket", "ticket-list", "mutation-result", "check-report", "error", "schema"],
   "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
+  "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
   "priorities": ["low", "normal", "high", "urgent"],
   "transitions": { "draft": ["ready", "archived"] },
@@ -993,6 +1046,12 @@ may go, which is the table in 6.2. `errorCodes` is the section 10 list with the
 CLI's `usage` appended. `findingCodes` pairs each section 11 code with the
 severity that section assigns it, so a consumer reading a report knows whether
 a code it has never seen is an error or a warning.
+
+`openStatuses` is what a listing answers with by default, per section 8. It is
+published for the same reason the rest of this envelope is: a consumer that
+wants the open set otherwise hard-codes five strings and goes wrong the day a
+sixth status arrives. It is derived from `statuses` by removing the terminal
+ones, so the two cannot drift.
 
 Every one of those values is read from the code that enforces it rather than
 copied into the command. A status the library accepts and this document forgot
@@ -1352,6 +1411,21 @@ a new error code, a new envelope kind, and a new `schema` the reader also
 understands are all minor changes. Removing a field, renaming a code, changing
 what a value means, and dropping support for a `schema` that used to parse are
 all major ones.
+
+Breaks are recorded here as they land, because a break nobody wrote down is
+indistinguishable from a regression.
+
+`list` and `Filter{}` narrow from every non-archived ticket to open work, per
+section 8. That changes what a covered surface means rather than adding beside
+it, so it is a break under the rule above. `Filter.IncludeArchived` becomes
+`Filter.All` in the same change. Renaming an exported field breaks a keyed
+composite literal as well as an unkeyed one, which is the wider of the two, and
+is worth saying plainly to anyone who has already written `Filter{...}`.
+
+It is taken now for the reason this section already gives for staying at `v0.x`:
+nothing consumes these surfaces yet, so this is the cheapest the change will
+ever be. Waiting does not avoid the break, it moves it to a release where
+somebody has to be told.
 
 The module version tracks the Go API alone. A `schema` bump is not a Go major:
 learning to read schema 2 while schema 1 still parses is additive, so it ships
@@ -1882,6 +1956,32 @@ each one through the package renderer rather than by hand. Two more carry
 frontmatter and did not gain it, because `conflict-markers.md` and `schema-2.md`
 exist to fail parsing, so a field they never reach is a field they must not
 carry.
+
+Two more were settled for what a listing answers
+(`TKT-01M1J755Q274KHQX9XFXAK6A55`), and 8, 10.4, and 12.4 now carry them.
+
+`list` answers with open work, which is every status except `done` and
+`archived`. The old default was every ticket except archived, and in this
+repository's own store that was 44 rows with 30 of them done. The line already
+existed and sat in the wrong place. Archived was excluded for being terminal,
+and done is terminal in the same way.
+
+Stating it as an exclusion rather than as a list of the five open statuses is
+the part that has to survive. **Custom statuses** is still open, and an
+inclusion list would silently drop any status that arrived where an exclusion
+keeps working. The epics index answered the same question the same way, and two
+views of one store disagreeing about what counts as live is worse than either
+answer.
+
+The library moves with the CLI. `Filter{}` means open work rather than no
+filtering, so a host embedding `ticket` gets the answer the command gives
+without restating the set, and `Filter{All: true}` is everything. That is a
+break to a covered surface, taken now because nothing consumes it yet, and 12.4
+records it along with the `IncludeArchived` rename it carried.
+
+`search` is the one place the new default would have been wrong, so it does not
+take it. Search is how somebody finds what was already decided, and a decision
+lives in a done ticket. 8 holds that asymmetry and its reason.
 
 ## 16. References
 

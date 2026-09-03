@@ -1,11 +1,12 @@
 ---
 schema: 1
 id: TKT-01M1HVMQQQE3K6VZG7793RXVXN
-title: Add optional draft and done directories so tickets/ holds the working set
+title: Partition the store into draft, tickets, done, and archive directories
 type: task
 status: draft
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
   - question
@@ -13,13 +14,14 @@ assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: plan:store-layout
     path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-02T20:05:53Z
-updated_at: 2026-09-02T20:43:21Z
+updated_at: 2026-09-03T00:09:57Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -31,74 +33,75 @@ extensions: {}
 
 ## Description
 
-`ls .tickets/tickets/` currently answers a question nobody asks. As of filing it holds 38 files: 27 done, 10 draft, 1 in-progress. So 37 of 38 are not active work, and a human or agent trying to see what is open without running the tool has to read every file to find the one that matters.
+`.tickets/tickets/` should hold what somebody could work on, and nothing else. Today it holds everything, so a person opening the directory in a forge web UI reads 43 files to find the handful that are live. The split exists for the human. Keeping only actionable work in `tickets/` is what makes it possible to be sure you are looking at what you meant to focus on.
 
-Proposal: optional `draft/` and `done/` directories beside `tickets/` and `archive/`, so `tickets/` holds the working set alone. Origin and terminal tickets sit outside it.
+The store becomes a pipeline of four directories, and a ticket moves through them as its status changes:
 
-Structurally this is not a new kind of thing. `archive/` already is a status-derived directory: 6.3 rules that the status wins when the status and the directory disagree, `archive_location_mismatch` reports the drift, and `check --fix` now repairs it by moving the file. The current placement rule is already a status-to-directory function with one hardcoded entry. This generalizes it.
-
-### Invariant, not opportunistic
-
-The layout should be opt-in, but once opted in it is an invariant like `archive/` is, not a soft preference the tool applies when it happens to touch a file.
-
-If placement were opportunistic, a done ticket left in `tickets/` could not be a finding, or opting in would raise 27 errors at once. Placement would become advisory, and advisory placement rots: done tickets end up spread across two directories indefinitely, which is worse for the legibility goal than not having `done/` at all, because now you check two places and trust neither.
-
-The migration objection that makes opportunistic attractive is already answered. `check --fix` exists, and relocating on opt-in is exactly the move it makes, so the upgrade is one rename-only commit that reviews cleanly. Opportunistic placement is also worse for history: it sprinkles unrelated renames through every commit that happens to touch a ticket, where a single deliberate migration commit is one reviewable diff.
-
-### Decision 1: the shape of the config key
-
-Option A, a general status-to-directory table:
-
-```yaml
-directories:
-  draft: draft
-  done: done
-  archived: archive
+```
+draft/     a ticket somebody filed, not yet worth starting
+tickets/   the working set: ready, in-progress, blocked, review
+done/      finished recently, still worth reading
+archive/   retired, swept out of done periodically
 ```
 
-Anything unlisted lands in `tickets/`. A store with no `directories` key gets the current default, so existing stores and every current fixture are untouched. This makes `archive/` a case of the rule rather than a hardcode, which removes a special case instead of adding one.
+### The mapping
 
-Option B, a narrow opt-in list of extra status directories, leaving `archive/` hardcoded. Smaller blast radius, but keeps the special case and reads as two mechanisms doing one job.
+| Status | Directory |
+|---|---|
+| `draft` | `draft/` |
+| `ready`, `in-progress`, `blocked`, `review` | `tickets/` |
+| `done` | `done/` |
+| `archived` | `archive/` |
 
-Either way, only placement becomes table-driven. Archived-ness stays semantically special, because `Archived()` also drives dependency satisfaction per 6.3, `unarchive`, and the `archive` frontmatter block. Placement and meaning are separable and should be separated.
+A ticket is created in `draft/`. When it is written well enough for work or planning to start, somebody moves it to `tickets/`, which is the same promotion the agent workflow block already reserves for a person. When it is marked done it moves to `done/`. `done/` is cleaned into `archive/` periodically, by a person running `git ticket archive`.
 
-### Decision 2: the name of the finding
+### Mandatory, not opt-in
 
-`archive_location_mismatch` becomes a wrong name once placement generalizes past the archive.
+An earlier draft of this ticket proposed an opt-in `directories` key in `config.yml`, and offered closing the ticket in favour of a generated index. Both were rejected. The layout is the format, so there is no config key to shape and no decision left about what it should look like.
 
-Option A, widen the existing code's condition and keep the name. Least disruptive to consumers and to the corpus, but the name misleads, and a misleading name rots.
+That also settles the invariant question the earlier draft raised. Placement is an invariant like `archive/` already is, not an advisory preference applied when the tool happens to touch a file. Advisory placement rots: done tickets end up spread across two directories indefinitely, and then you check both and trust neither, which is worse for the legibility goal than having no `done/` at all.
 
-Option B, rename to `location_mismatch`. Honest, but it is a breaking change to the JSON contract under 12.4 and every sidecar naming the old code has to follow, per `TestCorpusCoversEveryPlanCode`.
+### Structurally this already exists
 
-Option C, add `location_mismatch` alongside and retire the old code at a schema bump. Two codes for one condition in the meantime, which is its own kind of wrong.
+`archive/` is already a status-derived directory. 6.3 rules that the status wins when the status and the directory disagree, `archive_location_mismatch` reports the drift, and `check --fix` repairs it by moving the file. The current rule is a status-to-directory function with one hardcoded entry, and this generalizes it to four. That removes a special case rather than adding one.
 
-### Explicitly out of scope
+### Migration is check --fix, and there is no schema bump
 
-Directories for `ready`, `in-progress`, `blocked`, or `review`. Those are the working set, they churn, and a directory for each would turn every status transition into a rename. The plan should say so rather than leaving it as an obvious next step for somebody.
+The frontmatter `schema` versions the file format, and placement is store layout, not file format. No field changes, no rendering changes, and nothing about a ticket file is different. So this needs no schema bump and no dependency on `git ticket migrate`, which plan 12.5 designs but nothing has built.
 
-### The baseline this has to beat
+`check` reports every file in the wrong directory and `check --fix` moves it, exactly as it already does for the archive. Migrating an existing store is therefore one rename-only commit that reviews cleanly, which is also how this repository's own store moves.
 
-Archiving the 27 done tickets costs nothing and needs no format change. `tickets/` would drop to 11.
+Reads keep working throughout, because 6.3 already says the status wins over the directory. A store that has not been migrated is reported, not broken.
 
-It does not help the 10 drafts, and it conflates work finished last week with work retired, which `unarchive` restoring to `ready` shows was never the intent of the archive. The distinction looks real, but the comparison belongs on the record so the change is auditable rather than assumed.
+### The finding is renamed
 
-### Costs to weigh
+`archive_location_mismatch` becomes `location_mismatch`, because placement stopped being about the archive alone and a misleading name rots. Renaming a code is a break under 12.4, taken now while the module is `v0.x` and nothing consumes the surface, on the same reasoning that took the `list` default break. Every sidecar naming the old code has to follow, which `TestCorpusCoversEveryPlanCode` enforces.
 
-A status change that crosses a directory boundary is a rename. Two agents moving one ticket to different statuses collide as a rename conflict rather than a content conflict on `status:`. The collision already exists, this makes it uglier to resolve, and it matters because several agents work this repository at once in separate worktrees.
+### Costs, accepted rather than dismissed
 
-Every store fixture gains a layout dimension, though only for stores that opt in, so the cost is one or two new fixtures plus their mismatch findings.
+A status change that crosses a directory boundary is now a rename. Two agents moving one ticket to different statuses collide as a rename conflict rather than a content conflict on `status:`. That collision already exists and this makes it uglier to resolve, which matters because several agents work this repository at once in separate worktrees. The pull request workflow is the mitigation, and it is the same one that already covers two agents editing one ticket.
 
-`tickets/` comes to mean "the working set" and the name gets less accurate. Not worth a rename, worth a sentence in section 4.
+`git log` needs `--follow` to trace a ticket across its moves. A ticket now moves at most three times in its life, at the three transitions that matter, so the history stays readable.
+
+### Out of scope
+
+A bulk sweep of `done/` into `archive/` is not built here. `git ticket archive ID` exists and the periodic clean is a person running it.
+
+Directories for `ready`, `in-progress`, `blocked`, or `review` are refused. Those are the working set, they churn, and a directory for each would turn every ordinary status transition into a rename. The plan should say so rather than leaving it as an obvious next step.
+
+Directories keyed on anything but status are refused, type included. A path is one dimension, so any partition scheme spends its single slot on one axis, and status has the better claim: done is the property that makes a file uninteresting. The note below records the numbers behind that.
 
 ## Acceptance criteria
 
-- [ ] Both decisions in the description are settled and recorded in docs/plan.md before any code lands.
-- [ ] The layout is opt-in: a store with no config key behaves exactly as it does today, and every existing fixture is untouched.
-- [ ] check --fix migrates a store into the new layout in one pass, and check reports the drift until it does.
-- [ ] Directories for ready, in-progress, blocked, and review are refused, with the reason recorded in the plan.
-- [ ] A corpus fixture covers a store using the new layout, with a sidecar for its mismatch findings.
-- [ ] This ticket is decided together with TKT-01M1HXHJXRFP7VMH7D35YNTG5H, not in isolation, because a generated index reaches the same goal without renames.
-- [ ] If the layout ships, the config key is documented as the partition dimension, and type-based directories are refused in the plan.
+- [ ] docs/plan.md section 4 carries the four-directory layout and the status-to-directory mapping before any code lands.
+- [ ] Placement is mandatory and derived from status: draft/ for draft, tickets/ for ready, in-progress, blocked and review, done/ for done, archive/ for archived.
+- [ ] location_mismatch replaces archive_location_mismatch in section 11, in the code, and in every sidecar naming it.
+- [ ] check reports a file in the wrong directory for all four directories, and check --fix moves it in one pass.
+- [ ] No schema bump and no dependency on migrate: no ticket file changes, only its path.
+- [ ] A store that has not been migrated still reads correctly, because 6.3 already rules that the status wins over the directory.
+- [ ] A corpus fixture covers a store with a misplaced file, with its sidecar.
+- [ ] This repository's own store is migrated by check --fix in one rename-only commit.
+- [ ] The plan refuses directories for ready, in-progress, blocked and review, and refuses partitioning on anything but status, type included.
 
 ## Notes
 
@@ -115,3 +118,13 @@ Whatever shape decision 1 takes, the config key should be documented as the part
 Raised: TKT-01M1HXHJXRFP7VMH7D35YNTG5H proposes a generated .tickets/epics.md, regenerated by check --fix and reported stale by check. It chases the same goal as this ticket, seeing what matters without running the tool, and it gets there with no renames, no path churn, and no git log --follow.
 
 If that ships, most of the motivation here is gone. The two should be decided together, and this ticket may be closed by that one rather than shipped alongside it.
+
+**agent:terva/mieli** at 2026-09-03T00:09:57Z
+
+This ticket was recommended for closure on 2026-09-02 and the recommendation was rejected. Recording both, because the reasoning that survived is narrower than the reasoning that was offered.
+
+The case for closing was that TKT-01M1J755Q274KHQX9XFXAK6A55 fixes the tool view for free, and that a generated index reaches the no-tool view with no renames. The first half is true and shipped: `list` now answers with open work, so an agent asking what is open no longer wades through done tickets.
+
+It does not answer this ticket, because the audiences are different. `list` serves whoever has the binary. The directory split serves a person reading the store in a forge web UI or through `ls`, and a generated index is a second artifact that can go stale where a directory cannot lie about which files are in it.
+
+Three things changed shape as a result. The layout is mandatory rather than opt-in, so the config-key decision the earlier draft raised is moot and there is no `directories` key. The pipeline is four directories rather than two added to two, with `draft/` as where a ticket is filed and `done/` as where recently finished work rests before a periodic sweep into `archive/`. And the migration is `check --fix` with no schema bump, because placement is store layout rather than file format and no ticket file changes.

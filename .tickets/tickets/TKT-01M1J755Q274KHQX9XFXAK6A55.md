@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1J755Q274KHQX9XFXAK6A55
 title: Decide what list shows by default, because it shows 30 done tickets out of 44
 type: spike
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -19,12 +19,12 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-02T23:27:06Z
-updated_at: 2026-09-02T23:27:06Z
+updated_at: 2026-09-03T00:08:41Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: human:sothr
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---
@@ -66,3 +66,13 @@ No, and neither does `archived`. Everything else does. State it as an exclusion 
 ### Where this came from
 
 A review of the work-finding path on 2026-09-02. The reviewing agent ran `git ticket list`, got 44 rows, and filtered them in Python to answer "what is open".
+
+## Summary
+
+Shipped in PR #41. `list` answers with open work, every status except `done` and `archived`, stated as an exclusion so a status added later is included without an edit. Naming a status brings it back and `--all` drops the exclusion.
+
+Both decisions went the way the ticket recommended. Decision 1 took option A, changing the default rather than adding a flag, because 12.4 argues for taking a break while the module is v0.x and nothing consumes the surface. Decision 2 excluded `done` and `archived` as an exclusion, matching how the epics index settled it.
+
+Two consequences the ticket did not anticipate. The library moved with the CLI, so `Filter{}` means open work, and `Filter.IncludeArchived` became `Filter.All` because under the old default `--archived` already meant everything. `search` does not take the default, because finding what was already decided means reading a done ticket.
+
+Plan 8 carries the rule, 10.4 publishes `openStatuses`, 12.4 records both breaks, and 15 records the decisions. Against this store the default went from 53 rows to 16.

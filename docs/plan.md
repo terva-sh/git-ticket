@@ -2280,13 +2280,19 @@ directory, because that finding is a warning. The finding was right that the
 file was missing and wrong about what that meant, which is what a check reports
 when the thing it assumes goes untested.
 
-Thirteen questions have left this list. They were numbered once, and the
-numbering is the thing this section gave up. A number has to be chosen, and it
-collided twice. Two settled questions both called themselves question 7, the
-module path and the parent hierarchy. A third was filed as question 9 from a
+A question leaves this list by being answered in place, so the entries above and
+below are the whole record and no tally of them belongs here. This paragraph
+carried one for a while, and it was exactly the kind of fact this document
+should not hold: nothing could check it, and updating it was a step somebody had
+to remember at the end of unrelated work.
+
+The questions were numbered once, and the numbering is the other thing this
+section gave up for the same reason. A number has to be chosen, and it collided
+twice. Two settled questions both called themselves question 7, the module
+path and the parent hierarchy. A third was filed as question 9 from a
 concurrent worktree while question 9 already meant the merge driver. Commit
 messages and pull request bodies from that period still cite numbers, and the
-subject of each entry below is what decodes them.
+subject of each entry is what decodes them.
 
 **Section 15 as a hand-maintained index** (`TKT-01M1HJKBYGENBTJ7F9S71BN3Q1`) is
 answered here. It stays hand-maintained, and the parked entries stay in this
@@ -2314,7 +2320,7 @@ stands.
 
 The other half of that objection is spent. It said a generated list would need
 a label taxonomy the format wants for nothing else, and `question` is now in
-the `config.yml` allowlist with all seven parked tickets carrying it, so
+the `config.yml` allowlist with every parked ticket carrying it, so
 `git ticket list --label question` answers today. The label was worth having on
 its own, for asking the store what is open without reading this section. It
 does not reopen the question, because the two reasons above never depended on

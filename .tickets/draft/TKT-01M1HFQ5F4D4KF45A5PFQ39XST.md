@@ -1,7 +1,7 @@
 ---
 schema: 1
 id: TKT-01M1HFQ5F4D4KF45A5PFQ39XST
-title: Decide how git-ticket integrates with an external tracker
+title: Decide whether the extensions block gets a mutation
 type: spike
 status: draft
 status_reason: null
@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T16:37:30Z
-updated_at: 2026-09-03T16:53:44Z
+updated_at: 2026-09-03T22:09:16Z
 created_by:
   id: agent:terva/mieli
   name: ""

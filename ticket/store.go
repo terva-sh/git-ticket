@@ -216,6 +216,12 @@ func Init(root string, opts InitOptions) (*Store, error) {
 	if err := os.WriteFile(filepath.Join(path, readmeFile), []byte(storeReadme), 0o644); err != nil {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 	}
+	// The epics index is written here too, holding no epics, so a fresh store is
+	// not born reporting a staleness warning it did nothing to earn. check
+	// treats a missing index as stale, per section 4.
+	if err := os.WriteFile(filepath.Join(path, epicsFile), renderEpicsIndex(nil), 0o644); err != nil {
+		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
+	}
 	return OpenWith(path, OpenOptions{Now: opts.Now})
 }
 
@@ -402,6 +408,12 @@ and when it is archived.
 The status in the file wins if the two ever disagree. ` + "`git ticket check`" + ` reports
 a file in the wrong directory and ` + "`git ticket check --fix`" + ` moves it.
 
+These directories key on status, which leaves nothing to browse by type.
+` + "`epics.md`" + ` is that view for the one type worth having it: the epics that are
+not done or archived, each linking to its file. It is generated, so edit the
+tickets rather than the table. ` + "`git ticket check`" + ` reports it stale whenever the
+two disagree and ` + "`git ticket check --fix`" + ` rewrites it.
+
 A filename is the ticket ID and nothing else, so renaming a title does not break
 ` + "`git log`" + ` on the old path. Moving between these directories does rename the
 file, so reach for ` + "`git log --follow`" + ` when you want a ticket's whole history.
@@ -411,7 +423,8 @@ reports what a hand edit tends to break: a duplicate ID, a dependency on a
 ticket that does not exist, a status outside the set, or leftover merge conflict
 markers.
 
-` + "`config.yml`" + ` sets defaults and the label vocabulary. Nothing here is generated
-from anywhere else, and nothing outside this directory has to be in sync with
-it.
+` + "`config.yml`" + ` sets defaults and the label vocabulary. Nothing outside this
+directory has to be in sync with it, and the tickets are the source for
+everything in here: ` + "`epics.md`" + ` is derived from them and every other file is
+written by hand.
 `

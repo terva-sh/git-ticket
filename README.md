@@ -82,6 +82,7 @@ looking at:
 .tickets/
 ├── config.yml
 ├── README.md
+├── epics.md   generated index of the open epics
 ├── draft/     filed, not yet worth starting
 ├── tickets/   the working set: ready, in-progress, blocked, review
 ├── done/      finished recently, still worth reading
@@ -92,6 +93,12 @@ That split is for a person, not the tool. `list` already answers with open work,
 so a binary never needed it. Somebody reading the store in a forge web UI has a
 directory as the only query they get for free, and `tickets/` holding the working
 set alone is what makes that answer worth having.
+
+The directories key on status, which leaves type with no answer at all in a file
+browser. `epics.md` is that answer for the one type worth browsing: a table of
+the epics that are not done or archived, each linking to its file. `check`
+reports it stale when it disagrees with the tickets and `check --fix` rewrites
+it, so it is generated output rather than something to maintain.
 
 The working statuses share one directory because a directory each would make
 every ordinary transition a rename. A ticket moves three times: when somebody

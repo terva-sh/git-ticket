@@ -284,6 +284,15 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 		}
 	}
 
+	// The generated index of section 4. It is compared against the tickets
+	// rather than trusted, because nothing ever reads it back.
+	if _, stale := s.epicsIndexStale(parsed); stale {
+		r.addWarning(Finding{
+			Code: CodeEpicsIndexStale, File: epicsFile,
+			Message: "epics.md does not match the epics in this store; run check --fix",
+		})
+	}
+
 	sortFindings(r.Errors)
 	sortFindings(r.Warnings)
 	return r, nil

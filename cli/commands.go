@@ -1333,18 +1333,28 @@ func runCheck(ctx *cmdContext, args []string) error {
 	return nil
 }
 
-// writeRepairsHuman lists the moves ahead of the findings, so a reader sees
+// writeRepairsHuman lists the repairs ahead of the findings, so a reader sees
 // what changed under them before they read what is left.
+//
+// A move names both ends and a rewrite names one file, because a rewrite has no
+// old path: only the contents changed.
 func writeRepairsHuman(w io.Writer, s *ticket.Store, repairs []ticket.Repair, dryRun bool) {
 	if len(repairs) == 0 {
 		return
 	}
-	verb := "moved"
-	if dryRun {
-		verb = "would move"
-	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for _, r := range repairs {
+		verb, would := "moved", "would move"
+		if r.Kind == ticket.RepairRewrite {
+			verb, would = "rewrote", "would rewrite"
+		}
+		if dryRun {
+			verb = would
+		}
+		if r.Kind == ticket.RepairRewrite {
+			fmt.Fprintf(tw, "%s\t%s\t\n", verb, storePath(s, r.To))
+			continue
+		}
 		fmt.Fprintf(tw, "%s\t%s\t-> %s\n", verb, storePath(s, r.From), storePath(s, r.To))
 	}
 	tw.Flush()

@@ -165,6 +165,38 @@ mutable data.
 `README.md` is generated at `init` and explains the store to a human who finds
 it in a diff. It is not read by the tool.
 
+`epics.md` is generated too, and it is the one view a directory cannot give.
+Directories key on status and this section refuses to key them on type, so
+`list --type epic` has no equivalent in a file browser. The index is that
+equivalent: a Markdown table of the epics in the store, written for a person and
+never read by the tool.
+
+A row holds the ID, the title, the status, and a link to the file, and nothing
+derived from other tickets. A row carrying child counts or blocking state would
+go stale whenever any ticket in the store changed status, so CI would go red on a
+commit that touched no epic. Minimal rows are not a simplification here. They are
+what keeps the staleness surface proportional to the thing being indexed.
+
+Which epics appear is an exclusion: `done` and `archived` are left out, and
+everything else appears. An inclusion list would silently drop a status added
+later. Drafts appearing is also right on its own terms, because a draft epic is a
+decomposition somebody is writing, which is what a person browsing a forge most
+wants to see, and the status column carries the distinction for anyone who cares.
+
+`check` reports a stale index as `epics_index_stale` and `check --fix`
+regenerates it. No mutation writes it. Regenerating on every write to an epic
+would make a hot file that two agents editing unrelated epics collide on, which
+is the collision `blocks_on` exists to avoid. The window in which the file can be
+wrong ends at the next `check --strict`.
+
+A merge conflict in a generated file also resolves mechanically: take either
+side, run `check --fix`, commit. That is worth saying, because a shared generated
+file looks like a bad idea until you notice its conflicts are free.
+
+Neither generated file is read by the tool, and neither counts toward what makes
+a directory a store. A store whose `epics.md` was deleted has a stale index, not
+a directory that stopped being a store.
+
 ### 4.1 config.yml
 
 ```yaml
@@ -1052,6 +1084,7 @@ cleared as a list:
 
 ```json
 {
+  "kind": "move",
   "codes": ["filename_id_mismatch"],
   "ticket": "TKT-01K3ZZ2JH000GHB4EE6SNRE6MD",
   "from": ".tickets/tickets/notes-about-auth.md",
@@ -1062,10 +1095,30 @@ cleared as a list:
 `codes` is a list because a file in the wrong directory under the wrong name
 raises both findings and one move settles them together.
 
-`pathsChanged` names both ends of every move, the way a mutation names what it
-touched. It is empty under `--dry-run`, because nothing was written. `repairs`
-is not, so a dry run still says what it would do. The findings a dry run would
-have cleared are still in `errors`, since the store still has them.
+`kind` is `move` or `rewrite`. Every repair was a move until `epics.md` arrived,
+and rewriting a generated file is not a move: there is no old path, and the file
+is not a ticket. A rewrite nulls `from` and `ticket` and names the file in `to`:
+
+```json
+{
+  "kind": "rewrite",
+  "codes": ["epics_index_stale"],
+  "ticket": null,
+  "from": null,
+  "to": ".tickets/epics.md"
+}
+```
+
+Null rather than an empty string, because this contract already says an absent
+value is null and a finding already nulls `ticket` and `field` when they do not
+apply. `kind` exists so a consumer switches on a field rather than inferring
+from which values came back null.
+
+`pathsChanged` names both ends of every move and the single file of every
+rewrite, the way a mutation names what it touched. It is empty under `--dry-run`,
+because nothing was written. `repairs` is not, so a dry run still says what it
+would do. The findings a dry run would have cleared are still in `errors` or
+`warnings`, since the store still has them.
 
 `ok` mirrors the exit status: it is true exactly when the command exited zero.
 A caller therefore gates on one field, and never has to reconstruct the verdict
@@ -1190,6 +1243,7 @@ Warnings:
 | `milestone_unknown` | `milestone` is outside the `config.yml` allowlist |
 | `in_progress_unclaimed` | a ticket is `in-progress` with no claim |
 | `blocks_on_no_children` | `blocks_on` is `children` and no ticket names this one as its parent |
+| `epics_index_stale` | `epics.md` disagrees with the epics in the store, per section 4 |
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
@@ -1205,12 +1259,19 @@ corpus so the two cannot drift.
 sits. A store outside a Git repository has no root to resolve against, so the
 check is skipped there and reports nothing, per 5.5.
 
-Two findings have exactly one correct repair, and `check --fix` makes them:
+Three findings have exactly one correct repair, and `check --fix` makes them:
 
 | Code | The repair |
 |---|---|
 | `filename_id_mismatch` | rename the file to `<id>.md`, which section 4 fixes and leaves no second reading of |
 | `location_mismatch` | move the file to the directory the status implies, because 6.3 already rules the status wins |
+| `epics_index_stale` | rewrite `epics.md` from the tickets, which are the source it is derived from |
+
+Severity does not gate repair. `epics_index_stale` is a warning and the other two
+are errors, and all three are repaired, because the repair pass recomputes what
+every file should be rather than walking the findings. A warning is therefore
+exactly as repairable as an error, which is what makes keeping this one a warning
+free rather than merely defensible.
 
 Nothing else is repaired, and the rest are not near misses. `duplicate_id` has
 to choose which file keeps the ID, which is a judgement about which ticket is
@@ -1490,6 +1551,11 @@ is worth saying plainly to anyone who has already written `Filter{...}`.
 because placement stopped being about the archive alone once every status
 implied a directory. Renaming a code is the example the rule above gives of a
 major change, and a name that misleads rots faster than one that breaks.
+
+A repair in a check report gains `kind`, and its `ticket` and `from` become
+nullable, per 10.3. Adding `kind` is additive, but a consumer that read `from` as
+always being a path now has to handle null, so this is a break rather than an
+addition. It arrives with the first repair that is not a move.
 
 Both are taken now for the reason this section already gives for staying at
 `v0.x`: nothing consumes these surfaces yet, so this is the cheapest either
@@ -1949,8 +2015,14 @@ from `parent` rather than enumerated, an epic with no children is not blocked an
 `blockingDependencies`, and `deps` still walks dependencies alone.
 
 Three more were settled for the generated epics index
-(`TKT-01M1HXHJXRFP7VMH7D35YNTG5H`), which is not built yet, so the answers live
-here until 4 and 11 carry them.
+(`TKT-01M1HXHJXRFP7VMH7D35YNTG5H`). 4 and 11 now carry them, and the reasoning
+stays here.
+
+The tension this ticket recorded with the store partition resolved by both
+shipping. The partition keys directories on status and refuses to key them on
+type, so it never answered `list --type epic` and never could. The index is that
+answer, and section 4 now holds both halves: a directory for the status view, a
+generated file for the type view.
 
 Which epics appear is an exclusion and not a list. `done` and `archived` are left
 out and everything else appears, which today means `draft`, `ready`,

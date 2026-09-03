@@ -75,14 +75,21 @@ type checkEnvelope struct {
 	DryRun  bool         `json:"dryRun"`
 }
 
-// repairJSON is one move. codes names the findings it clears, as a list because
-// a file in the wrong directory under the wrong name raises both and one move
-// settles them together.
+// repairJSON is one repair. codes names the findings it clears, as a list
+// because a file in the wrong directory under the wrong name raises both and
+// one move settles them together.
 type repairJSON struct {
-	Codes  []string `json:"codes"`
-	Ticket string   `json:"ticket"`
-	From   string   `json:"from"`
-	To     string   `json:"to"`
+	// Kind is "move" or "rewrite", per plan 10.3. A consumer switches on this
+	// rather than inferring from which fields came back null.
+	Kind  string   `json:"kind"`
+	Codes []string `json:"codes"`
+	// Ticket and From are null on a rewrite: a generated file is not a ticket,
+	// and it has no old path because only its contents changed. Null rather
+	// than empty, because section 10 says an absent value is null and a finding
+	// already nulls the fields that do not apply to it.
+	Ticket *string `json:"ticket"`
+	From   *string `json:"from"`
+	To     string  `json:"to"`
 }
 
 type findingJSON struct {
@@ -366,13 +373,25 @@ func newCheckEnvelope(s *ticket.Store, r *ticket.Report, ok bool, repairs []tick
 		DryRun:        dryRun,
 	}
 	for _, rep := range repairs {
-		from := storePath(s, rep.From)
 		to := storePath(s, rep.To)
-		env.Repairs = append(env.Repairs, repairJSON{
-			Codes: rep.Codes, Ticket: rep.Ticket, From: from, To: to,
-		})
-		if !dryRun {
-			env.PathsChanged = append(env.PathsChanged, to, from)
+		out := repairJSON{Kind: rep.Kind, Codes: rep.Codes, To: to}
+		if rep.Ticket != "" {
+			id := rep.Ticket
+			out.Ticket = &id
+		}
+		var from string
+		if rep.From != "" {
+			from = storePath(s, rep.From)
+			out.From = &from
+		}
+		env.Repairs = append(env.Repairs, out)
+		if dryRun {
+			continue
+		}
+		// Both ends of a move, the single file of a rewrite.
+		env.PathsChanged = append(env.PathsChanged, to)
+		if from != "" {
+			env.PathsChanged = append(env.PathsChanged, from)
 		}
 	}
 	return env

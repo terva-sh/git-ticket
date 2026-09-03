@@ -106,7 +106,15 @@ Absent scalars are `null` and absent collections are `[]`, never omitted. That i
 the same rule the JSON contract in section 10 imposes on the tool's own output,
 and the corpus should not describe the format in a dialect the format rejects.
 
-## Two conventions worth knowing before you add a fixture
+## Three conventions worth knowing before you add a fixture
+
+Every store fixture carries an `epics.md`, even the ones with no epic in them,
+where it says `No epics.` and nothing else. A store without the file reports
+`epics_index_stale`, so a fixture that omits it trips a warning it was not
+written to cover. Generate it with `git ticket check --fix` against the fixture
+store rather than typing it, since it has to match `renderEpicsIndex` byte for
+byte. The one deliberate exception is `epics-index-stale`, whose whole point is
+an index that disagrees with the tickets.
 
 The inner directory is `store/` and not `.tickets/`. Real stores are dot-named,
 but `go:embed` silently skips any path whose name begins with `.` or `_`, so a

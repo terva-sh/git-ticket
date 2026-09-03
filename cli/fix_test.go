@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -68,6 +69,9 @@ func TestCheckFixRepairsAndNamesThePaths(t *testing.T) {
 		t.Fatalf("repairs = %v, want one", env["repairs"])
 	}
 	r := repairs[0].(map[string]any)
+	if r["kind"] != "move" {
+		t.Errorf("kind = %v, want move", r["kind"])
+	}
 	if r["ticket"] != id {
 		t.Errorf("ticket = %v, want %s", r["ticket"], id)
 	}
@@ -203,5 +207,75 @@ func TestCheckFixLeavesAJudgementAlone(t *testing.T) {
 	}
 	if _, err := os.Stat(real); err != nil {
 		t.Errorf("the first file was moved anyway: %v", err)
+	}
+}
+
+// TestCheckFixRewritesTheEpicsIndex covers the second repair shape of plan
+// 10.3. A rewrite has no ticket and no origin, which the envelope says with
+// null rather than by leaving the fields out.
+func TestCheckFixRewritesTheEpicsIndex(t *testing.T) {
+	dir := newRepoStore(t)
+	id := ticketID(t, createTicket(t, dir, "--type", "epic"))
+
+	got := runCLI(t, dir, nil, "--json", "check", "--fix")
+	if got.code != exitOK {
+		t.Fatalf("a stale index is repairable: %s%s", got.stdout, got.stderr)
+	}
+	env := decode(t, got.stdout)
+
+	repairs, ok := env["repairs"].([]any)
+	if !ok || len(repairs) != 1 {
+		t.Fatalf("repairs = %v, want the index rewrite alone", env["repairs"])
+	}
+	r := repairs[0].(map[string]any)
+	if r["kind"] != "rewrite" {
+		t.Errorf("kind = %v, want rewrite", r["kind"])
+	}
+	if r["ticket"] != nil {
+		t.Errorf("ticket = %v, want null: a generated file is not a ticket", r["ticket"])
+	}
+	if r["from"] != nil {
+		t.Errorf("from = %v, want null: the file did not move", r["from"])
+	}
+	if r["to"] != ".tickets/epics.md" {
+		t.Errorf("to = %v", r["to"])
+	}
+	codes := r["codes"].([]any)
+	if len(codes) != 1 || codes[0] != "epics_index_stale" {
+		t.Errorf("codes = %v, want epics_index_stale alone", codes)
+	}
+
+	// One path, not two. Nothing moved, so there is no old location to name.
+	paths := env["pathsChanged"].([]any)
+	if len(paths) != 1 || paths[0] != ".tickets/epics.md" {
+		t.Fatalf("pathsChanged = %v, want the index alone", paths)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".tickets", "epics.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), id) {
+		t.Errorf("the rewritten index does not name the epic:\n%s", data)
+	}
+}
+
+// TestCheckFixSaysRewroteNotMoved covers the human form, where "moved" with one
+// path and no arrow would read as a truncated line.
+func TestCheckFixSaysRewroteNotMoved(t *testing.T) {
+	dir := newRepoStore(t)
+	createTicket(t, dir, "--type", "epic")
+
+	got := runCLI(t, dir, nil, "check", "--fix", "--dry-run")
+	if !strings.Contains(got.stdout, "would rewrite") {
+		t.Errorf("a dry run should say what it would do:\n%s", got.stdout)
+	}
+	if strings.Contains(got.stdout, "would move") {
+		t.Errorf("nothing moves when an index goes stale:\n%s", got.stdout)
+	}
+
+	got = runCLI(t, dir, nil, "check", "--fix")
+	if !strings.Contains(got.stdout, "rewrote") {
+		t.Errorf("the repair is unreported:\n%s", got.stdout)
 	}
 }

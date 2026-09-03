@@ -9,18 +9,34 @@ import (
 	"sort"
 )
 
-// Repair is one move Fix made, or would have made under DryRun.
+// Repair kinds, per plan 10.3. Every repair was a move until the generated
+// epics index arrived, and rewriting a generated file is not a move.
+const (
+	RepairMove    = "move"
+	RepairRewrite = "rewrite"
+)
+
+// Repair is one thing Fix did, or would have done under DryRun.
 //
-// Codes names the findings the move clears. A file can be wrong in both ways at
-// once, sitting in the wrong directory under the wrong name, and one move
-// settles both, so this is a list rather than a single code.
+// Codes names the findings it clears. A file can be wrong in both ways at once,
+// sitting in the wrong directory under the wrong name, and one move settles
+// both, so this is a list rather than a single code.
 type Repair struct {
-	Codes  []string
+	// Kind is RepairMove or RepairRewrite. A consumer switches on this rather
+	// than inferring from which of the fields below came back empty.
+	Kind  string
+	Codes []string
+	// Ticket is empty for a rewrite, because a generated file is not a ticket.
 	Ticket string
 	// From and To are relative to the store directory, with forward slashes,
-	// which is how a finding names a file.
+	// which is how a finding names a file. From is empty for a rewrite: the
+	// file stays where it is and only its contents change.
 	From string
 	To   string
+	// content is what a rewrite writes. It stays unexported because it is how
+	// this pass carries bytes from planning to applying, not something a caller
+	// reads back, and the JSON contract in 10.3 does not have it.
+	content []byte
 }
 
 // FixOptions controls a repair pass.
@@ -81,11 +97,21 @@ func (s *Store) Fix(ctx context.Context, o FixOptions) (*FixResult, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			from := filepath.Join(s.path, filepath.FromSlash(r.From))
 			to := filepath.Join(s.path, filepath.FromSlash(r.To))
 			if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
 				return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 			}
+			if r.Kind == RepairRewrite {
+				if err := os.WriteFile(to, r.content, 0o644); err != nil {
+					return nil, &Error{
+						Code:    CodeValidationFailed,
+						Message: fmt.Sprintf("writing %s: %s", r.To, err),
+						Err:     err,
+					}
+				}
+				continue
+			}
+			from := filepath.Join(s.path, filepath.FromSlash(r.From))
 			if err := os.Rename(from, to); err != nil {
 				return nil, &Error{
 					Code:    CodeValidationFailed,
@@ -144,7 +170,7 @@ func (s *Store) planRepairs() ([]Repair, error) {
 			codes = append(codes, CodeLocationMismatch)
 		}
 		candidates = append(candidates, Repair{
-			Codes: codes, Ticket: f.Ticket.ID, From: f.Rel, To: want,
+			Kind: RepairMove, Codes: codes, Ticket: f.Ticket.ID, From: f.Rel, To: want,
 		})
 		claims[want]++
 	}
@@ -157,6 +183,26 @@ func (s *Store) planRepairs() ([]Repair, error) {
 		out = append(out, c)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].From < out[j].From })
+
+	// The index is appended after the sorted moves, so a reader sees what moved
+	// before the file derived from it. Its content does not depend on where the
+	// files currently sit, because renderEpicsIndex links through the directory
+	// each status implies rather than the path a file is at, so planning it
+	// before the moves and writing it after them give the same bytes.
+	parsed := make([]file, 0, len(files))
+	for _, f := range files {
+		if f.Ticket != nil {
+			parsed = append(parsed, f)
+		}
+	}
+	if want, stale := s.epicsIndexStale(parsed); stale {
+		out = append(out, Repair{
+			Kind:    RepairRewrite,
+			Codes:   []string{CodeEpicsIndexStale},
+			To:      epicsFile,
+			content: want,
+		})
+	}
 	return out, nil
 }
 

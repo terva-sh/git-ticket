@@ -10,6 +10,22 @@ Phase 0 and Phase 1 are done and their exit criteria hold. The library parses,
 renders, validates, queries, and mutates, with the store lock and the revision
 precondition.
 
+The store partitions by status into four directories, per plan section 4:
+`draft/` for what somebody filed, `tickets/` for the working set of `ready`,
+`in-progress`, `blocked` and `review`, `done/` for recent finished work, and
+`archive/` for what has been swept out of it. One `statusDir` function in
+`ticket/store.go` is the whole mapping, and `files()`, `Init`, `writeTicket`,
+`check`, and `relTarget` all read it. An unknown status falls through to
+`tickets/`. A misplaced file is `location_mismatch`, which `check --fix` repairs
+by moving it, and that is also how a store migrates: no schema bump, because a
+ticket file does not change when its path does.
+
+`list` answers with open work, meaning every status except `done` and
+`archived`, per section 8. Naming a status brings it back and `--all` drops the
+exclusion. `search` deliberately does not take that default, because finding
+what was already decided means reading a done ticket. In the library `Filter{}`
+means open work and `Filter{All: true}` is everything.
+
 Phase 2, the standalone CLI in section 12.1, has all 24 commands. `cmd/git-ticket`
 and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 `ready`, `status`, `claim`, `release`, `link`, `unlink`, `deps`, `files`, `ac`,
@@ -97,9 +113,11 @@ The reason is concurrency, not ceremony. Several agents work this repository at
 once, in separate worktrees, and each one holds a `main` it believes is current.
 A direct push makes every other agent's next push a rebase over commits they
 cannot see, and the ticket store is the worst place for that: two agents each
-adding a file under `.tickets/tickets/` merge cleanly and each editing the same
-ticket does not. A PR gives the collision one place to happen and a reviewer to
-notice it.
+adding a file under `.tickets/draft/` merge cleanly and each editing the same
+ticket does not. A status change now also moves the file between directories, so
+two agents moving one ticket to different statuses collide as a rename conflict
+rather than as a content conflict on `status:`. A PR gives the collision one
+place to happen and a reviewer to notice it.
 
 The loop:
 
@@ -244,7 +262,7 @@ section 15 records both.
 ## Conventions
 
 Names are singular: `git ticket`, the `ticket_*` tools, the `ticket` package.
-Directories stay plural: `.tickets/`, `tickets/`, `archive/`.
+Directories stay plural: `.tickets/`, `draft/`, `tickets/`, `done/`, `archive/`.
 
 Fixtures are static files a person reviewed. Never generate one at test time.
 Every fixture carries an `.expected.json` sidecar even when it is clean,

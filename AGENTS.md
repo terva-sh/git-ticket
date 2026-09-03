@@ -30,8 +30,10 @@ Phase 2, the standalone CLI in section 12.1, has all 24 commands. `cmd/git-ticke
 and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 `ready`, `status`, `claim`, `release`, `link`, `unlink`, `deps`, `files`, `ac`,
 `dod`, `note`, `comment`, `summary`, `archive`, `unarchive`, `check`, `schema`,
-and `instructions`, each in a human form and behind `--json`. All seven JSON
-kinds of section 10 have a test, and every write honours `--if-revision`.
+and `instructions`, each in a human form and behind `--json`. Four more landed
+after Phase 2, taking the binary to 28: `plan`, `refs`, `install-merge-driver`,
+and `merge-driver`. All seven JSON kinds of section 10 have a test, and every
+write honours `--if-revision`.
 
 The agent workflow block lives at `cli/instructions.md`, embedded with
 `go:embed`. Edit the Markdown, not a Go string.

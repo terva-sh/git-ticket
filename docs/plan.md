@@ -1613,6 +1613,7 @@ That is the smaller price.
 ```text
 git ticket init   [--instructions]
 git ticket install-merge-driver
+git ticket merge-driver BASE OURS THEIRS
 git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority]
 git ticket ready
 git ticket show   ID
@@ -1653,6 +1654,10 @@ records the module version, the commit, and whether the tree was dirty, and
 `runtime/debug` reads them back, so there is no ldflags recipe and no version
 variable to keep in step with a tag. A build with no tag reachable says `devel`.
 It needs no store, because it describes the binary and not a ledger.
+
+`merge-driver` is plumbing that Git invokes with the three temporary files of a
+merge, rather than something a person types. Section 7.5 is what it does, and
+`install-merge-driver` is the command that points Git at it.
 
 The store is found in this order: `--store`, then `GIT_TICKET_STORE`, then
 discovery walking up from the current directory to the Git root. `config.yml`

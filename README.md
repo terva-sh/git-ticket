@@ -5,8 +5,8 @@ file with YAML frontmatter, committed next to the code, editable in vim and
 reviewable in `git diff`. One Go library owns the format, and a `git-ticket`
 binary exposes it as `git ticket …`.
 
-> **Partly built.** The library and the 24-command CLI are done and tagged
-> `v0.4.1`. There is no binary release, so installing means building from
+> **Partly built.** The library and the 28-command CLI are done and tagged
+> `v0.5.0`. There is no binary release, so installing means building from
 > source. See [Status](#status) before you plan around this.
 
 ## The problem
@@ -408,8 +408,8 @@ repository and before `init`.
 |---|---|---|
 | 0 | Format and fixtures | Done |
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
-| 2 | Standalone CLI with `--json` | Done, tagged `v0.1.0`. All 24 commands, and both exit criteria met |
-| 3 | Terva integration | Started. `v0.2.0` exports the `cli` package terva embeds, `v0.3.0` adds the `--parent` filter its board needs, `v0.4.1` reports the files a query could not read. Tracked in terva |
+| 2 | Standalone CLI with `--json` | Done, tagged `v0.1.0`. All 24 commands it scoped, and both exit criteria met |
+| 3 | Terva integration | Started. `v0.2.0` exports the `cli` package terva embeds, `v0.3.0` adds the `--parent` filter its board needs, `v0.4.1` reports the files a query could not read, `v0.5.0` gives every unready ticket a reason and merges concurrent edits per field. Tracked in terva |
 | 4 | MCP adapter, Backlog.md import, a local view | Deferred |
 
 The two questions that blocked Phase 1 are settled. A `blocked` reason lives in
@@ -461,11 +461,13 @@ carried every `parent` edge, so the tree was always reconstructable from one
 call and nothing was blocked. What was missing was the asking, not the data,
 which is why the answer is a filter and not a new field on the ticket.
 
-What remains is deferred rather than open. Seven questions sit in plan section
-15, filed as tickets in `.tickets/`. Run `git ticket list` to see them. Each
-entry names its subject and the ULID of its ticket. Numbering was tried and
-dropped, because a number assigned by hand collides when two agents work at
-once, and a ULID is generated.
+What remains is deferred rather than open. The parked questions are filed as
+tickets carrying the `question` label, so `git ticket list --label question`
+answers with the current set rather than a count somebody has to maintain. Plan
+section 15 carries the prose for each question it has settled or parked, naming
+the subject and the ULID of its ticket. Numbering was tried and dropped, because
+a number assigned by hand collides when two agents work at once, and a ULID is
+generated.
 
 The schema migration question arrived the same way, out of settling the
 compatibility policy. Ruling that a store never upgrades itself leaves the

@@ -15,11 +15,13 @@ milestone: null
 parent: null
 dependencies: []
 blocks_on: none
-references: []
+references:
+  - ref: plan:deferred-questions
+    path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-02T16:37:30Z
-updated_at: 2026-09-03T06:01:30Z
+updated_at: 2026-09-03T16:53:44Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -31,7 +33,15 @@ extensions: {}
 
 ## Description
 
-A deferred question in plan section 15. Storing an external identifier already works. jira:PROJ-1234, gh:owner/repo#88 and url:... all link cleanly, check --strict stays green, and decodeReferences takes the ref verbatim, so the namespace is open by design per 5.1. Three gaps sit above that storage. Nothing enforces a namespace, so an untyped PROJ-1234 is accepted and JIRA:proj-1234 and jira:PROJ-1234 are unrelated references, which sits badly with 5.1 calling a reference a typed stable identifier. There is no lookup by ref, so which ticket is PROJ-1234 falls to search, a substring match across title, description, notes and comments that also matches a ticket merely mentioning the number, and that is the wrong instrument for a sync wanting one ticket per issue. files PATH exists for the file: namespace and has no equivalent for the others. And extensions, which 5.1 calls the only place a consumer may write fields the core does not define, has no mutation at all, so it round-trips through parse and render but can only be written by hand-editing the file.
+A deferred question in plan section 15, now narrowed to its last third.
+
+Two of the three original gaps are closed. `git ticket refs REF` is the lookup by ref, specified in plan section 8 and matched by the rule in 5.5: it finds a whole ref such as jira:PROJ-1234, or every ticket in a namespace with a bare jira:. Case is settled without a finding at all, because the namespace is compared without regard to case and the identifier exactly, which leaves the stored bytes alone. An untyped ref is now the section 11 warning `reference_untyped`.
+
+What is left is `extensions`. 5.1 calls it the only place a consumer may write fields the core does not define, and it still has no mutation, so it round-trips through parse and render but can only be written by hand-editing the file.
+
+The question is whether it gets one and what shape that takes. It stays deferred on purpose: there is no consumer until Phase 3, and Phase 3 is terva's to build, so a mutation designed now is shaped for a caller that does not exist. That is the same guess the namespace grammar would have been, and building the lookup first is what showed the grammar was not needed.
+
+The trigger is a real consumer asking for it, which means terva's integration work naming the fields it wants to write, or a second consumer arriving with the same need. Until then a hand-edited `extensions` block round-trips correctly and nothing is lost but convenience.
 
 ## Notes
 
@@ -46,3 +56,15 @@ There is still no lookup by ref. `files PATH` covers the file: namespace and not
 `extensions` still has no mutation. It round-trips through parse and render, and hand-editing the file is the only way to write it, though 5.1 calls it the one place a consumer may write fields the core does not define.
 
 Nothing here is blocked and nothing is waiting. What it wants is a decision on scope before code: whether this is validation alone, or validation plus a lookup, or the whole sync surface including a way to write extensions.
+
+**agent:terva/mieli** at 2026-09-03T16:53:17Z
+
+Scope settled and built: validation plus a lookup by ref. The extensions mutation stays out.
+
+Shipped is `git ticket refs REF`, specified in plan section 8 and matched by the rule in 5.5, which finds a whole ref or a bare namespace, plus `reference_untyped`, a section 11 warning for a ref carrying no namespace.
+
+The order was the decision, and it is the part worth keeping. Building the lookup first showed how little validation it actually needed. Case turned out to be a comparison rule rather than a stored-bytes rule, so it costs no finding at all: `refs` compares the namespace without regard to case and the identifier exactly, and the file on disk is untouched. What was left was the one structural claim 5.1 already makes, so the new code is a warning rather than a namespace grammar invented with no caller to test it against. A finding code is expensive to guess wrong, because `schema` publishes it and 12.4 covers it from that moment.
+
+`refs` reuses the ticket-list envelope, so there is no new JSON kind and nothing to add to 10.1.
+
+Neither half charged the corpus what I expected. An empty `references: []` raises nothing, so the 30 fixtures carrying one needed no edit; the cost was one new fixture store and its sidecar.

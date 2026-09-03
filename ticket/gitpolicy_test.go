@@ -22,7 +22,7 @@ import (
 // gitHelpers are the only functions allowed to execute git. One per package:
 // runGit in ticket, readGit in cli. Adding a third means adding it here and
 // saying why in plan 7.4, which is the review this test exists to force.
-var gitHelpers = map[string]bool{"runGit": true, "readGit": true}
+var gitHelpers = map[string]bool{"runGit": true, "readGit": true, "writeGit": true}
 
 // planGitCommandPattern reads the command column of the table in plan 7.4.
 // The character class allows the hyphen because `symbolic-ref` has one.

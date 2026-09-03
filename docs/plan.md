@@ -695,16 +695,24 @@ it. This is the enumerated list, and a test holds the source to it.
 |---|---|
 | `rev-parse` | the repository root for path resolution, the common Git directory for the lock, and `HEAD` for the commit a claim records |
 | `symbolic-ref` | the branch a claim records. It fails on a detached HEAD, and that is what tells the two apart |
+| `config` | `install-merge-driver` sets `merge.gitticket.name` and `merge.gitticket.driver`, and reads them back to report what it changed |
 
-Both only read. Every call goes through one helper per package, `runGit` in
-`ticket` and `readGit` in `cli`, and `TestGitCommandsAreReadOnly` asserts three
+The first two only read. `config` writes, and the exception is narrow on purpose:
+it touches `.git/config` alone, never history, the index, or a tracked file, and
+it runs from `install-merge-driver` and from no other command. Somebody typing
+that command is asking for exactly that write, which is the whole of what it
+does.
+
+Every call goes through one helper per package, `runGit` in `ticket` and
+`readGit` or `writeGit` in `cli`, and `TestGitCommandsAreReadOnly` asserts three
 things: no `exec.Command` in non-test code names a binary other than `git`,
 every one of those calls sits in one of the helpers, and every helper call names
 a command from this table. A fourth call site added tomorrow has to pass all
 three, and a new helper fails the second rather than slipping past the third.
 
-No writing command joins this table. Section 15 records that decision under sync
-helpers, so a change that needs `fetch` or `push` is a change to the plan first.
+No command that moves history or the working tree joins this table. Section 15
+records that decision under sync helpers, so a change that needs `fetch` or
+`push` is a change to the plan first.
 
 This table binds the tool and not a workflow, which can run plain `git` with the
 tool nowhere in the pipe. Section 11 carries that rule separately, under
@@ -769,6 +777,19 @@ would otherwise run a command the person cloning never chose.
 That boundary is correct and not an obstacle to route around. It makes the
 config line a person's decision every time, so the tool's job is to make it one
 command they run rather than a paragraph they transcribe.
+
+`init` writes the `.gitattributes` entry. The attribute does nothing until
+somebody configures a driver by that name, so it costs a clone that never
+installs one two lines and a mention in a diff, and it saves every clone that
+does install one from having to know the pattern.
+
+`git ticket install-merge-driver` is the other half. It sets the two config keys
+in `.git/config`, adds the `.gitattributes` entry if `init` predates this or
+somebody removed it, and prints what it changed and what was already right. It
+names the running executable by its absolute path, because a driver line reading
+`git-ticket` fails the moment Git runs from a directory where that is not on
+`PATH`. Running it twice is not an error and the second run reports that there
+was nothing to do.
 
 ## 8. Query surface
 
@@ -1524,6 +1545,7 @@ That is the smaller price.
 
 ```text
 git ticket init   [--instructions]
+git ticket install-merge-driver
 git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority]
 git ticket ready
 git ticket show   ID

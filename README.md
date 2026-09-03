@@ -126,6 +126,11 @@ database, and it is why `git ticket check` exists as the safety net. Conflict
 markers in a ticket are reported as `merge_conflict` rather than as a YAML
 syntax error, because that is what actually happened.
 
+**A merge driver is optional and worth installing.** Two agents editing
+different fields of the same ticket still collide in a line merge, because every
+write touches `updated_by`. `git ticket install-merge-driver` resolves those
+per field and marks only the ones that genuinely disagree.
+
 **Nothing touches the network.** No fetch, push, merge, branch switch, or commit
 happens as a side effect of a mutation. Publishing a ticket change is `git
 commit` and `git push`, the same as publishing code.
@@ -195,6 +200,8 @@ git ticket check --fix            # repair the two findings that have one repair
 git ticket schema                 # the values and codes this binary enforces
 git ticket instructions           # the agent workflow block, for an AGENTS.md
 git ticket instructions --write   # put it in AGENTS.md, or refresh it in place
+
+git ticket install-merge-driver   # per-field merges instead of line merges
 ```
 
 `release` and `unarchive` undo the two that are undoable, and `dod` edits the

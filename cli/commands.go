@@ -166,6 +166,17 @@ func runInit(ctx *cmdContext, args []string) error {
 		filepath.Join(s.Path(), "config.yml"),
 		filepath.Join(s.Path(), "README.md"),
 	}
+
+	// Plan 7.5: the tracked half of the merge driver. The attribute does
+	// nothing until somebody runs install-merge-driver, so a repository that
+	// never wants one pays two lines, and every clone that does want one is
+	// spared having to know the pattern. It is skipped outside a repository,
+	// where there is no root to write it to.
+	if attrPath, added, err := ensureMergeAttribute(s); err != nil {
+		return err
+	} else if added {
+		written = append(written, attrPath)
+	}
 	var instructions instructionsAction
 	if writeInstructions {
 		path, action, err := writeInstructionsFile(root)

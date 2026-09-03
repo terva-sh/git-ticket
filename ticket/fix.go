@@ -141,7 +141,7 @@ func (s *Store) planRepairs() ([]Repair, error) {
 			codes = append(codes, CodeFilenameIDMismatch)
 		}
 		if path.Dir(f.Rel) != path.Dir(want) {
-			codes = append(codes, CodeArchiveLocationMismatch)
+			codes = append(codes, CodeLocationMismatch)
 		}
 		candidates = append(candidates, Repair{
 			Codes: codes, Ticket: f.Ticket.ID, From: f.Rel, To: want,
@@ -161,11 +161,8 @@ func (s *Store) planRepairs() ([]Repair, error) {
 }
 
 // relTarget is where a ticket belongs, relative to the store. The directory
-// follows the status rather than where the file currently sits, per plan 6.3.
+// follows the status rather than where the file currently sits, per plan 6.3,
+// and every status implies one, per section 4.
 func (s *Store) relTarget(t *Ticket) string {
-	dir := ticketsDir
-	if t.Archived() {
-		dir = archiveDir
-	}
-	return dir + "/" + t.ID + ".md"
+	return statusDir(t.Status) + "/" + t.ID + ".md"
 }

@@ -24,7 +24,7 @@ testdata/
 ```
 
 The split is not cosmetic. `duplicate_id`, `dependency_cycle`, and
-`archive_location_mismatch` cannot be expressed in a single file, so they need a
+`location_mismatch` cannot be expressed in a single file, so they need a
 store. Everything else is cheaper to state and read as one file.
 
 The case directory is the repository root for its store, which is what a
@@ -80,7 +80,7 @@ A `parse/` sidecar records only what reading one file can find: `parse_error`,
 and `claim_expired`. The store-scoped codes are out of scope there and belong to
 `stores/`, because no single file can exhibit them: `duplicate_id`,
 `filename_id_mismatch`, `dependency_missing`, `parent_missing`,
-`dependency_cycle`, `parent_cycle`, `archive_location_mismatch`,
+`dependency_cycle`, `parent_cycle`, `location_mismatch`,
 `dependency_archived_incomplete`, `label_unknown`, `milestone_unknown`, and
 `reference_path_unresolved`.
 

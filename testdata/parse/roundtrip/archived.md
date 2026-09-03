@@ -40,4 +40,4 @@ depended on the work.
 
 The status is authoritative and the directory follows it. Whether this file
 sits in the right directory is a store-level question, so the fixture for
-`archive_location_mismatch` lives under `stores/` instead.
+`location_mismatch` lives under `stores/` instead.

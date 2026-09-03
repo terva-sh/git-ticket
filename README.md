@@ -75,6 +75,31 @@ claim:
   expires_at: null
 ```
 
+A ticket sits in the directory its status implies, so `ls` answers what is worth
+looking at:
+
+```text
+.tickets/
+├── config.yml
+├── README.md
+├── draft/     filed, not yet worth starting
+├── tickets/   the working set: ready, in-progress, blocked, review
+├── done/      finished recently, still worth reading
+└── archive/   retired, swept out of done from time to time
+```
+
+That split is for a person, not the tool. `list` already answers with open work,
+so a binary never needed it. Somebody reading the store in a forge web UI has a
+directory as the only query they get for free, and `tickets/` holding the working
+set alone is what makes that answer worth having.
+
+The working statuses share one directory because a directory each would make
+every ordinary transition a rename. A ticket moves three times: when somebody
+decides it is worth starting, when it is finished, and when it is archived. The
+status wins if the two ever disagree, so `check` reports a file in the wrong
+place as `location_mismatch` and `check --fix` moves it, which is also how an
+older store migrates.
+
 ## The decisions worth knowing
 
 **A claim is advisory, never a lock.** It records who is working, on what

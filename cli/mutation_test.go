@@ -250,7 +250,7 @@ func TestReclaimKeepsAnExpiryNothingReplaced(t *testing.T) {
 func TestShowSaysWhyATicketCannotBeRead(t *testing.T) {
 	dir := newStore(t)
 	id := ticketID(t, createTicket(t, dir))
-	path := filepath.Join(dir, ".tickets", "tickets", id+".md")
+	path := ticketFile(t, dir, id)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -294,7 +294,7 @@ func TestListReportsWhatItHadToLeaveOut(t *testing.T) {
 	dir := newStore(t)
 	keep := ticketID(t, createTicket(t, dir))
 	breakID := ticketID(t, createTicket(t, dir))
-	path := filepath.Join(dir, ".tickets", "tickets", breakID+".md")
+	path := ticketFile(t, dir, breakID)
 
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -322,13 +322,46 @@ func TestStorePrecedence(t *testing.T) {
 	}
 }
 
+// storeDirNames are the four directories a store keeps tickets in, per plan
+// section 4. The test package spells them out rather than reaching into the
+// library, so a rename there has to be a deliberate change here too.
+var storeDirNames = []string{"draft", "tickets", "done", "archive"}
+
+// countTickets counts the tickets in a store, wherever they sit. This answers
+// which store got a ticket, not which directory, so it has to span all four or
+// it reports zero for a store holding one draft.
 func countTickets(t *testing.T, dir string) int {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Join(dir, ".tickets", "tickets"))
-	if err != nil {
-		t.Fatal(err)
+	n := 0
+	for _, d := range storeDirNames {
+		entries, err := os.ReadDir(filepath.Join(dir, ".tickets", d))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		n += len(entries)
 	}
-	return len(entries)
+	return n
+}
+
+// ticketFile is where a ticket's file sits, found rather than assumed.
+//
+// A ticket's directory follows its status, per plan section 4, so a test that
+// wrote .tickets/tickets/<id>.md was right only while every ticket lived there.
+// Searching costs nothing at this size and cannot go stale when the mapping
+// changes again.
+func ticketFile(t *testing.T, dir, id string) string {
+	t.Helper()
+	for _, d := range storeDirNames {
+		p := filepath.Join(dir, ".tickets", d, id+".md")
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	t.Fatalf("no file for %s anywhere under %s/.tickets", id, dir)
+	return ""
 }
 
 // TestAbsentCollectionsAreEmptyArrays is the rule of section 10 that a consumer
@@ -388,7 +421,7 @@ func TestCommentsAreDerivedFromTheSection(t *testing.T) {
 
 	// Written by hand, the way somebody editing the file would, and before any
 	// stamp so it stands as its own entry.
-	path := filepath.Join(dir, ".tickets", "tickets", id+".md")
+	path := ticketFile(t, dir, id)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -461,7 +494,7 @@ func TestBodyAndChecklistsAgree(t *testing.T) {
 	// The ac command arrives later in Phase 2, so the section is written the
 	// way a person would write it by hand: prose above the list, which is the
 	// case that makes an array position the wrong index.
-	path := filepath.Join(dir, ".tickets", "tickets", id+".md")
+	path := ticketFile(t, dir, id)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -676,8 +709,9 @@ func TestPathsAreRepositoryRelative(t *testing.T) {
 	if filepath.IsAbs(got) {
 		t.Errorf("path = %q, want it relative to the repository root", got)
 	}
-	if !strings.HasPrefix(got, ".tickets/tickets/") {
-		t.Errorf("path = %q, want it under .tickets/tickets/", got)
+	// A new ticket is a draft, and a draft lives in draft/, per section 4.
+	if !strings.HasPrefix(got, ".tickets/draft/") {
+		t.Errorf("path = %q, want it under .tickets/draft/", got)
 	}
 }
 

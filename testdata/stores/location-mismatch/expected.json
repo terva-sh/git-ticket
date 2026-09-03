@@ -1,0 +1,23 @@
+{
+  "errors": [
+    {
+      "code": "location_mismatch",
+      "file": "draft/TKT-01K3ZZY1E0A2Y6DP5AWPQ90873.md",
+      "ticket": "TKT-01K3ZZY1E0A2Y6DP5AWPQ90873",
+      "field": "status"
+    },
+    {
+      "code": "location_mismatch",
+      "file": "tickets/TKT-01K3ZZY1E0A2Y6DP5AWPQ90871.md",
+      "ticket": "TKT-01K3ZZY1E0A2Y6DP5AWPQ90871",
+      "field": "status"
+    },
+    {
+      "code": "location_mismatch",
+      "file": "tickets/TKT-01K3ZZY1E0A2Y6DP5AWPQ90872.md",
+      "ticket": "TKT-01K3ZZY1E0A2Y6DP5AWPQ90872",
+      "field": "status"
+    }
+  ],
+  "warnings": []
+}

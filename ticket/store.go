@@ -17,11 +17,40 @@ const StoreDirName = ".tickets"
 
 // Directory names inside a store.
 const (
+	draftDir   = "draft"
 	ticketsDir = "tickets"
+	doneDir    = "done"
 	archiveDir = "archive"
 	configFile = "config.yml"
 	readmeFile = "README.md"
 )
+
+// storeDirs are the directories a store keeps tickets in, in pipeline order.
+//
+// One list rather than a literal at each call site, because files, Init, and
+// the placement rule disagreeing about how many directories there are is how a
+// ticket goes missing from a listing without anything failing.
+var storeDirs = []string{draftDir, ticketsDir, doneDir, archiveDir}
+
+// statusDir is the directory a ticket with this status belongs in, per plan
+// section 4.
+//
+// The working statuses reach tickets/ by falling through rather than by being
+// named, which also decides where a status this version has never heard of
+// goes: into the working set, rather than out of the store. That is the same
+// exclusion shape section 8 uses for the open set, and for the same reason.
+func statusDir(status string) string {
+	switch status {
+	case StatusDraft:
+		return draftDir
+	case StatusDone:
+		return doneDir
+	case StatusArchived:
+		return archiveDir
+	default:
+		return ticketsDir
+	}
+}
 
 // Store is one .tickets directory.
 type Store struct {
@@ -170,7 +199,11 @@ func Init(root string, opts InitOptions) (*Store, error) {
 		cfg.Labels = append(cfg.Labels, opts.Labels...)
 	}
 
-	for _, d := range []string{path, filepath.Join(path, ticketsDir), filepath.Join(path, archiveDir)} {
+	dirs := []string{path}
+	for _, d := range storeDirs {
+		dirs = append(dirs, filepath.Join(path, d))
+	}
+	for _, d := range dirs {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 		}
@@ -195,9 +228,21 @@ func (s *Store) Config() Config { return s.config }
 // Now returns the store's clock reading.
 func (s *Store) Now() time.Time { return s.now() }
 
-// TicketsDir holds the live tickets, and ArchiveDir the archived ones.
+// TicketsDir holds the working set, and ArchiveDir the archived tickets.
 func (s *Store) TicketsDir() string { return filepath.Join(s.path, ticketsDir) }
 func (s *Store) ArchiveDir() string { return filepath.Join(s.path, archiveDir) }
+
+// DraftDir holds the drafts, and DoneDir the finished tickets that have not
+// been archived yet.
+func (s *Store) DraftDir() string { return filepath.Join(s.path, draftDir) }
+func (s *Store) DoneDir() string  { return filepath.Join(s.path, doneDir) }
+
+// StatusDir is the directory a ticket with this status belongs in, per plan
+// section 4. It is where a write puts the file, whatever directory the file is
+// in now, because 6.3 makes the status authoritative.
+func (s *Store) StatusDir(status string) string {
+	return filepath.Join(s.path, statusDir(status))
+}
 
 // Root is the directory a references path resolves against: the Git repository
 // holding the store. It is empty when the store is outside a repository, and
@@ -251,7 +296,8 @@ func (f file) id() string {
 // sort at every call site.
 func (s *Store) files() ([]string, error) {
 	var out []string
-	for _, dir := range []string{s.TicketsDir(), s.ArchiveDir()} {
+	for _, name := range storeDirs {
+		dir := filepath.Join(s.path, name)
 		entries, err := os.ReadDir(dir)
 		if os.IsNotExist(err) {
 			continue
@@ -337,12 +383,28 @@ func runGit(dir string, args ...string) (string, error) {
 
 const storeReadme = `# Tickets
 
-This directory is a git-ticket store. Each file under ` + "`tickets/`" + ` is one ticket:
-Markdown with YAML frontmatter, meant to be read, edited, diffed, and merged
-like any other file in the repository. Archived tickets move to ` + "`archive/`" + `.
+This directory is a git-ticket store. Each file is one ticket: Markdown with
+YAML frontmatter, meant to be read, edited, diffed, and merged like any other
+file in the repository.
+
+A ticket sits in the directory its status implies, so you can see what is worth
+looking at without running anything:
+
+    draft/     filed, not yet worth starting
+    tickets/   the working set: ready, in-progress, blocked, review
+    done/      finished recently, still worth reading
+    archive/   retired, swept out of done from time to time
+
+` + "`tickets/`" + ` holding the working set alone is the point. A ticket moves at most
+three times: when somebody decides it is worth starting, when it is finished,
+and when it is archived.
+
+The status in the file wins if the two ever disagree. ` + "`git ticket check`" + ` reports
+a file in the wrong directory and ` + "`git ticket check --fix`" + ` moves it.
 
 A filename is the ticket ID and nothing else, so renaming a title does not break
-` + "`git log`" + ` on the old path.
+` + "`git log`" + ` on the old path. Moving between these directories does rename the
+file, so reach for ` + "`git log --follow`" + ` when you want a ticket's whole history.
 
 You can edit these files by hand. Run ` + "`git ticket check`" + ` afterwards, which
 reports what a hand edit tends to break: a duplicate ID, a dependency on a

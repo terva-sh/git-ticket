@@ -280,11 +280,7 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 // the status is authoritative when the two disagree, per plan 6.3. A write to a
 // ticket sitting in the wrong directory therefore also puts it back.
 func (s *Store) writeTicket(t *Ticket, oldPath string) (*Result, error) {
-	dir := s.TicketsDir()
-	if t.Archived() {
-		dir = s.ArchiveDir()
-	}
-	target := filepath.Join(dir, t.ID+".md")
+	target := filepath.Join(s.StatusDir(t.Status), t.ID+".md")
 
 	// Every write funnels through here, so this is the one place the body has
 	// to be put in the shape parse returns. Render is a faithful echo of the

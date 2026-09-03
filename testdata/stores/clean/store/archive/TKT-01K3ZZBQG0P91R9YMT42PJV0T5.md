@@ -33,7 +33,7 @@ extensions: {}
 ## Description
 
 Status `archived`, type `bug`, and the file sits in `archive/`. The status and
-the directory agree, so there is no `archive_location_mismatch` here.
+the directory agree, so there is no `location_mismatch` here.
 
 `from_status: done` means this ticket still satisfies anything that depended on
 it.

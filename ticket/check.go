@@ -168,11 +168,12 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 			})
 		}
 		// The status is authoritative when it disagrees with the directory,
-		// per plan 6.3.
-		if inArchive := filepath.Dir(f.Rel) == archiveDir; inArchive != t.Archived() {
+		// per plan 6.3. Every status implies a directory, per section 4, so
+		// this covers all four and not the archive alone.
+		if want := statusDir(t.Status); filepath.Dir(f.Rel) != want {
 			r.addError(Finding{
-				Code: CodeArchiveLocationMismatch, File: f.Rel, Ticket: t.ID, Field: "status",
-				Message: archiveMismatchMessage(t.Archived()),
+				Code: CodeLocationMismatch, File: f.Rel, Ticket: t.ID, Field: "status",
+				Message: fmt.Sprintf("status is %s, so the file belongs in %s/", t.Status, want),
 			})
 		}
 
@@ -369,13 +370,6 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 		}
 	}
 	return errs, warns
-}
-
-func archiveMismatchMessage(archived bool) string {
-	if archived {
-		return "status is archived but the file is in tickets/"
-	}
-	return "the file is in archive/ but the status is not archived"
 }
 
 func otherThan(paths []string, self string) string {

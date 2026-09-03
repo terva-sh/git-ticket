@@ -39,7 +39,7 @@ const (
 	CodeInvalidDueOn                 = "invalid_due_on"
 	CodeBlockingCycle                = "blocking_cycle"
 	CodeBlocksOnNoChildren           = "blocks_on_no_children"
-	CodeArchiveLocationMismatch      = "archive_location_mismatch"
+	CodeLocationMismatch             = "location_mismatch"
 	CodeDependencyArchivedIncomplete = "dependency_archived_incomplete"
 	CodeClaimExpired                 = "claim_expired"
 	CodeReferencePathUnresolved      = "reference_path_unresolved"
@@ -71,7 +71,7 @@ var CheckErrorCodes = []string{
 	CodeSchemaUnsupported, CodeMergeConflict, CodeDependencyMissing,
 	CodeParentMissing, CodeDependencyCycle, CodeParentCycle, CodeInvalidStatus,
 	CodeInvalidType, CodeInvalidPriority, CodeInvalidBlocksOn, CodeInvalidDueOn,
-	CodeBlockingCycle, CodeArchiveLocationMismatch,
+	CodeBlockingCycle, CodeLocationMismatch,
 }
 
 var CheckWarningCodes = []string{

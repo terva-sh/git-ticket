@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -231,7 +230,7 @@ func TestUnlinkRepairsADanglingDependency(t *testing.T) {
 	a := makeTicket(t, dir, "A")
 
 	const ghost = "TKT-01JZZZZZZZZZZZZZZZZZZZZZZZ"
-	path := filepath.Join(dir, ".tickets", "tickets", a+".md")
+	path := ticketFile(t, dir, a)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

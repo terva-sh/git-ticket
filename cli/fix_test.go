@@ -33,8 +33,10 @@ func newRepoStore(t *testing.T) string {
 // repairs.
 func misname(t *testing.T, dir, id, as string) (from, to string) {
 	t.Helper()
-	from = filepath.Join(dir, ".tickets", "tickets", id+".md")
-	to = filepath.Join(dir, ".tickets", "tickets", as)
+	// Rename within whatever directory the status put it in, so this stays a
+	// filename_id_mismatch alone and does not also become a location_mismatch.
+	from = ticketFile(t, dir, id)
+	to = filepath.Join(filepath.Dir(from), as)
 	if err := os.Rename(from, to); err != nil {
 		t.Fatal(err)
 	}
@@ -69,10 +71,13 @@ func TestCheckFixRepairsAndNamesThePaths(t *testing.T) {
 	if r["ticket"] != id {
 		t.Errorf("ticket = %v, want %s", r["ticket"], id)
 	}
-	if r["from"] != ".tickets/tickets/notes-about-auth.md" {
+	// The ticket is a draft, so both ends are in draft/, per section 4. A repair
+	// that crossed directories would be a location_mismatch too, and the codes
+	// below assert this one is not.
+	if r["from"] != ".tickets/draft/notes-about-auth.md" {
 		t.Errorf("from = %v", r["from"])
 	}
-	if r["to"] != ".tickets/tickets/"+id+".md" {
+	if r["to"] != ".tickets/draft/"+id+".md" {
 		t.Errorf("to = %v", r["to"])
 	}
 	codes := r["codes"].([]any)
@@ -175,12 +180,12 @@ func TestCheckFixLeavesAJudgementAlone(t *testing.T) {
 	dir := newStore(t)
 	id := ticketID(t, createTicket(t, dir))
 
-	real := filepath.Join(dir, ".tickets", "tickets", id+".md")
+	real := ticketFile(t, dir, id)
 	data, err := os.ReadFile(real)
 	if err != nil {
 		t.Fatal(err)
 	}
-	impostor := filepath.Join(dir, ".tickets", "tickets", "copy-of-it.md")
+	impostor := filepath.Join(filepath.Dir(real), "copy-of-it.md")
 	if err := os.WriteFile(impostor, data, 0o644); err != nil {
 		t.Fatal(err)
 	}

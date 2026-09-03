@@ -49,7 +49,9 @@ func TestCreateWritesAReadableTicket(t *testing.T) {
 	s := newTestStore(t)
 	tk := mustCreate(t, s, "Add token refresh handling")
 
-	want := filepath.Join(s.TicketsDir(), tk.ID+".md")
+	// A new ticket is a draft, so it lands in draft/, per plan section 4. Asking
+	// the store where the status puts it keeps this from restating the mapping.
+	want := filepath.Join(s.StatusDir(tk.Status), tk.ID+".md")
 	data, err := os.ReadFile(want)
 	if err != nil {
 		t.Fatalf("the ticket is not where the ID says it is: %v", err)
@@ -441,7 +443,7 @@ func TestUnreadableTicketIsNotAbsent(t *testing.T) {
 	s := newTestStore(t)
 	tk := mustCreate(t, s, "Rotate the signing key before it expires")
 	other := mustCreate(t, s, "Leave this one readable")
-	path := filepath.Join(s.TicketsDir(), tk.ID+".md")
+	path := filepath.Join(s.StatusDir(tk.Status), tk.ID+".md")
 
 	breakFile := func(old, new string) {
 		t.Helper()

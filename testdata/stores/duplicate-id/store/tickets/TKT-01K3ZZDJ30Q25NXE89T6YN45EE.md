@@ -33,6 +33,6 @@ An archive that copied instead of moving leaves the same ID in `tickets/` and
 in `archive/`.
 
 Both files are named `<id>.md` and each status agrees with the directory it
-sits in, so `filename_id_mismatch` and `archive_location_mismatch` stay quiet.
+sits in, so `filename_id_mismatch` and `location_mismatch` stay quiet.
 `duplicate_id` is the only finding, which is the point: the fixture isolates
 one code.

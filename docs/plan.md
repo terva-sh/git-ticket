@@ -84,12 +84,73 @@ already ships.
 .tickets/
 ├── config.yml
 ├── README.md
+├── draft/
+│   └── TKT-01K3ZYD1P0F3XKQVWM8XW8SBQ2.md
 ├── tickets/
 │   ├── TKT-01K3ZYEE00HV9ZDBB8BEASXBBG.md
 │   └── TKT-01K3ZYG8K0Y52AD43XRGM4T7WZ.md
+├── done/
+│   └── TKT-01K3ZYH7V0MW2AQ5H1J8YQK4TC.md
 └── archive/
     └── TKT-01K3ZYJ360Q7ESC30QAD2SMY0H.md
 ```
+
+A ticket's directory follows its status:
+
+| Status | Directory |
+|---|---|
+| `draft` | `draft/` |
+| `ready`, `in-progress`, `blocked`, `review` | `tickets/` |
+| `done` | `done/` |
+| `archived` | `archive/` |
+
+The layout is the format. It is not configurable and not opt-in, because a
+layout a store can decline is one no reader can count on.
+
+The point is a person, not the tool. The tool is happy either way and `list`
+already answers with open work, per section 8. Somebody reading the store in a
+forge web UI, or through `ls`, has a directory as the only query they get for
+free, and `tickets/` holding the working set alone is what makes that answer
+worth having. Before this, `.tickets/tickets/` held 43 files of which a handful
+were live.
+
+The pipeline runs one way and a ticket moves at most three times. It is filed
+into `draft/`. When it is written well enough for work or planning to start,
+somebody moves it to `tickets/`, which is the same promotion that the agent
+workflow block reserves for a person. Finishing it moves it to `done/`, which
+holds recent work still worth reading. A person sweeps `done/` into `archive/`
+periodically with `git ticket archive`, and no command does that in bulk.
+
+The working statuses share one directory on purpose. A directory each would turn
+every ordinary transition into a rename, and `ready`, `in-progress`, `blocked`,
+and `review` are exactly the statuses a ticket churns through while somebody
+works it. The three boundaries that do get a directory are the ones that change
+whether a ticket is worth looking at.
+
+A status this document has not defined yet lands in `tickets/`. That is the same
+exclusion shape section 8 uses for the open set: name the special cases, and let
+anything new take the ordinary path rather than falling out of the store.
+
+Status is the only thing a directory keys on. A path is one dimension, so any
+partition spends its single slot once, and status has the better claim because
+done is the property that makes a file uninteresting. Type does not get
+directories: `update --type` is a frontmatter edit today and would become a file
+move, landing on the promotion of a task to an epic, which is the busiest moment
+in a ticket's life. An epic is also not a boring file, so pulling epics out of
+`tickets/` would remove the most interesting rows from the view this section
+exists to make readable.
+
+The status wins when it disagrees with the directory, per 6.3. A file in the
+wrong place is read correctly and reported as `location_mismatch`, and
+`check --fix` moves it. That is what migrates an existing store: one pass, one
+rename-only commit, no schema bump, because a ticket file does not change when
+its path does.
+
+The cost is that a status change crossing a boundary is now a rename, so two
+agents moving one ticket to different statuses collide as a rename conflict
+rather than as a content conflict on `status:`. That collision already existed
+and this makes it uglier to resolve. The pull request workflow is the mitigation,
+and it is the same one that already covers two agents editing one ticket.
 
 Discovery walks up from the current directory to the Git root and looks for
 `.tickets/`. A `--store` flag or `GIT_TICKET_STORE` overrides it, and an
@@ -430,7 +491,10 @@ archive`. The reverse pair is `git ticket unarchive`, which restores the file to
 Archiving sets `status: archived`, records the `archive` block including
 `from_status`, and moves the file to `.tickets/archive/`. The status is
 authoritative. If the two ever disagree, because someone moved a file by hand,
-`check` reports `archive_location_mismatch` and the status wins.
+`check` reports `location_mismatch` and the status wins.
+
+That rule is not special to the archive. Every status implies a directory, per
+section 4, and the same finding covers all four.
 
 An archive reason lands in two places, like a status reason and for the same
 reason. It goes in the `archive` block for a query to read, and into a `Notes`
@@ -1113,7 +1177,7 @@ Errors:
 | `invalid_priority` | a `priority` outside the set in 5.1 |
 | `invalid_blocks_on` | a `blocks_on` outside the set in 5.1 |
 | `invalid_due_on` | a `due_on` that is not a `YYYY-MM-DD` date, per 5.1. A date that has passed is never a finding |
-| `archive_location_mismatch` | the status and the directory disagree; the status wins |
+| `location_mismatch` | the status and the directory disagree, per section 4; the status wins |
 
 Warnings:
 
@@ -1146,7 +1210,7 @@ Two findings have exactly one correct repair, and `check --fix` makes them:
 | Code | The repair |
 |---|---|
 | `filename_id_mismatch` | rename the file to `<id>.md`, which section 4 fixes and leaves no second reading of |
-| `archive_location_mismatch` | move the file to the directory the status implies, because 6.3 already rules the status wins |
+| `location_mismatch` | move the file to the directory the status implies, because 6.3 already rules the status wins |
 
 Nothing else is repaired, and the rest are not near misses. `duplicate_id` has
 to choose which file keeps the ID, which is a judgement about which ticket is
@@ -1422,10 +1486,34 @@ it, so it is a break under the rule above. `Filter.IncludeArchived` becomes
 composite literal as well as an unkeyed one, which is the wider of the two, and
 is worth saying plainly to anyone who has already written `Filter{...}`.
 
-It is taken now for the reason this section already gives for staying at `v0.x`:
-nothing consumes these surfaces yet, so this is the cheapest the change will
-ever be. Waiting does not avoid the break, it moves it to a release where
-somebody has to be told.
+`archive_location_mismatch` becomes `location_mismatch`, per sections 4 and 11,
+because placement stopped being about the archive alone once every status
+implied a directory. Renaming a code is the example the rule above gives of a
+major change, and a name that misleads rots faster than one that breaks.
+
+Both are taken now for the reason this section already gives for staying at
+`v0.x`: nothing consumes these surfaces yet, so this is the cheapest either
+change will ever be. Waiting does not avoid a break, it moves it to a release
+where somebody has to be told.
+
+The four-directory layout is not a schema break. A ticket file does not change
+when its path does, so `schema` stays at 1 and no store needs `migrate`. Every
+file a migrated store holds still parses in any binary that could parse it
+before.
+
+It does cost something a reader should not have to find out for themselves. An
+older binary walks `tickets/` and `archive/` and nothing else, so against a
+migrated store it silently answers without the drafts and without the done
+tickets. It does not fail, which is the problem: a listing that is quietly short
+reads exactly like a listing of a smaller store.
+
+That sits close to the rule this section states about a store never upgrading
+itself, and it is worth being exact about why it does not break it. Nothing
+self-upgrades. A store moves only when a person runs `check --fix`, and until
+they do, every binary agrees about it. What the rule protects is a colleague who
+has not upgraded, and the honest statement is that migrating a shared store is a
+decision to make once the people reading it have the newer binary. It is one
+rename-only commit, so the diff says plainly what happened.
 
 The module version tracks the Go API alone. A `schema` bump is not a Go major:
 learning to read schema 2 while schema 1 still parses is additive, so it ships
@@ -1982,6 +2070,42 @@ records it along with the `IncludeArchived` rename it carried.
 `search` is the one place the new default would have been wrong, so it does not
 take it. Search is how somebody finds what was already decided, and a decision
 lives in a done ticket. 8 holds that asymmetry and its reason.
+
+The store layout was settled next
+(`TKT-01M1HVMQQQE3K6VZG7793RXVXN`), and 4, 6.3, 11, and 12.4 now carry it.
+
+The store partitions into `draft/`, `tickets/`, `done/`, and `archive/`, keyed
+on status. It is mandatory rather than opt-in, so the `directories` key that
+ticket spent half its length designing does not exist. A layout a store can
+decline is one no reader can count on, and the whole value here is a reader
+being able to count on it.
+
+The question this answers is not one the tool had. `list` answers with open work
+now, so a binary was never the problem. The reader is a person in a forge web UI
+or at `ls`, whose only free query is a directory. That is also why closing this
+in favour of a generated index was rejected: an index is a second artifact that
+can go stale, where a directory cannot lie about which files are in it.
+
+The working statuses share `tickets/` because a directory each would make every
+ordinary transition a rename, and those four are exactly what a ticket churns
+through while somebody works it. An unknown status lands in `tickets/`, which is
+the same exclusion shape as the open set: name the special cases and let
+anything new take the ordinary path.
+
+Status is the only key, and type is refused outright. `update --type` is a
+frontmatter edit that would become a file move, landing on the promotion of a
+task to an epic. Epics are also the interesting rows, so pulling them out of
+`tickets/` would empty the view of the thing worth seeing.
+
+Migration is `check --fix` and nothing more. Placement is store layout rather
+than file format, so no ticket file changes and `schema` stays at 1, which is
+why this needed neither a bump nor the `migrate` command 12.5 designs and
+nothing has built. 12.4 records what a migrated store costs an older binary,
+which is silence about two directories rather than a parse failure.
+
+`archive_location_mismatch` became `location_mismatch` in the same change,
+because the condition outgrew the name the moment a second directory could be
+wrong.
 
 ## 16. References
 

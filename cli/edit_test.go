@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -296,7 +295,7 @@ func TestACIndexCountsCheckboxesNotLines(t *testing.T) {
 	id := ticketID(t, createTicket(t, dir))
 
 	// Written the way a person writes it, with the list under a sentence.
-	path := filepath.Join(dir, ".tickets", "tickets", id+".md")
+	path := ticketFile(t, dir, id)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

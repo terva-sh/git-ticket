@@ -62,7 +62,9 @@ func TestFixRenamesAFileToItsID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wrong := filepath.Join(s.TicketsDir(), "notes-about-auth.md")
+	// Misnamed within its own directory, so this isolates filename_id_mismatch.
+	// Moving it to another directory would raise location_mismatch as well.
+	wrong := filepath.Join(s.StatusDir(tk.Status), "notes-about-auth.md")
 	moveFile(t, tk.Path, wrong)
 
 	// The condition is there before the repair.
@@ -79,7 +81,7 @@ func TestFixRenamesAFileToItsID(t *testing.T) {
 		t.Fatalf("got %d repairs, want 1: %+v", len(res.Repairs), res.Repairs)
 	}
 	r := res.Repairs[0]
-	if r.From != "tickets/notes-about-auth.md" || r.To != "tickets/"+tk.ID+".md" {
+	if dir := statusDir(tk.Status); r.From != dir+"/notes-about-auth.md" || r.To != dir+"/"+tk.ID+".md" {
 		t.Errorf("repair = %+v", r)
 	}
 	if !has(r.Codes, CodeFilenameIDMismatch) {
@@ -89,7 +91,7 @@ func TestFixRenamesAFileToItsID(t *testing.T) {
 		t.Errorf("the store should be clean after the repair: %v", codesOf(res.Report.Errors))
 	}
 
-	after, err := os.ReadFile(filepath.Join(s.TicketsDir(), tk.ID+".md"))
+	after, err := os.ReadFile(filepath.Join(s.StatusDir(tk.Status), tk.ID+".md"))
 	if err != nil {
 		t.Fatalf("the file is not at its repaired path: %v", err)
 	}
@@ -124,8 +126,8 @@ func TestFixMovesAFileTheStatusContradicts(t *testing.T) {
 	if r.From != "tickets/"+tk.ID+".md" || r.To != "archive/"+tk.ID+".md" {
 		t.Errorf("repair = %+v", r)
 	}
-	if !has(r.Codes, CodeArchiveLocationMismatch) {
-		t.Errorf("codes = %v, want archive_location_mismatch", r.Codes)
+	if !has(r.Codes, CodeLocationMismatch) {
+		t.Errorf("codes = %v, want location_mismatch", r.Codes)
 	}
 	if !fixed.Report.OK() {
 		t.Errorf("the store should be clean after the repair: %v", codesOf(fixed.Report.Errors))
@@ -149,11 +151,11 @@ func TestFixSettlesBothFaultsInOneMove(t *testing.T) {
 		t.Fatalf("got %d repairs, want 1: %+v", len(res.Repairs), res.Repairs)
 	}
 	r := res.Repairs[0]
-	if len(r.Codes) != 2 || !has(r.Codes, CodeFilenameIDMismatch) || !has(r.Codes, CodeArchiveLocationMismatch) {
+	if len(r.Codes) != 2 || !has(r.Codes, CodeFilenameIDMismatch) || !has(r.Codes, CodeLocationMismatch) {
 		t.Errorf("codes = %v, want both findings", r.Codes)
 	}
-	if r.To != "tickets/"+tk.ID+".md" {
-		t.Errorf("to = %q", r.To)
+	if want := statusDir(tk.Status) + "/" + tk.ID + ".md"; r.To != want {
+		t.Errorf("to = %q, want %q", r.To, want)
 	}
 	if !res.Report.OK() {
 		t.Errorf("the store should be clean: %v", codesOf(res.Report.Errors))
@@ -166,7 +168,9 @@ func TestFixSettlesBothFaultsInOneMove(t *testing.T) {
 func TestFixDryRunPlansAndWritesNothing(t *testing.T) {
 	s := newTestStore(t)
 	tk := mustCreate(t, s, "Named wrong on disk")
-	wrong := filepath.Join(s.TicketsDir(), "notes-about-auth.md")
+	// Misnamed within its own directory, so this isolates filename_id_mismatch.
+	// Moving it to another directory would raise location_mismatch as well.
+	wrong := filepath.Join(s.StatusDir(tk.Status), "notes-about-auth.md")
 	moveFile(t, tk.Path, wrong)
 
 	res := mustFix(t, s, FixOptions{DryRun: true})

@@ -36,7 +36,7 @@ Somebody moved this file back to `tickets/` by hand, or a merge resurrected the
 old path, and the status was never touched.
 
 Section 6.3 makes the status authoritative, so this ticket is archived and the
-directory is wrong. `check` reports `archive_location_mismatch` and a reader
+directory is wrong. `check` reports `location_mismatch` and a reader
 must not decide the ticket is live just because of where the file sits.
 
 Resolving it the other way would be worse. Trusting the directory would let a

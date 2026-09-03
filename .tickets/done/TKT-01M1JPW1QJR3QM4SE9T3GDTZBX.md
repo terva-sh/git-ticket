@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1JPW1QJR3QM4SE9T3GDTZBX
 title: Build the ticket-file merge driver
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-03T04:01:44Z
-updated_at: 2026-09-03T04:01:44Z
+updated_at: 2026-09-03T05:36:15Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -53,3 +53,13 @@ That boundary is not a problem to route around. It means the config line is a pe
 A driver runs on a file mid-merge, which is the one state `parse` reports as `merge_conflict` rather than parsing. The driver reads the three stages Git hands it, each of which parses cleanly, so it must not be built on the conflicted working-tree file.
 
 Round-tripping matters more here than anywhere. The driver writes a ticket file, so its output goes through the same renderer as every other write, or a merge silently reformats a file and the next diff is noise. 5.3 renders an absent scalar as `null` rather than omitting it, and a driver that forgets that produces a file that parses and does not match.
+
+## Summary
+
+Built. ticket.Merge does the three-way merge of plan 7.5, git ticket merge-driver is what Git invokes, and git ticket install-merge-driver plus init writing .gitattributes are the two halves of installing it.
+
+The proof is TestMergeDriverUnderRealGit, which reproduces the spike case by running git rather than reasoning about it: branch A sets priority, branch B adds a label, and the merge now resolves. Pointing .gitattributes at merge=text instead of the driver brings back the exact conflict the spike reported, which is what says the driver is doing the work.
+
+Both install questions went to the user. They chose a command over documentation, and init writing the attribute over leaving it out. The reasoning for the second is that the attribute is inert until somebody configures a driver by that name, so a repository that never installs one pays two lines and every clone that does install one is spared knowing the pattern.
+
+One thing in this ticket turned out wrong. It says the driver stays inside the 7.4 promise so the command table does not grow, and that holds for merge-driver, which runs no git at all. install-merge-driver does: it sets two keys with git config, so 7.4 grew its first writing row. The exception is stated narrowly there, because it touches .git/config alone and runs from that one command.

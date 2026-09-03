@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1MPFTEY1XEX28YRYDRS7AMK
 title: Add section 15 entries for the two questions from the Backlog.md review
 type: task
-status: draft
+status: ready
 status_reason: null
 priority: normal
 due_on: null
@@ -22,7 +22,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-03T22:33:32Z
-updated_at: 2026-09-03T22:33:54Z
+updated_at: 2026-09-03T23:34:02Z
 created_by:
   id: agent:terva/mieli
   name: ""

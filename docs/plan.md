@@ -107,6 +107,39 @@ A ticket's directory follows its status:
 The layout is the format. It is not configurable and not opt-in, because a
 layout a store can decline is one no reader can count on.
 
+A directory is a ticket store when it holds `config.yml`. `Open` returns
+`store_not_found` for a directory without one, naming the file it wanted.
+
+Existence used to be the whole test. `Open` stat'd the path, and a missing
+`config.yml` fell through to the defaults in 4.1, so any directory that existed
+opened as a store holding no tickets. `--store` at a typo answered `ticket-list`
+with an empty array and exit 0, and `ready` reported that nothing was ready to
+pick up. That is the one wrong answer indistinguishable from a right one: an
+agent that lists and sees nothing concludes there is no work, rather than that
+it is reading the wrong directory.
+
+No directory is part of the test, and `tickets/` is the one that looked like it
+should be. Git tracks no empty directory. A store whose open work is finished
+has an empty `tickets/`, which the next commit does not record and the next
+clone does not create, so requiring it would reject a store for the ordinary
+achievement of having nothing in progress. A freshly initialized store commits
+three files and no directories at all. A marker that disappears when a store
+runs out of work is not a marker.
+
+The name is not the test either. A store lives at `.tickets/`, and `Discover`
+looks for that name walking up, but `--store` and `GIT_TICKET_STORE` name a
+directory outright and the corpus points them at fixture stores called `store/`.
+Requiring the name would reject every fixture. They are named that way because
+`go:embed` skips any path beginning with a dot, so the realistic name would
+embed nothing.
+
+That leaves `config.yml`, which is a file, so Git tracks it and a clone has it.
+`init` writes it, and 4.1 gives it content no other file carries. The cost is
+that deleting it stops the store opening rather than falling back to the
+defaults in 4.1. That is the right trade: deleting the config is a deliberate
+act somebody can undo, where mistyping a path is an accident that used to
+return a plausible answer.
+
 The point is a person, not the tool. The tool is happy either way and `list`
 already answers with open work, per section 8. Somebody reading the store in a
 forge web UI, or through `ls`, has a directory as the only query they get for
@@ -1959,29 +1992,39 @@ order, so a rebuild differs from an identical input. The index is the separable
 half and costs the format nothing, which is the argument whoever settles this
 has to answer rather than inherit.
 
-**What counts as a store** (`TKT-01M1HJTCYTZZHGGPCXT2SAJMFR`). Nothing decides
-what makes a directory a store, so any directory that exists is one. `Open`
-returns `store_not_found` only when its path is missing or is not a directory,
-and a missing `config.yml` falls through to the defaults in 4.1, so opening an
-empty directory yields a store with no tickets rather than an error. The CLI
-inherits it, and `--store DIR` at a directory holding nothing answers
-`ticket-list` with an empty array and exit 0. A typo therefore answers "no
-tickets" where it should answer "no store", which is the one wrong answer that
-reads exactly like a right one. An agent that lists and sees nothing concludes
-there is no work.
+**What counts as a store** (`TKT-01M1HJTCYTZZHGGPCXT2SAJMFR`) is answered in
+section 4. A directory is a store when it holds `config.yml`, and `Open`
+returns `store_not_found` without one. The rule lives in `Open` rather than in
+the CLI's store resolution, because the trigger for settling it was Phase 3,
+where a consumer reaches the library directly and would otherwise inherit the
+old behaviour through an API the CLI never touches.
 
-The markers exist already. `init` writes `config.yml`, `tickets/` and `archive/`
-under `.tickets`, and `Discover` walks up looking for that name, so 4 is the
-definition everywhere except the check at open time. What has to be decided is
-which marker is the contract, because that is a format promise rather than an
-implementation detail. Requiring `config.yml` is the cheapest test and the
-strictest, and it stops a store whose config was deleted from opening at all.
-Requiring `tickets/` describes the store better and survives a missing config,
-which 4.1 already treats as defaults. Requiring the name `.tickets` would break
-`--store` pointed at a fixture directory, which the corpus relies on. Also open
-is whether the rule belongs to `Open` or only to the CLI's store resolution,
-since a caller passing an explicit path in Go has said what it means and a
-person typing `--store` has not.
+The marker already existed and nothing read it. `init` wrote it, `Discover`
+walked up looking for the name `.tickets`, and section 4 described the layout,
+so the definition was everywhere except the check at open time. Existence was
+the whole test, which made `--store` at a typo answer `ticket-list` with an
+empty array and exit 0.
+
+This was first settled as `config.yml` and `tickets/` together, and Git
+overruled it. Git tracks no empty directory, so `init`, commit, clone produces
+a store with three files and no subdirectories, and requiring `tickets/`
+rejected it. `TestWorktreesShareOneLock` failed on exactly that: it commits a
+store and adds a worktree, and the linked checkout had no `tickets/` because
+the directory was empty. The rule would also have rejected any store that
+finished its open work. A directory cannot be a marker in a format stored in
+Git unless something keeps it non-empty, and nothing here does.
+
+The name `.tickets` was never a candidate. `--store` and `GIT_TICKET_STORE`
+name a directory outright, and the corpus points them at fixture stores called
+`store/`, so requiring the name would reject all seventeen.
+
+Running the question found one more thing the ticket did not have.
+`check --strict` already refused an empty directory, but through
+`epics_index_stale`, whose message says `epics.md` "does not match the epics in
+this store" while failing to be a store. Plain `check` exited 0 on the same
+directory, because that finding is a warning. The finding was right that the
+file was missing and wrong about what that meant, which is what a check reports
+when the thing it assumes goes untested.
 
 Twelve questions have left this list. They were numbered once, and the numbering
 is the thing this section gave up. A number has to be chosen, and it collided

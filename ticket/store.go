@@ -32,6 +32,17 @@ const (
 // ticket goes missing from a listing without anything failing.
 var storeDirs = []string{draftDir, ticketsDir, doneDir, archiveDir}
 
+// isStore reports whether abs holds the marker that makes a directory a ticket
+// store, per plan 4: a readable config.yml.
+//
+// No directory is part of the test. Git tracks no empty directory, so a store
+// whose tickets/ happens to be empty loses it on the next clone, and a marker
+// that disappears when a store runs out of open work is not a marker.
+func isStore(abs string) bool {
+	info, err := os.Stat(filepath.Join(abs, configFile))
+	return err == nil && !info.IsDir()
+}
+
 // statusDir is the directory a ticket with this status belongs in, per plan
 // section 4.
 //
@@ -109,6 +120,13 @@ func OpenWith(path string, opts OpenOptions) (*Store, error) {
 	info, err := os.Stat(abs)
 	if err != nil || !info.IsDir() {
 		return nil, codedError(CodeStoreNotFound, "no ticket store at %s", abs)
+	}
+	// A directory that exists is not yet a store, per plan 4. Without this the
+	// whole test is existence, so a typo opens and reports no tickets, which
+	// reads exactly like a store with nothing to do.
+	if !isStore(abs) {
+		return nil, codedError(CodeStoreNotFound,
+			"no ticket store at %s: no %s", abs, configFile)
 	}
 
 	s := &Store{path: abs, now: opts.Now}

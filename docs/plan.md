@@ -730,9 +730,11 @@ common still change those lines, so Git sees both sides modify one region and
 stops. Branch A setting `priority` against branch B adding a label conflicts on
 `updated_by` alone: Git merges the priority and the label without complaint and
 hands back a file whose only disputed lines are the two neither agent typed.
-Whether that is a reason to keep the fields is
-`TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, because a driver that resolves them quietly is
-also a driver that hides the question.
+The table below settles that cost, taking the later `updated_at` and the actor
+belonging to it, which needs no judgment. Whether the two fields belong in the
+published surface at all is `TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, and it is a
+separate question: nothing reads either field, and 12.4 closes the option once a
+consumer depends on them.
 
 Position is the second source. `Notes` and `Comments` grow by appending, so two
 appends land at the same offset and collide as one hunk, though nothing in
@@ -2044,11 +2046,15 @@ and two append-only sections clears the conflicts a real workflow hits, and
 adjudicates nothing anybody wrote. The full table in 7.5 exists so the rest is
 decided rather than discovered later, and most of its rows say conflict.
 
-It also raised `TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, on whether `updated_at` and
-`updated_by` earn their cost at all. 5.3 defends them, saying the diff should
-report who touched a ticket and when. The conflict evidence is the bill for
-that, and a driver that resolves them silently settles the symptom while hiding
-the question, which is why the question is filed rather than folded in.
+It also raised `TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, which was filed on the conflict
+evidence and then narrowed, because the driver retires that argument rather than
+hiding it: the rule for both fields is mechanical and 7.5 states it. What stands
+on its own is that nothing reads either field, and that `updatedAt` and
+`updatedBy` are in the ticket envelope, so 12.4 turns removing them into a
+breaking change the moment a consumer arrives. 5.3 defends them, saying the diff
+should report who touched a ticket and when. The question is whether that answer
+is worth freezing before Phase 3, and it wants a deliberate yes rather than an
+inherited one.
 
 **External tracker integration** (`TKT-01M1HFQ5F4D4KF45A5PFQ39XST`). How
 git-ticket integrates with one. Storing the identifier works, because 5.1 leaves

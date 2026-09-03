@@ -1,7 +1,7 @@
 ---
 schema: 1
 id: TKT-01M1JPXG7J6K4MQNTWA6TVMHPB
-title: Decide whether updated_at and updated_by earn their cost
+title: Decide whether updated_at and updated_by belong in the published surface
 type: spike
 status: draft
 status_reason: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-03T04:02:32Z
-updated_at: 2026-09-03T04:02:32Z
+updated_at: 2026-09-03T04:31:17Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -31,30 +31,32 @@ extensions: {}
 
 ## Description
 
-Raised while settling the merge driver on TKT-01M1HE7KX06FY8W1GYXH9MXGBP. That spike found these two fields are the dominant source of merge conflicts, and a driver would resolve them. This asks the question a driver would paper over: should they be there at all?
+Raised while settling the merge driver on TKT-01M1HE7KX06FY8W1GYXH9MXGBP, and narrowed after review. The original framing led with the merge cost, and plan 7.5 retires that argument: the driver takes the later `updated_at` and the actor belonging to it, a rule needing no judgment. Do not re-litigate the conflict here. What is left is a question about the published surface, and it stands on its own.
 
-5.3 already defends them and the defence has to be answered rather than ignored. It says they change on every mutation so every diff shows at least those two lines, and that this is intended, because the diff should say who touched the ticket and when.
+`updatedAt` and `updatedBy` are in the ticket envelope. 12.4 covers every machine-readable surface, so removing either after a consumer depends on it is a breaking change rather than an additive one. Phase 3 is when a consumer arrives. The choice is therefore open now and closed later, which is the only reason this is worth deciding before somebody asks for it.
 
-### The measured cost
+### What the fields do today
 
-Two edits touching nothing in common still conflict. Branch A setting `priority` and branch B adding a label produced exactly one conflict hunk, on `updated_by`, while Git merged the priority and the label without complaint. The two agents disagreed about nothing and the file would not merge. `updated_at` behaves the same way whenever the edits fall in different seconds.
+Nothing reads them. `apply` writes both on every mutation, `render` emits them, `parse` reads them back, and the ticket envelope publishes them. No query, filter, sort, or check consumes either. Claim expiry uses the claim own `expires_at` and not `updated_at`. No test asserts on either field. They are a write-only pair with a published surface attached.
 
-That is the whole conflict story for concurrent edits to one ticket, aside from append position in `Notes` and `Comments`.
+### The case for keeping them
+
+5.3 makes it directly: they change on every mutation so every diff shows at least those two lines, and that is intended, because the diff should say who touched the ticket and when.
+
+The stronger version is about stores read outside Git. A tarball, an export, or a directory somebody copied carries no history, and these two fields are the only provenance it has. A format that is Markdown first should not need `git log` to answer who last touched a file.
 
 ### The case for dropping them
 
-Git already records who and when, per commit, for every line. `git log -p` and `git blame` on a ticket file answer "who touched this and when" with more precision than a single last-writer field, because they answer it per change rather than for the file as a whole. The fields may be restating what the object database holds, at the price of a conflict on every concurrent edit.
+In a Git-native format they restate what the object database already holds, with less precision. `git log -p` and `git blame` answer who and when per change; a last-writer pair answers it once for the whole file and is wrong about every earlier edit.
 
-Nothing in this repository reads them. `UpdatedAt` and `UpdatedBy` are written by `apply`, rendered by `render`, read back by `parse`, and published in the ticket envelope. No query, filter, sort, or check consumes either. A field nothing reads is carrying its cost on the strength of the diff argument alone.
-
-### The case against dropping them
-
-A store is not always read through Git. A tarball, an export, or a directory somebody copied has no history, and the fields are the only provenance those carry.
-
-They are also a published surface. `updatedAt` and `updatedBy` are in the ticket envelope, so removing them is a breaking change under 12.4 and not an additive one. That is the real cost, and it is why this is worth deciding before Phase 3 rather than after a consumer depends on them.
+A field nothing reads, in a format that is about to freeze its published surface, is worth a deliberate yes rather than an inherited one.
 
 ### What has to be decided
 
-Whether both stay, both go, or one goes. `updated_at` and `updated_by` are separable: a timestamp is cheap to defend and an actor is the field the conflict evidence actually indicts, since two agents always differ on it while two edits in the same second do not differ on the timestamp.
+Keep both, drop both, or drop one, and say it in 12.4 terms so v1.0.0 makes the promise on purpose.
 
-Also open is whether the merge driver settles this by itself. If a driver resolves both fields silently and correctly, the cost falls to nearly zero and the diff argument survives intact. That is the honest counter to this whole ticket, and whoever picks it up should build or read the driver first.
+If they are split, the distinction is no longer the merge behaviour, since the driver treats them as one fact. It is that a timestamp is legible to any reader, while an actor id is only meaningful where actor strings are stable, which the format does not enforce and `config.yml` only advises.
+
+### Trigger
+
+Before Phase 3, and before v1.0.0. After that the answer is whichever one shipped.

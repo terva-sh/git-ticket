@@ -3,9 +3,10 @@ schema: 1
 id: TKT-01M1HXHJXRFP7VMH7D35YNTG5H
 title: Generate an epics index in the store for browsing without the tool
 type: task
-status: ready
+status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
   - question
@@ -20,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T20:39:07Z
-updated_at: 2026-09-02T22:01:14Z
+updated_at: 2026-09-03T01:22:14Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -103,10 +104,24 @@ If this ships, most of the motivation for the directory partition is gone. The t
 ## Acceptance criteria
 
 - [x] All three decisions in the description are settled and recorded in docs/plan.md before any code lands.
-- [ ] check reports a stale index and check --fix regenerates it.
-- [ ] No mutation writes epics.md. Only check --fix does.
-- [ ] epics.md is never read by the tool and never counts toward what makes a directory a store.
-- [ ] Section 4 documents the file beside README.md.
-- [ ] A corpus fixture covers a store with a stale index and one with a current index.
-- [ ] The filter is written as an exclusion of done and archived, so a status added to 6.1 later appears in the index with no edit.
-- [ ] A stale index is a warning, and check --strict still fails on it.
+- [x] check reports a stale index and check --fix regenerates it.
+- [x] No mutation writes epics.md. Only check --fix does.
+- [x] epics.md is never read by the tool and never counts toward what makes a directory a store.
+- [x] Section 4 documents the file beside README.md.
+- [x] A corpus fixture covers a store with a stale index and one with a current index.
+- [x] The filter is written as an exclusion of done and archived, so a status added to 6.1 later appears in the index with no edit.
+- [x] A stale index is a warning, and check --strict still fails on it.
+
+## Summary
+
+Shipped in PR #45. `.tickets/epics.md` is generated: a table of the open epics, each row linking to its file. `check` reports `epics_index_stale` when it disagrees with the tickets, `check --fix` rewrites it, and `init` writes it so a fresh store is not born stale.
+
+All three settled decisions came through intact. The filter is an exclusion of `done` and `archived`, so a status added to 6.1 later appears with no edit. Epics only, with no configuration key. Stale is a warning, which `--strict` promotes, so CI enforces it exactly as hard as an error.
+
+The known cost landed as predicted: `Repair` gained `Kind`, either `move` or `rewrite`. A rewrite nulls `ticket` and `from` in the JSON and names the file in `to`. Plan 12.4 records the break.
+
+Two rules turned out to be easy to get subtly wrong, and both now have mutation-verified tests. Rows sort by ID, because an index rendered in store order would come back different on a different machine and report itself stale forever. The link comes from `statusDir(t.Status)` rather than the file's current path, because `Fix` plans this rewrite before it moves anything.
+
+Every store fixture gained an `epics.md`. A fixture without one trips a warning it was not written to cover, which `testdata/README.md` now says.
+
+Two things surfaced on the way. This repository's own `.tickets/README.md` was still the pre-partition version, drifted since PR #42 because nothing checks it; it is now what `init` writes. And the tension with TKT-01M1HVMQ resolved by both shipping: the directories answer status and this file answers type, which is why neither had to win.

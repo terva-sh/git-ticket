@@ -803,14 +803,37 @@ tiebreak is what makes the key safe to apply without asking: in a store where
 nobody has set a date, the order is the one the store had before the field
 existed.
 
-`ready` applies that order always and has no flag to ask for it, because its
-ranking is part of what it answers. `list` applies it on `--sort due_on` and
-otherwise stays in ID order. A list reports what exists rather than recommending
-anything, so reordering it is a change to a report somebody is reading, and the
-caller asks. `--sort` takes `id` or `due_on`, and naming the default is half of
-why the flag has two values rather than one.
+Ordering by `priority` puts `urgent` first and `low` last, breaks a tie on
+`due_on`, and breaks that tie on the ID. A value 5.1 does not define sorts below
+`low`, because an unrecognized priority must not outrank one somebody set on
+purpose. The key degrades the way the deadline key does: every ticket carries
+`normal` until somebody says otherwise, so in a store where nobody has set a
+priority the key changes nothing and the order falls through to the two beneath
+it.
 
-One field has one order. Both commands sort it the same way, because two
+`ready` applies the priority order always and has no flag to ask for it, because
+its ranking is part of what it answers. It is the order `list --sort priority`
+gives with the readiness filter in front of it, so a reader comparing the two
+sees one order rather than two.
+
+Priority leads and the deadline follows it. The case that decides this is a
+`low` ticket due next week against an `urgent` with no date, and both orders are
+wrong somewhere, so the question is which wrong answer a person can correct
+honestly. Under deadline-first the only way to lift the urgent ticket is to
+invent a date for it, which corrupts a field to move a sort. Under
+priority-first the way to lift the dated ticket is to raise its priority, which
+is what the field means. An ordering should be gamed by telling the truth.
+
+The other half is that undated already means never due, and never is the far end
+of the scale. Deadline-first has to defend a never-due `urgent` sorting below a
+`low` due in two years, and it cannot.
+
+`list` reports what exists rather than recommending anything, so reordering it
+is a change to a report somebody is reading, and the caller asks. `--sort` takes
+`id`, `due_on`, or `priority`, and `id` is the default. Naming the default is
+half of why the flag takes a value rather than being a bare switch.
+
+One field has one order. Both commands sort a field the same way, because two
 orderings of one field is a rule a reader has to hold in mind at the moment they
 are comparing two outputs.
 
@@ -1445,7 +1468,7 @@ That is the smaller price.
 
 ```text
 git ticket init   [--instructions]
-git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on]
+git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority]
 git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
@@ -2273,10 +2296,11 @@ part of what `ready` answers rather than an index into it. `ready` recommends
 what to start next, so its ranking is the recommendation, while `list` reports
 what exists and stays chronological.
 
-This settles one sort key and does not make `ready` rank by priority.
-`TKT-01M1J2YR9D5242F6H7TPEV4M8K` holds that question, which the deadline key
-raised rather than created, because `ready` sorts by ID today and an urgent
-ticket already places below a low one filed before it.
+This settled one sort key and did not make `ready` rank by priority.
+`TKT-01M1J2YR9D5242F6H7TPEV4M8K` took that question, which the deadline key
+raised rather than created, because `ready` sorted by ID and an urgent ticket
+already placed below a low one filed before it. It is answered below, and the
+answer put priority above the key this entry settled.
 
 `check` reports a `due_on` it cannot parse and never reports one that has
 passed. Validation is about the store, and a date going by changes no file. A
@@ -2297,6 +2321,31 @@ each one through the package renderer rather than by hand. Two more carry
 frontmatter and did not gain it, because `conflict-markers.md` and `schema-2.md`
 exist to fail parsing, so a field they never reach is a field they must not
 carry.
+
+**Whether `ready` ranks by priority** (`TKT-01M1J2YR9D5242F6H7TPEV4M8K`) is
+answered in section 8. It does. `ready` orders by priority, then `due_on`, then
+the ID, and `--sort` gains `priority` so the field that ranks one command can
+order the other.
+
+Both orderings are wrong somewhere, and the case that decides it is a `low`
+ticket due next week against an `urgent` with no date. What settled it is which
+wrong answer a person can correct honestly. Under deadline-first the only way to
+lift the urgent ticket is to invent a date for it, which corrupts a field to
+move a sort. Under priority-first the way to lift the dated ticket is to raise
+its priority, which is what the field means. An ordering should be gamed by
+telling the truth.
+
+The store made the case harder to argue with than the ticket did. Across 53
+tickets nothing carried a `due_on` at all, while 23 carried a priority other
+than the default. The key that shipped ranked nothing and fell through to the ID
+tiebreak on every row, while the field people actually set was not a key. A
+command that says its ranking is part of what it answers was ordering by filing
+date.
+
+An urgency score folding the two into one number was ruled out before the
+question was asked, and that holds. A weight nobody can see turns an order a
+person can predict into one they have to reverse-engineer, and the weights
+become configuration the store then has to validate.
 
 Two more were settled for what a listing answers
 (`TKT-01M1J755Q274KHQX9XFXAK6A55`), and 8, 10.4, and 12.4 now carry them.

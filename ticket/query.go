@@ -3,6 +3,7 @@ package ticket
 import (
 	"context"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -107,15 +108,59 @@ func (f Filter) matches(t *Ticket) bool {
 // a query is not the place to learn that a file is malformed.
 func SortByDueOn(ts []*Ticket) {
 	sort.SliceStable(ts, func(i, j int) bool {
-		a, b := deref(ts[i].DueOn), deref(ts[j].DueOn)
-		if a != b {
-			if a == "" {
-				return false
-			}
-			if b == "" {
-				return true
-			}
-			return a < b
+		if less, differ := dueOnLess(ts[i], ts[j]); differ {
+			return less
+		}
+		return ts[i].ID < ts[j].ID
+	})
+}
+
+// dueOnLess compares two deadlines, reporting whether a sorts first and whether
+// the two differ at all. One comparison rather than two, so the deadline means
+// the same thing wherever it is a key, per plan 8.
+func dueOnLess(a, b *Ticket) (less, differ bool) {
+	x, y := deref(a.DueOn), deref(b.DueOn)
+	switch {
+	case x == y:
+		return false, false
+	case x == "":
+		return false, true // undated is last, because never is the far end
+	case y == "":
+		return true, true
+	default:
+		return x < y, true
+	}
+}
+
+// priorityRank orders the values of plan 5.1 from least to most important, so a
+// higher rank sorts first.
+//
+// A value 5.1 does not define ranks below low, which is what Index returns for
+// one it does not find. An unrecognized priority must not outrank one somebody
+// set on purpose, and check reports it as invalid rather than the query
+// stopping on it.
+func priorityRank(p string) int { return slices.Index(Priorities, p) }
+
+// SortByPriority orders tickets by importance: urgent first, low last, the
+// deadline breaking a tie, and the ID breaking that one. This is the order
+// ready answers in, per plan section 8.
+//
+// Priority leads and the deadline follows because of which wrong answer a
+// person can correct honestly. A low ticket due next week against an urgent
+// with no date goes wrong either way, but deadline-first can only be corrected
+// by inventing a date, and priority-first is corrected by raising a priority,
+// which is what the field means.
+//
+// It degrades like the deadline key. Every ticket carries normal until somebody
+// says otherwise, so in a store where nobody has set a priority this changes
+// nothing and the order falls through to the two keys beneath it.
+func SortByPriority(ts []*Ticket) {
+	sort.SliceStable(ts, func(i, j int) bool {
+		if a, b := priorityRank(ts[i].Priority), priorityRank(ts[j].Priority); a != b {
+			return a > b
+		}
+		if less, differ := dueOnLess(ts[i], ts[j]); differ {
+			return less
 		}
 		return ts[i].ID < ts[j].ID
 	})
@@ -384,7 +429,10 @@ func (s *Store) Ready(ctx context.Context) ([]*Ticket, error) {
 	// Always, and with no flag to ask for it. This command recommends what to
 	// start next, so the ranking is part of what it answers, per plan 8. List
 	// reports what exists instead and reorders only when the caller asks.
-	SortByDueOn(out)
+	//
+	// The same order list --sort priority gives, so the two commands cannot
+	// disagree about which of two tickets comes first.
+	SortByPriority(out)
 	return out, nil
 }
 

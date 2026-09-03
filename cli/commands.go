@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -348,9 +349,15 @@ const parentNone = "none"
 // than being a bare --sort-by-due flag, because a reader of the help text can
 // then see what they are changing away from.
 const (
-	sortByID    = "id"
-	sortByDueOn = "due_on"
+	sortByID       = "id"
+	sortByDueOn    = "due_on"
+	sortByPriority = "priority"
 )
+
+// sortOrders is every value --sort accepts, per plan 12.1. One list, so the
+// help text, the validation, and the message naming the alternatives cannot
+// come to disagree about which orders exist.
+var sortOrders = []string{sortByID, sortByDueOn, sortByPriority}
 
 // runList prints the tickets that match the filters.
 func runList(ctx *cmdContext, args []string) error {
@@ -375,7 +382,7 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.Var(&milestone, "milestone", "a milestone to match, repeatable")
 		fs.Var(&parent, "parent", "a parent whose children to list, or "+parentNone+" for tickets with no parent, repeatable")
 		fs.StringVar(&dueBy, "due-by", "", "only tickets due on or before this YYYY-MM-DD date")
-		fs.StringVar(&sortBy, "sort", sortByID, "order the result: "+sortByID+" or "+sortByDueOn)
+		fs.StringVar(&sortBy, "sort", sortByID, "order the result: "+strings.Join(sortOrders, ", "))
 		fs.BoolVar(&all, "all", false, "include every status, done and archived too")
 	})
 	if err != nil {
@@ -394,8 +401,8 @@ func runList(ctx *cmdContext, args []string) error {
 	if dueBy != "" && !ticket.ValidDueOn(dueBy) {
 		return usageErr("%q is not a YYYY-MM-DD date", dueBy)
 	}
-	if sortBy != sortByID && sortBy != sortByDueOn {
-		return usageErr("%q is not one of %s, %s", sortBy, sortByID, sortByDueOn)
+	if !slices.Contains(sortOrders, sortBy) {
+		return usageErr("%q is not one of %s", sortBy, strings.Join(sortOrders, ", "))
 	}
 
 	s, err := ctx.openStore()
@@ -436,8 +443,13 @@ func runList(ctx *cmdContext, args []string) error {
 	// Only when asked. A list reports what exists, so reordering it is a change
 	// to a report somebody is reading, per plan 8. ready ranks instead, and
 	// sorts without being asked.
-	if sortBy == sortByDueOn {
+	//
+	// sortByID needs no case, because the store already answers in ID order.
+	switch sortBy {
+	case sortByDueOn:
 		ticket.SortByDueOn(tickets)
+	case sortByPriority:
+		ticket.SortByPriority(tickets)
 	}
 
 	return ctx.writeTicketList(s, tickets, "No tickets match.")

@@ -205,10 +205,13 @@ func TestListRefusesAValueOutsideItsSet(t *testing.T) {
 	dir := newStore(t)
 	makeDueTicket(t, dir, "Due in December", "2026-12-01")
 
+	// priority used to sit in this list and is now one of the orders --sort
+	// takes, per plan 8. created is the replacement because it is the shape of
+	// the mistake worth catching: a plausible key that does not exist.
 	for _, args := range [][]string{
 		{"list", "--due-by", "nonsense"},
 		{"list", "--due-by", "2026-12-01T00:00:00Z"},
-		{"list", "--sort", "priority"},
+		{"list", "--sort", "created"},
 	} {
 		if got := runCLI(t, dir, nil, args...); got.code == exitOK {
 			t.Errorf("%v was accepted", args)

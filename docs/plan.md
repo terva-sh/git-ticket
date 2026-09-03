@@ -468,7 +468,37 @@ takes `TrimSpace`, because `parse` reads one that way.
 
 `updated_at` and `updated_by` change on every mutation, so every diff shows at
 least those two lines. That is intended: the diff should say who touched the
-ticket and when.
+ticket and when. Both stay, and they are one fact rather than two fields.
+
+Be exact about what the pair answers, because it is narrower than it looks. It
+names the last writer and no earlier one, so a ticket whose description one
+actor wrote and whose label another added reports only the second. The per-entry
+log is elsewhere: `Notes` and `Comments` stamp every entry with its own actor and
+time, per 5.2. The pair answers who last touched the file, which is the question
+a reader asks of a diff.
+
+That nothing reads either field is true and is not an argument against them.
+Nothing reads `created_at` or `created_by` either, and no query, filter, sort, or
+check consumes any of the four. Provenance answers a question a person asks of a
+diff rather than one a caller asks of a store, so being unread is the ordinary
+condition of the whole group. A rule that dropped a field for having no reader
+would take `created_by` with it.
+
+The Git object database does not already hold this, which is the claim worth
+testing rather than assuming. Two things break it. Nothing here commits, per
+7.4, so a mutation exists on disk for as long as it takes somebody to get around
+to committing, and until then `git log` knows nothing about it. When a commit
+does arrive it carries the committer's Git identity, while an actor is an agent
+session. This repository's own store holds `agent:terva/mieli`,
+`agent:terva/dev-loop`, and `human:sothr` across its tickets, and every commit in
+it is authored by one person. Git collapses the three into that one. On the axis
+an agent workflow cares about, Git holds strictly less than the pair does, not
+more.
+
+The two cannot be separated. 7.5 resolves a conflict by taking the later
+`updated_at` and the actor belonging to it, so dropping the timestamp would leave
+the actor with no rule to be resolved by. Keeping one and dropping the other is
+therefore not a third option, whatever the two look like listed side by side.
 
 ### 5.4 Unknown fields and schema drift
 
@@ -1871,6 +1901,20 @@ what publishing the list buys. A consumer that hard-coded the eight values
 instead would fall through on the ninth, and that is the failure the key exists
 to prevent.
 
+`updated_at` and `updated_by` stay in the ticket envelope and are covered from
+`v1.0.0`, per 5.3. This is a decision not to break rather than a break, and it
+is recorded here because the alternative was live and the window for taking it
+cheaply closes when Phase 3 arrives. The pair moves together or not at all: 7.5
+resolves the actor by the timestamp, so a release dropping one and keeping the
+other would publish a field with no rule behind it.
+
+That decision does not follow from the rule this section uses elsewhere. Both
+breaks above were taken because nothing consumes the surface yet, so now is the
+cheapest they will ever be, and the same reasoning would have made dropping the
+pair free today. What stopped it is that the field is right rather than that the
+break is expensive, and those are different arguments that happen to point the
+same way most of the time.
+
 The four-directory layout is not a schema break. A ticket file does not change
 when its path does, so `schema` stays at 1 and no store needs `migrate`. Every
 file a migrated store holds still parses in any binary that could parse it
@@ -2106,15 +2150,51 @@ and two append-only sections clears the conflicts a real workflow hits, and
 adjudicates nothing anybody wrote. The full table in 7.5 exists so the rest is
 decided rather than discovered later, and most of its rows say conflict.
 
-It also raised `TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, which was filed on the conflict
-evidence and then narrowed, because the driver retires that argument rather than
-hiding it: the rule for both fields is mechanical and 7.5 states it. What stands
-on its own is that nothing reads either field, and that `updatedAt` and
-`updatedBy` are in the ticket envelope, so 12.4 turns removing them into a
-breaking change the moment a consumer arrives. 5.3 defends them, saying the diff
-should report who touched a ticket and when. The question is whether that answer
-is worth freezing before Phase 3, and it wants a deliberate yes rather than an
-inherited one.
+It also raised `TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`, filed on the conflict evidence
+and then narrowed, because the driver retires that argument rather than hiding
+it: the rule for both fields is mechanical and 7.5 states it. That question is
+answered next.
+
+**The provenance pair in the published surface**
+(`TKT-01M1JPXG7J6K4MQNTWA6TVMHPB`) is answered in 5.3 and recorded in 12.4.
+`updated_at` and `updated_by` stay, and they are one fact rather than two
+fields.
+
+The ticket left three arguments for dropping them once 7.5 had retired the
+conflict cost. Two did not survive being checked against the code and the store.
+
+Nothing reads either field, which is true and is not a criterion. Nothing reads
+`created_at` or `created_by` either, and no query, filter, sort, or check
+consumes any of the four. Provenance answers a question a person asks of a diff
+rather than one a caller asks of a store, so being unread is the ordinary
+condition of the group. A rule that dropped a field for having no reader takes
+`created_by` with it, and nobody proposed that.
+
+The stronger argument was that a Git-native format restates what the object
+database already holds, with less precision. That is false here, and measurably.
+Nothing in this project commits, per 7.4, so a mutation sits in the working tree
+until somebody gets around to committing it and `git log` knows nothing until
+then. When a commit does arrive it carries the committer's Git identity, while
+an actor is an agent session. This repository's own store holds
+`agent:terva/mieli`, `agent:terva/dev-loop`, and `human:sothr` across its
+tickets, and every commit in it is authored by one person. Git collapses the
+three into that one, so on the axis an agent workflow cares about it holds
+strictly less than the pair does.
+
+Dropping one and keeping the other is not a third option. 7.5 resolves the actor
+by taking the one belonging to the later timestamp, so a format without
+`updated_at` publishes an `updated_by` with no rule behind it.
+
+What the ticket did not know is that the surface it was arguing about had no
+guard. No test in either package named `updatedAt` or `updatedBy`, so removing
+both from the envelope would have passed the whole suite in silence, which is
+the same failure `--version` shipped with in v0.4.0. `cli/provenance_test.go`
+now holds the four keys as literal strings, and holds the pair to moving
+together.
+
+The honest limitation stays and is written into 5.3. The pair names the last
+writer and no earlier one. The per-entry log is `Notes` and `Comments`, which
+stamp every entry with its own actor and time.
 
 **External tracker integration** (`TKT-01M1HFQ5F4D4KF45A5PFQ39XST`). How
 git-ticket integrates with one. Storing the identifier always worked, because
@@ -2200,13 +2280,13 @@ directory, because that finding is a warning. The finding was right that the
 file was missing and wrong about what that meant, which is what a check reports
 when the thing it assumes goes untested.
 
-Twelve questions have left this list. They were numbered once, and the numbering
-is the thing this section gave up. A number has to be chosen, and it collided
-twice. Two settled questions both called themselves question 7, the module path
-and the parent hierarchy. A third was filed as question 9 from a concurrent
-worktree while question 9 already meant the merge driver. Commit messages and
-pull request bodies from that period still cite numbers, and the subject of each
-entry below is what decodes them.
+Thirteen questions have left this list. They were numbered once, and the
+numbering is the thing this section gave up. A number has to be chosen, and it
+collided twice. Two settled questions both called themselves question 7, the
+module path and the parent hierarchy. A third was filed as question 9 from a
+concurrent worktree while question 9 already meant the merge driver. Commit
+messages and pull request bodies from that period still cite numbers, and the
+subject of each entry below is what decodes them.
 
 **Section 15 as a hand-maintained index** (`TKT-01M1HJKBYGENBTJ7F9S71BN3Q1`) is
 answered here. It stays hand-maintained, and the parked entries stay in this

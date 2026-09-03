@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1JPXG7J6K4MQNTWA6TVMHPB
 title: Decide whether updated_at and updated_by belong in the published surface
 type: spike
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-03T04:02:32Z
-updated_at: 2026-09-03T04:31:17Z
+updated_at: 2026-09-03T17:13:38Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -60,3 +60,19 @@ If they are split, the distinction is no longer the merge behaviour, since the d
 ### Trigger
 
 Before Phase 3, and before v1.0.0. After that the answer is whichever one shipped.
+
+## Summary
+
+Settled: both fields stay, and they are one fact rather than two. 5.3 holds the reasoning, 12.4 records the compatibility promise, and section 15 moves the entry from open to settled.
+
+Once 7.5 retired the conflict cost, three arguments for dropping were left. Two did not survive being checked.
+
+Nothing reads either field, which is true and is not a criterion, because nothing reads created_at or created_by either. No query, filter, sort or check consumes any of the four. Provenance answers a question a person asks of a diff, not one a caller asks of a store, so being unread is the ordinary condition of the group. A rule that dropped a field for having no reader takes created_by with it.
+
+The stronger argument was that a Git-native format restates what the object database already holds with more precision. That is false here and measurably so. Nothing in this project commits, per 7.4, so a mutation sits in the working tree until somebody commits it. And a commit carries the committer Git identity while an actor is an agent session: this store holds agent:terva/mieli, agent:terva/dev-loop and human:sothr across its tickets against one commit author on every commit. Git collapses three into one, so it holds strictly less than the pair on the axis an agent workflow cares about.
+
+Splitting is not a third option. 7.5 resolves the actor by the later timestamp, so dropping updated_at publishes an updated_by with no rule behind it.
+
+The find worth keeping: the surface being argued about had no guard. No test in either package named updatedAt or updatedBy, so removing both from the envelope would have passed the whole suite in silence, the same failure --version shipped with in v0.4.0. cli/provenance_test.go now holds the four keys as literal strings and holds the pair to moving together. Two mutations confirmed it bites.
+
+No production code changed, which is the correct shape for an answer of keep. The diff is the plan, one test file, and this ticket.

@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1J758NJ5T40TX6K7GBEZMCY
 title: Give readiness a reason, because it cannot say why a draft is unready
 type: spike
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -19,12 +19,12 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-02T23:27:09Z
-updated_at: 2026-09-02T23:27:09Z
+updated_at: 2026-09-03T02:15:02Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: human:sothr
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---
@@ -60,3 +60,19 @@ Yes, set it to `dependencies` rather than leaving it empty. A field that is some
 ### Where this came from
 
 A review of the work-finding path on 2026-09-02, which read `readiness` across the whole store and found it empty-handed on every draft.
+
+## Summary
+
+Shipped. `readiness.reason` names why a ticket cannot be picked up, and is empty exactly when `isReady` is true. In this repository's own store it turned ten of eleven open tickets from three empty arrays into `draft`.
+
+Decision 1 took Option A, one enum rather than booleans, so the precedence is answered once here instead of separately in every consumer. Decision 2 held: a dependency-blocked ticket carries a reason like everything else.
+
+Two naming calls came out of the work rather than the ticket. The dependency reason is `waiting_on_dependencies`, not `dependencies`, because `isBlocked` already means the graph and the `blocked` status means a person marked it, so each word now keeps one meaning per field. And the claim reason is `claimed`, not the `claimed_by_other` the ticket proposed, because `readinessOf` takes a store and a clock with no actor anywhere in the call. It cannot tell your claim from somebody else's, and a name asserting that difference would be one the code cannot check. A caller comparing `claim.by` against itself can.
+
+The precedence is status, then dependencies, then the claim, and it reads as what has to change first. A draft waiting on a dependency reports `draft`, because promoting it is the first move. Nothing is hidden by that: `blockingDependencies` and `blockingChildren` are still populated, so the reason ranks the blockers and the arrays carry them.
+
+Every status except `ready` is its own reason, so `UnreadyReasons` is derived from `Statuses` the way `OpenStatuses` is. A status added to 6.1 becomes a reason with no edit and no decision, which matters because custom statuses are still open in section 15.
+
+Three mutations verified it. Flipping the precedence failed two tests. Unpublishing the two non-status reasons failed the guard in both directions. Renaming `ReasonClaimed` was the interesting one: the whole ticket package passed, because its assertions name the constant and moved with it, and only the literal `"claimed"` in the CLI test caught it. That is the same trap TKT-01M1HWBZ turned up one ticket earlier, and writing the CLI expectation as a literal on purpose is why it was caught this time.
+
+Plan 8 carries the field, the precedence, and both naming decisions; 10.1 and 10.4 carry the JSON; 12.4 records it as additive.

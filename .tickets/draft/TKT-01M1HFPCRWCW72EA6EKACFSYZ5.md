@@ -6,24 +6,26 @@ type: spike
 status: draft
 status_reason: null
 priority: low
+due_on: null
 labels:
   - question
 assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: plan:deferred-questions
     path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-02T16:37:04Z
-updated_at: 2026-09-02T18:06:04Z
+updated_at: 2026-09-03T17:00:32Z
 created_by:
   id: agent:terva/dev-loop
   name: ""
 updated_by:
-  id: agent:terva/dev-loop
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---
@@ -46,3 +48,17 @@ Open, and this ticket is where they get settled:
 - Whether the index alone is the answer. It is the separable half, it costs the format nothing, and it delivers most of the value for tooling. Compression is the half that trades the format's main property for bytes.
 
 Nothing needs this yet. This repository's own archive is 7 files. It gets decided when a real store makes it hurt, and the size at which that happens is itself worth recording when somebody sees it.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-03T17:00:32Z
+
+Groomed after `refs` shipped. The trigger has not fired: the archive is still 7 files and the store is 312K. But the cost analysis above is now demonstrably too small, and that is worth fixing before somebody sizes an index from it.
+
+The description names check and deps as the commands that read archived tickets, and the first open bullet sizes the index for them: ID and from_status, so dependency resolution answers without opening a tarball. Three more commands read the archive by content, and I verified each against a real store rather than inferring it. A ticket archived out of done is still found by `refs jira:PROJ-1234`, by `files README.md`, and by `search`. `list` correctly does not find it.
+
+Two of those three predate today. `files` and `search` have always spanned the archive and this ticket never accounted for them; `refs` makes it three and is what made me look. So this is a correction to the ticket, not only news about the new command. Plan section 8 now states the rule for all three, which is where the requirement should be read from.
+
+That changes the first bullet rather than adding a fourth. An index carrying ID and from_status leaves `refs`, `files`, and `search` unpacking every month, or answering wrong, and answering wrong is worse: each one reports that nothing matches, which reads exactly like an item nobody ever tracked. To keep them working the index has to carry every reference, every path, and enough text to substring-match a title, description, notes, comments and summary, which section 8 lists as the search surface.
+
+At that point the index holds most of what the tickets hold, and the sixth bullet gets sharper rather than weaker. If the index has to be nearly a copy of the archive to keep three commands honest, compression is buying bytes against a duplicate somebody still has to store, and the separable half stops looking like most of the value for a fraction of the cost. Whoever settles this should price the index against the archive before assuming a tarball wins.

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -62,11 +63,19 @@ func TestListSortPriority(t *testing.T) {
 		t.Errorf("list --sort priority = %v, want %v", got, want)
 	}
 
-	// The default is unchanged. --sort exists so that reordering a report is
-	// something the caller asks for.
+	// The default is unchanged: ID order, so reordering a report stays something
+	// the caller asks for.
+	//
+	// Assert what the default is rather than what it is not. "Not the priority
+	// order" reads like the stronger claim and is a coin flip: three tickets filed
+	// in one millisecond share ten characters of ULID timestamp and differ only in
+	// the random half, so the ID order lands on the priority order about one run
+	// in six. That is how this shipped green and failed CI two commits later.
 	byID := idsOf(t, runCLI(t, dir, nil, "--json", "list"))
-	if reflect.DeepEqual(byID, want) {
-		t.Errorf("list with no --sort gave the priority order, so the default reorders a report nobody asked to reorder")
+	wantByID := append([]string(nil), byID...)
+	sort.Strings(wantByID)
+	if !reflect.DeepEqual(byID, wantByID) {
+		t.Errorf("list with no --sort = %v, want ID order %v", byID, wantByID)
 	}
 }
 

@@ -325,6 +325,69 @@ func TestFilesMatchesBothReferenceForms(t *testing.T) {
 	}
 }
 
+// TestRefsFindsByWholeRefAndByNamespace is the CLI half of plan 5.5. The
+// library test covers the matching rule case by case; this one proves the
+// command is wired to it, takes its argument in either position, and refuses
+// the two bad calls.
+func TestRefsFindsByWholeRefAndByNamespace(t *testing.T) {
+	dir := newStore(t)
+	a := makeTicket(t, dir, "A, the tracked one")
+	b := makeTicket(t, dir, "B, elsewhere in the same tracker")
+	c := makeTicket(t, dir, "C, a different namespace")
+
+	runCLI(t, dir, nil, "link", a, "--ref", "jira:PROJ-1234", "--actor", "human:sothr")
+	runCLI(t, dir, nil, "link", b, "--ref", "jira:PROJ-9999", "--actor", "human:sothr")
+	runCLI(t, dir, nil, "link", c, "--ref", "linear:ENG-1", "--actor", "human:sothr")
+
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "refs", "jira:PROJ-1234")), a)
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "refs", "jira:")), a, b)
+
+	// The namespace is a type and not a prefix of the ref, so shouting it finds
+	// the same ticket and `jir` finds nothing.
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "refs", "JIRA:PROJ-1234")), a)
+	if ids := idsOf(t, runCLI(t, dir, nil, "--json", "refs", "jir:")); len(ids) != 0 {
+		t.Errorf("refs matched a partial namespace: %v", ids)
+	}
+
+	// Plan 12.1 requires the positional to work on either side of the flag.
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "refs", "jira:PROJ-1234", "--json")), a)
+
+	if got := runCLI(t, dir, nil, "--json", "refs"); errCode(t, got) != codeUsage {
+		t.Error("refs with no reference should be a usage error")
+	}
+	if got := runCLI(t, dir, nil, "--json", "refs", ""); got.code != exitError {
+		t.Error("an empty reference should be refused")
+	}
+}
+
+// TestRefsSpansFinishedWork holds the rule in section 8 that refs does not take
+// the open-work default a listing takes. "Which ticket is PROJ-1234" is often
+// answered by work that shipped last quarter, and a lookup that hid it would
+// report that nothing tracks an item somebody already closed.
+func TestRefsSpansFinishedWork(t *testing.T) {
+	dir := newStore(t)
+	const actor = "human:sothr"
+	open := makeTicket(t, dir, "still open, same tracker")
+	finished := makeTicket(t, dir, "shipped last quarter")
+
+	runCLI(t, dir, nil, "link", open, "--ref", "jira:PROJ-1", "--actor", actor)
+	runCLI(t, dir, nil, "link", finished, "--ref", "jira:PROJ-2", "--actor", actor)
+	for _, s := range []string{"ready", "in-progress", "done"} {
+		if got := runCLI(t, dir, nil, "status", finished, s, "--actor", actor); got.code != exitOK {
+			t.Fatalf("status %s: %s", s, got.stderr)
+		}
+	}
+
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "refs", "jira:PROJ-2")), finished)
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "refs", "jira:")), open, finished)
+
+	// The same ticket archived out of done is still the answer to the question.
+	if got := runCLI(t, dir, nil, "archive", finished, "--actor", actor); got.code != exitOK {
+		t.Fatalf("archive: %s", got.stderr)
+	}
+	wantIDs(t, idsOf(t, runCLI(t, dir, nil, "--json", "refs", "jira:PROJ-2")), finished)
+}
+
 // TestReadsEmitTicketLists keeps the three new reads inside the contract, and
 // checks each says something useful when it finds nothing.
 func TestReadsEmitTicketLists(t *testing.T) {
@@ -338,6 +401,7 @@ func TestReadsEmitTicketLists(t *testing.T) {
 		{[]string{"search", "frobnicate"}, "Nothing matches."},
 		{[]string{"ready"}, "Nothing is ready to pick up."},
 		{[]string{"files", "nothing/here.md"}, "No ticket recorded a reference to that path."},
+		{[]string{"refs", "jira:NOTHING"}, "No ticket carries that reference."},
 	} {
 		got := runCLI(t, dir, nil, append([]string{"--json"}, c.args...)...)
 		if got.code != exitOK {
@@ -406,7 +470,7 @@ func TestHelpCoversTheAdvisoryCaveat(t *testing.T) {
 	if !strings.Contains(help.stdout, "advisory") {
 		t.Errorf("the help text does not say files is advisory:\n%s", help.stdout)
 	}
-	for _, name := range []string{"search", "ready", "note", "comment", "plan", "summary", "files"} {
+	for _, name := range []string{"search", "ready", "note", "comment", "plan", "summary", "files", "refs"} {
 		if !strings.Contains(help.stdout, name) {
 			t.Errorf("help does not mention %q", name)
 		}

@@ -283,6 +283,20 @@ reports what agents wrote and is only as complete as they were. Nothing derives
 it from Git history, so it is a hint for a reader rather than a fact about the
 tree.
 
+`refs REF` answers the same shape of question for the rest of the namespaces.
+`git ticket refs jira:PROJ-1234` finds the ticket tracking that work item, and
+`git ticket refs jira:` lists everything in that namespace. The namespace is
+compared without regard to case and the identifier exactly, so `JIRA:` and
+`jira:` are one type while `PROJ-1234` and `proj-1234` stay two references,
+because only the system that issued an identifier knows whether its case means
+anything.
+
+Use it instead of `search` when you want the ticket for a tracker item. A search
+matches substrings across the whole body, so it also returns a ticket that only
+mentions the number in passing. A ref with no namespace at all is still stored,
+but nothing can look it up that way, and `check` says so with
+`reference_untyped`.
+
 Text that opens with a dash goes after a bare `--`, so
 `git ticket note TKT-01K3ZZ2J -- "--force was the wrong default"` records the
 note rather than failing on an unknown flag.

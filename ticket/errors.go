@@ -43,6 +43,7 @@ const (
 	CodeDependencyArchivedIncomplete = "dependency_archived_incomplete"
 	CodeClaimExpired                 = "claim_expired"
 	CodeReferencePathUnresolved      = "reference_path_unresolved"
+	CodeReferenceUntyped             = "reference_untyped"
 	CodeLabelUnknown                 = "label_unknown"
 	CodeMilestoneUnknown             = "milestone_unknown"
 	CodeInProgressUnclaimed          = "in_progress_unclaimed"
@@ -77,7 +78,8 @@ var CheckErrorCodes = []string{
 
 var CheckWarningCodes = []string{
 	CodeDependencyArchivedIncomplete, CodeClaimExpired,
-	CodeReferencePathUnresolved, CodeLabelUnknown, CodeMilestoneUnknown,
+	CodeReferencePathUnresolved, CodeReferenceUntyped, CodeLabelUnknown,
+	CodeMilestoneUnknown,
 	CodeInProgressUnclaimed, CodeBlocksOnNoChildren, CodeEpicsIndexStale,
 }
 

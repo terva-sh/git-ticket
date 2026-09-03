@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "reference_untyped",
+      "file": "tickets/TKT-01K400P7C0N8ZQR4TXVM6JHW2D.md",
+      "ticket": "TKT-01K400P7C0N8ZQR4TXVM6JHW2D",
+      "field": "references.ref"
+    }
+  ]
+}

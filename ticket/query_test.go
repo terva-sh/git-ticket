@@ -2,6 +2,7 @@ package ticket
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -581,5 +582,80 @@ func TestFiles(t *testing.T) {
 	}
 	if len(none) != 0 {
 		t.Errorf("files = %v, want nothing", ids(none))
+	}
+}
+
+// TestRefs covers the matching rule of plan 5.5: the namespace without regard
+// to case, the identifier exactly, a bare namespace as a wildcard over it, and
+// an untyped query that finds only an untyped reference.
+//
+// The refs are spelled as literals here rather than built from constants,
+// because the case distinction is the whole subject and a shared constant
+// would make both sides of it agree by construction.
+func TestRefs(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	upper := mustCreate(t, s, "Shouted namespace")
+	mustApply(t, s, upper.ID, AddReference{Ref: "JIRA:PROJ-9999"})
+	exact := mustCreate(t, s, "The one being looked for")
+	mustApply(t, s, exact.ID, AddReference{Ref: "jira:PROJ-1234"})
+	lower := mustCreate(t, s, "Same digits, different case")
+	mustApply(t, s, lower.ID, AddReference{Ref: "jira:proj-1234"})
+	untyped := mustCreate(t, s, "No namespace at all")
+	mustApply(t, s, untyped.ID, AddReference{Ref: "PROJ-1234"})
+	url := mustCreate(t, s, "A URL with a colon in it")
+	mustApply(t, s, url.ID, AddReference{Ref: "url:https://example.invalid/x"})
+	mustCreate(t, s, "No references")
+
+	for _, tc := range []struct {
+		name  string
+		query string
+		want  []string
+		why   string
+	}{
+		{"exact", "jira:PROJ-1234", []string{exact.ID},
+			"the identifier is compared exactly, so the lower-case one is a different ref"},
+		{"namespace ignores case", "JIRA:PROJ-1234", []string{exact.ID},
+			"a namespace is a type and is not a second type for being shouted"},
+		{"bare namespace", "jira:", []string{upper.ID, exact.ID, lower.ID},
+			"a bare namespace matches everything in it, in either case"},
+		{"untyped query", "PROJ-1234", []string{untyped.ID},
+			"a query with no colon is a whole-ref match and cannot reach into a namespace"},
+		{"identifier holding a colon", "url:https://example.invalid/x", []string{url.ID},
+			"an identifier with a colon of its own still matches whole"},
+		// This is the case that pins the split to the first colon. Splitting at
+		// the last one leaves the stored ref in a namespace called `url:https`,
+		// which `url:` no longer reaches. The case above cannot catch that,
+		// because query and stored ref would split the same wrong way and agree.
+		{"whole url namespace", "url:", []string{url.ID},
+			"the split is at the first colon, so the namespace is url and nothing longer"},
+		{"no such namespace", "nope:PROJ-1234", nil,
+			"an identifier that matches in another namespace is still not a match"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := s.Refs(ctx, tc.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Compare as sets. These are created in one millisecond, so they
+			// share ten ULID characters and their order is the random half.
+			gotIDs := append([]string(nil), ids(got)...)
+			wantIDs := append([]string(nil), tc.want...)
+			slices.Sort(gotIDs)
+			slices.Sort(wantIDs)
+			if !slices.Equal(gotIDs, wantIDs) {
+				t.Errorf("refs %q = %v, want %v\n%s", tc.query, gotIDs, wantIDs, tc.why)
+			}
+		})
+	}
+}
+
+func TestRefsRejectsAnEmptyQuery(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Refs(context.Background(), "")
+	var e *Error
+	if !errors.As(err, &e) || e.Code != "invalid_field" {
+		t.Fatalf("err = %v, want an invalid_field Error", err)
 	}
 }

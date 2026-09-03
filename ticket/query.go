@@ -595,6 +595,68 @@ func (s *Store) Deps(ctx context.Context, ref string, o DepsOptions) ([]*Ticket,
 	return out, nil
 }
 
+// splitRef divides a reference at its first colon into the namespace and the
+// identifier, which is the shape 5.1 calls a typed stable identifier. A ref
+// with no colon is untyped: it has an identifier, no namespace, and typed is
+// false.
+//
+// The split is at the first colon and not the last, because an identifier may
+// hold one of its own. `url:https://example.invalid/x` is the url namespace
+// carrying a URL, not a namespace called `url:https`.
+func splitRef(ref string) (ns, id string, typed bool) {
+	i := strings.Index(ref, ":")
+	if i < 0 {
+		return "", ref, false
+	}
+	return ref[:i], ref[i+1:], true
+}
+
+// matchesRef reports whether one reference answers a query, per plan 5.5.
+func matchesRef(r Reference, wantNS, wantID string, typed bool) bool {
+	gotNS, gotID, gotTyped := splitRef(r.Ref)
+	if !typed {
+		// A query with no colon is a whole-ref match, so it can only ever find
+		// an untyped reference. Ask for a namespace with the colon.
+		return !gotTyped && gotID == wantID
+	}
+	if !gotTyped || !strings.EqualFold(gotNS, wantNS) {
+		return false
+	}
+	// A bare namespace, `jira:`, matches everything in it.
+	return wantID == "" || gotID == wantID
+}
+
+// Refs returns the tickets carrying a matching reference, per plan section 8.
+//
+// The namespace is compared without regard to case and the identifier exactly.
+// A namespace is a type, and 5.1 lists them in lower case, so `JIRA:` is the
+// same type as `jira:` shouted. The identifier belongs to whichever system
+// issued it, and only that system can say whether its case is significant, so
+// this one does not guess.
+//
+// Files stays a separate command rather than sugar for `file:PATH`, because it
+// also matches the `path` half of a reference, which no namespace query does.
+func (s *Store) Refs(ctx context.Context, ref string) ([]*Ticket, error) {
+	if ref == "" {
+		return nil, &Error{Code: CodeInvalidField, Message: "an empty reference", Field: "ref"}
+	}
+	wantNS, wantID, typed := splitRef(ref)
+	all, err := s.tickets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*Ticket, 0)
+	for _, t := range all {
+		for _, r := range t.References {
+			if matchesRef(r, wantNS, wantID, typed) {
+				out = append(out, t)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 // Files returns the tickets that record a reference to a path.
 //
 // This reads the references the agents wrote and is only as complete as they

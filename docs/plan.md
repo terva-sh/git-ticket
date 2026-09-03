@@ -511,6 +511,26 @@ such root, and `check` skips path resolution rather than guessing one. It
 reports no `reference_path_unresolved` finding at all in that case, because a
 finding measured against a guessed root is noise the user cannot act on.
 
+A ref itself is a namespace, a colon, and an identifier, which is what 5.1 means
+by a typed stable identifier. The split is at the first colon and not the last,
+so `url:https://example.invalid/x` is the `url` namespace holding a URL rather
+than a namespace called `url:https`.
+
+`refs` compares the namespace without regard to case and the identifier exactly.
+A namespace is a type, and the ones 5.1 lists are lower case, so `JIRA:` is not
+a second type for being shouted. The identifier belongs to whichever system
+issued it, and only that system can say whether its case is significant, so
+git-ticket does not guess: `jira:PROJ-1234` and `jira:proj-1234` stay two
+references. Neither comparison changes the stored bytes, which 5.3 renders
+verbatim.
+
+A ref with no colon is untyped. It is still stored and still round-trips, and
+`check` reports `reference_untyped` against it, per section 11. That is a
+warning rather than an error because the ref does name something, and only a
+person knows which namespace it belonged in. A query with no colon matches an
+untyped ref whole and reaches into no namespace, so `PROJ-1234` does not find
+`jira:PROJ-1234`. Ask for a namespace with the colon.
+
 ## 6. Status and lifecycle
 
 ### 6.1 The status set
@@ -820,6 +840,16 @@ was nothing to do.
 - `files PATH` for tickets referencing a path. This searches recorded `file:`
   references and is only as complete as the agents that wrote them. It is
   advisory and not derived from Git history, and the help text says so
+- `refs REF` for tickets carrying a reference, matched by the rule in 5.5.
+  `refs jira:PROJ-1234` is one work item and `refs jira:` is every ticket in
+  that namespace. This is the lookup `search` cannot do: a search matches
+  substrings across the body, so it also returns a ticket that only mentions
+  the number in prose, and it cannot tell a namespace from any other text
+  before a colon. It carries the same advisory caveat as `files`.
+
+  `files` stays a separate command rather than sugar for `refs file:PATH`,
+  because it also matches the `path` half of a reference, which a namespace
+  query does not. The two answer different questions about the same field
 - `check`, described in section 10
 
 ### What a listing answers by default
@@ -863,6 +893,12 @@ both would be two spellings of one behaviour.
 deliberate. `list` answers what to work on, while search is how somebody finds
 what was already decided, and what was already decided is what a done ticket
 holds. A search that hid the answers would be worth replacing.
+
+`files` and `refs` read the same way, for the same reason. Both answer "which
+ticket is this", and the honest answer to "which ticket is PROJ-1234" is often
+one that shipped last quarter. A lookup by identifier that hid finished work
+would report that nothing tracks an item somebody already closed, which is worse
+than reporting nothing at all.
 
 The library reads the same way as the CLI. `Filter{}` means open work rather
 than no filtering, so a host embedding `ticket` gets the answer the CLI gives
@@ -1002,9 +1038,9 @@ index. An index is deferred, and if one is ever added it must be disposable and
 rebuildable from the files.
 
 A query leaves out a ticket whose file does not parse. `list`, `ready`,
-`search`, `deps`, and `files` all read the whole store, and a query is not the
-place to learn that one file is broken. `check` is, and it reports the file as
-`parse_error` or `schema_unsupported`.
+`search`, `deps`, `files`, and `refs` all read the whole store, and a query is
+not the place to learn that one file is broken. `check` is, and it reports the
+file as `parse_error` or `schema_unsupported`.
 
 Naming one ticket is different. `show` and every mutation resolve a ref the
 caller supplied, and a ticket that is present but unreadable answers with the
@@ -1441,6 +1477,7 @@ Warnings:
 | `dependency_archived_incomplete` | a live ticket depends on an archived ticket whose `from_status` is not `done` |
 | `claim_expired` | a claim is past its `expires_at` |
 | `reference_path_unresolved` | a `references` path does not resolve against the repository root, per 5.5 |
+| `reference_untyped` | a `references` ref carries no namespace, so it is not the typed stable identifier 5.1 describes and no lookup by namespace finds it |
 | `label_unknown` | a label is outside the `config.yml` allowlist |
 | `milestone_unknown` | `milestone` is outside the `config.yml` allowlist |
 | `in_progress_unclaimed` | a ticket is `in-progress` with no claim |
@@ -1565,6 +1602,7 @@ git ticket comment ID TEXT
 git ticket summary ID TEXT
 git ticket deps   ID [--transitive] [--dependents]
 git ticket files  PATH   # the tickets that reference a path
+git ticket refs   REF    # the tickets carrying a ref, whole or a bare namespace
 git ticket check  [--strict] [--fix [--dry-run]]
 git ticket archive ID [--reason R]
 git ticket unarchive ID
@@ -2079,18 +2117,31 @@ is worth freezing before Phase 3, and it wants a deliberate yes rather than an
 inherited one.
 
 **External tracker integration** (`TKT-01M1HFQ5F4D4KF45A5PFQ39XST`). How
-git-ticket integrates with one. Storing the identifier works, because 5.1 leaves
-the reference namespace open and `decodeReferences` takes the ref verbatim, so
-`jira:PROJ-1234` links today and `check` is content with it. Three gaps sit above
-that storage. Nothing enforces a namespace, so an untyped `PROJ-1234` is accepted
-and `JIRA:proj-1234` is a different reference from `jira:PROJ-1234`, which sits
-badly with 5.1 calling a reference a typed stable identifier. There is no lookup
-by ref, so "which ticket is PROJ-1234" falls to `search`, which matches
-substrings across the body and so also finds a ticket that only mentions the
-number in prose. `files PATH` covers the `file:` namespace and has no equivalent
-for the others. And `extensions` has no mutation, so the one place 5.1 reserves
-for a consumer's own fields round-trips through parse and render but can only be
-written by hand-editing the file.
+git-ticket integrates with one. Storing the identifier always worked, because
+5.1 leaves the reference namespace open and `decodeReferences` takes the ref
+verbatim, so `jira:PROJ-1234` links and `check` is content with it. Three gaps
+sat above that storage, and two are now closed.
+
+The lookup is `refs REF`, specified in section 8 and matched by the rule in 5.5.
+The namespace half of the identifier problem went with it: `refs` compares the
+namespace without regard to case, so `JIRA:` and `jira:` are one type, and the
+identifier exactly, so `PROJ-1234` and `proj-1234` stay two references. An
+untyped ref is now `reference_untyped`, a warning in section 11.
+
+The lookup was built before the validation on purpose, and that order is the
+durable part of this entry. A namespace grammar invented with no caller is a
+guess, and a finding code is expensive to guess wrong: `schema` publishes it, so
+12.4 puts it on the covered surface the moment it ships. Building the lookup
+first showed how little validation it actually needs. Case is a comparison rule
+rather than a stored-bytes rule, so it costs no finding at all, and what was
+left is the one structural claim 5.1 already makes.
+
+What remains is `extensions`, which has no mutation, so the one place 5.1
+reserves for a consumer's own fields round-trips through parse and render but
+can only be written by hand-editing the file. That stays deferred for the same
+reason the grammar was: there is no consumer until Phase 3, and Phase 3 is
+terva's. A mutation shaped for a caller that does not exist is the guess this
+entry just finished arguing against.
 
 **Long-term archiving** (`TKT-01M1HFPCRWCW72EA6EKACFSYZ5`). What a store does
 with an archive that grows without bound. Every ticket ever closed stays in

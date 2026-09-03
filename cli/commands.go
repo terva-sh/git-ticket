@@ -900,6 +900,34 @@ func runFiles(ctx *cmdContext, args []string) error {
 	return ctx.writeTicketList(s, tickets, "No ticket recorded a reference to that path.")
 }
 
+// runRefs finds the tickets carrying a reference, per plan 5.5.
+//
+// `refs jira:PROJ-1234` is the whole ref and `refs jira:` is every ref in that
+// namespace. This is the lookup `search` cannot do: a search matches substrings
+// across the body, so it also returns a ticket that only mentions PROJ-1234 in
+// prose, and it cannot tell a namespace from any other text before a colon.
+//
+// Like files, this reads what agents wrote and is only as complete as they were.
+func runRefs(ctx *cmdContext, args []string) error {
+	rest, err := ctx.parseFlags("refs", args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("refs takes one reference, whole or a bare namespace such as jira:")
+	}
+
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	tickets, err := s.Refs(context.Background(), rest[0])
+	if err != nil {
+		return err
+	}
+	return ctx.writeTicketList(s, tickets, "No ticket carries that reference.")
+}
+
 // runNote, runComment, runPlan, and runSummary each take an ID and one piece
 // of text. The first two append; a plan and a summary replace, per plan section
 // 9, because each is one statement rather than a log and Notes is already the

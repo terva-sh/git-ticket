@@ -361,6 +361,17 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 		warns = append(warns, at(CodeMilestoneUnknown, "milestone",
 			fmt.Sprintf("%q is not in the config.yml allowlist", *t.Milestone)))
 	}
+	// 5.1 calls a reference a typed stable identifier, and a ref with no
+	// namespace is not one: `refs jira:` cannot reach it, so it is findable
+	// only by the substring search every other piece of prose is findable by.
+	// This warns rather than errors, because the ref still names something and
+	// only a person knows which namespace it belonged in.
+	for _, ref := range t.References {
+		if _, _, typed := splitRef(ref.Ref); !typed {
+			warns = append(warns, at(CodeReferenceUntyped, "references.ref",
+				fmt.Sprintf("%q has no namespace, so no lookup by namespace finds it", ref.Ref)))
+		}
+	}
 	// A store outside a repository has no root to resolve against, so the
 	// check is skipped rather than measured against a guess, per plan 5.5.
 	if root != "" {

@@ -2,10 +2,11 @@
 schema: 1
 id: TKT-01M1J2YR9D5242F6H7TPEV4M8K
 title: Decide whether ready ranks by priority, and where priority sits against a deadline
-type: task
-status: draft
+type: spike
+status: ready
 status_reason: null
 priority: low
+due_on: null
 labels:
   - question
 assignees: []
@@ -18,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-02T22:13:41Z
-updated_at: 2026-09-02T22:13:41Z
+updated_at: 2026-09-03T02:33:24Z
 created_by:
   id: agent:terva/mieli
   name: ""

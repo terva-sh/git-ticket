@@ -3,9 +3,10 @@ schema: 1
 id: TKT-01M1HJTCYTZZHGGPCXT2SAJMFR
 title: Decide what a directory must contain to count as a ticket store
 type: spike
-status: draft
+status: ready
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
   - question
@@ -13,18 +14,19 @@ assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-02T17:31:41Z
-updated_at: 2026-09-02T18:06:04Z
+updated_at: 2026-09-03T02:33:16Z
 created_by:
   id: agent:terva/mieli
   name: ""
 updated_by:
-  id: agent:terva/dev-loop
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---

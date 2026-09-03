@@ -3,9 +3,10 @@ schema: 1
 id: TKT-01M1HE7KX06FY8W1GYXH9MXGBP
 title: Decide whether git-ticket ships a merge driver for ticket files
 type: spike
-status: draft
+status: ready
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
   - question
@@ -13,16 +14,17 @@ assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive: null
 created_at: 2026-09-02T16:11:32Z
-updated_at: 2026-09-02T18:06:04Z
+updated_at: 2026-09-03T02:33:16Z
 created_by:
   id: agent:terva/mieli
   name: ""
 updated_by:
-  id: agent:terva/dev-loop
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---

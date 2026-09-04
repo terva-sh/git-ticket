@@ -431,19 +431,31 @@ trailing space, so three hashes do not match. A `## ` inside a fenced code block
 is already safe, because `parseBody` tracks fences.
 
 The CLI now warns on stderr when you do it, naming the heading it found and
-`###` as the fix. It covers `create --description`, `create --plan`,
-`update --description`, `plan`, `summary`, `note`, and `comment`. It warns
-rather than refuses, because passing several sections in one string works and is
-sometimes meant, so the write still happens and the exit status does not move.
-Read your stderr.
+`###` as the fix. It covers every command that takes prose and every spelling
+that carries it, so `create --description` and `create --description-file` both
+warn, and so do `--plan`, `--plan-file`, `update --description`, and the `--file`
+on `plan`, `summary`, `note`, and `comment`. The warning names the flag the text
+arrived through. It warns rather than refuses, because passing several sections
+in one string works and is sometimes meant, so the write still happens and the
+exit status does not move. Read your stderr.
+
+Writing the prose to a file and passing `--description-file` is the better habit
+anyway, and not only for the quoting. A file is where you notice you typed `## `.
 
 Nothing downstream catches it, which is why the warning is at the point of
 writing. `check` passes, `show` prints every section in order, and the file reads
 correctly, which is why `TKT-01M1HVMQ` was filed that way and had to be filed
-again. Repairing it after the fact is worse than it sounds: there is no delete
-command, and `update --description` replaces the description alone, so the stray
-sections survive and the content ends up duplicated. Catch it before the commit,
-remove the file, and create the ticket again.
+again. Repairing it after the fact is worse than it sounds: `update
+--description` replaces the description alone, so the stray sections survive and
+the content ends up duplicated.
+
+So catch it before the commit, `rm` the file, and create the ticket again. There
+is still no `remove` command. Plan 9.1 settles what one would do and
+`TKT-01M1PQ7T` is the work, but until that lands `rm` is the whole repair, and
+for a ticket nobody has referenced it is a complete one: deleting an
+unreferenced ticket file leaves `check --strict` green. If something already
+depends on it, `rm` leaves a `dependency_missing` that `check --fix` will not
+repair, and `unlink` is how you clear it.
 
 A release tag has to agree with the module path, or the binary is quietly wrong
 about itself. `go build` derives the version from the tag reachable at HEAD, and

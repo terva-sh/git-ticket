@@ -1113,6 +1113,70 @@ is not an operation the API offers.
 
 Each returns the resulting ticket, its new revision, and the paths changed.
 
+### 9.1 Removing a ticket filed by mistake
+
+Not built. This section is the design and `TKT-01M1PQ7T` is the work.
+
+The case is concrete. `parseBody` splits a body section on any line opening with
+`## `, per 5.2, so a description written with Markdown subheadings lands partly
+in `body.extra`. The write succeeds, `check` passes, and `update --description`
+replaces the description alone, so the stray sections survive and repairing in
+place duplicates the content. `TKT-01M1HVMQ` was filed that way twice for
+exactly this reason, and the repair on record is to delete the file and file it
+again. So the tool documents a repair it cannot perform.
+
+`rm` is not the problem, which is the finding that shapes the rest. Deleting an
+unreferenced ticket file leaves `check --strict` green, so for the case that
+motivates this the shell already does the whole job and a command wrapping one
+`unlink` would add nothing.
+
+What `rm` cannot do is say when it is wrong. Deleting a ticket that another
+names in `dependencies` or `parent` leaves `dependency_missing` or
+`parent_missing`, and `check --fix` declines both, because choosing between
+unlinking the dependent, re-pointing it, and re-creating the target is the same
+judgement it declines for `duplicate_id`. The refusal is therefore the product,
+and the deletion is the part that was never hard.
+
+`remove ID` refuses two things and deletes in every other case:
+
+| Refusal | Why |
+|---|---|
+| another ticket names it in `dependencies` or `parent` | the store fails `check` afterwards and `--fix` cannot repair it |
+| it carries `Notes`, `Comments`, or a `Summary`, or holds a claim | somebody wrote those after filing, and `archive` is the operation for work that happened |
+
+Both name what they found. The first names the tickets that point at it, which
+is the whole of what it buys over `rm`: finding that out by hand means grepping
+the store for an ID.
+
+A ticket that trips neither is removed without ceremony. That is the "filed by
+mistake, nobody has touched it" case, and it is checkable rather than a
+judgement: `claim` and `archive` are null and the body carries a `Description`
+and nothing else.
+
+`--force` overrides both and reports every dangling reference it created, naming
+`unlink` as the repair. It overrides rather than refusing absolutely because a
+refusal a person routes around with `rm` has taught them nothing, and the tool's
+opinion is lost exactly where it would have mattered.
+
+It is its own command rather than a flag or a status. It is not a `Mutation`,
+because every mutation rewrites a ticket in place and this deletes the file, so
+it sits on the `Store` beside `Create`. It is not a status, because every status
+in 6.1 describes a ticket that still exists. And it is not a flag on `archive`,
+which means keep. It is also the one operation in this section that returns no
+resulting ticket, so the sentence above it does not hold: `remove` returns the
+ticket it removed, which is the last state rather than the new one.
+
+It writes no history. Section 7.4 lists every Git command this code runs and
+none of them touches the index or a commit, so `remove` deletes the working-tree
+file and a person stages that deletion like any other change. That is also the
+undo, because the file is in Git until the removal is committed. Returning the
+removed ticket serves the same end for a caller that would rather not go to Git
+for it.
+
+Removing an epic leaves `epics.md` stale. That is the `epics_index_stale`
+warning `check --fix` already repairs, and `remove` does not rewrite the index
+itself, for the reason `check --fix` does one job.
+
 ## 10. JSON contract
 
 Every machine-readable operation emits a versioned envelope on stdout:

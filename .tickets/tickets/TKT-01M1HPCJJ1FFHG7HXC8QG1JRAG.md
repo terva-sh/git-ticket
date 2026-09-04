@@ -3,8 +3,8 @@ schema: 1
 id: TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG
 title: Decide whether a query reads tickets from other branches
 type: spike
-status: in-progress
-status_reason: null
+status: blocked
+status_reason: the three design decisions in the Implementation plan are the user's to make, and they gate any code
 priority: normal
 due_on: null
 labels:
@@ -17,16 +17,10 @@ blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md
-claim:
-  actor: agent:terva/mieli
-  branch: spike/cross-branch-git-rows
-  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
-  commit: b0c674c937343b8b9d8c1c611fb8d0b3326ee7c4
-  claimed_at: 2026-09-04T21:01:22Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-02T18:34:03Z
-updated_at: 2026-09-04T21:04:56Z
+updated_at: 2026-09-04T21:07:57Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -135,3 +129,36 @@ Groomed. The trigger has not fired: no two agents in this repository have claime
 Worth saying plainly, because the timing invites the wrong conclusion. The merge driver shipped today, TKT-01M1JPW1, and it does not touch this. It resolves two edits to one ticket file once Git is already merging them. This ticket is about a claim being invisible until that merge happens, which is the window before the driver has anything to do. Closing this as covered by 7.5 would be a mistake.
 
 One thing did move in this ticket favour. Plan 7.4 grew its first row today, for `config`, so the table is no longer a closed set and there is a worked example of what adding a row costs: the command, its reason, and the narrowest true statement of what it touches. `ls-tree` and `log` would each need that, and both are honest reads.
+
+**agent:terva/mieli** at 2026-09-04T21:07:57Z
+
+in-progress to blocked: the three design decisions in the Implementation plan are the user's to make, and they gate any code
+
+**agent:terva/mieli** at 2026-09-04T21:07:57Z
+
+Parked rather than left in progress, because the claim would otherwise sit on a
+branch that no longer exists after this merges, and a held claim blocks another
+agent from a ticket nobody is working.
+
+The first step is done. The two Git command rows are drafted in the
+Implementation plan, and drafting them against real output changed what they
+are: `for-each-ref` in place of `log`, plus the finding that `ls-tree` has to
+read the whole `.tickets/` subtree because status is the directory.
+
+Three decisions gate the code, and all three are the user's:
+
+Whether cross-branch reads are a flag on `list` and `ready` or a store setting.
+
+Whether a result marks the branch it came from. A merged view without
+provenance lets an agent claim a ticket whose file is not in its working tree,
+which is a worse failure than not seeing the ticket at all.
+
+Whether the query reads `refs/heads/`, `refs/remotes/`, or both. Agents here
+push to `origin`, so their work is on remote-tracking refs and a scan of local
+heads alone would miss exactly the case this ticket exists for. This one changes
+what the `for-each-ref` row's reason has to say, so it is not purely an
+implementation detail.
+
+The original trigger still has not fired: no two agents in this repository have
+claimed the same ticket blind. The PR rule in AGENTS.md is still absorbing the
+pressure.

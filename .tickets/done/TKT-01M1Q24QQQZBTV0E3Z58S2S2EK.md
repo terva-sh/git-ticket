@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-04T20:35:41Z
-updated_at: 2026-09-04T20:47:59Z
+updated_at: 2026-09-04T20:51:12Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -65,6 +65,48 @@ actually carries the verdict there.
 - [x] AGENTS.md names the dedupe as the trap, not just which row to read
 - [x] The guidance carries a command whose output is ordered by updated_at
 - [x] It settles whether statuses or actions/tasks is the endpoint to reach for, and names the field carrying the verdict there
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-04T20:50:11Z
+
+Reading this PR's own CI with the new rule caught a defect in the new rule.
+
+The first wording said the singular endpoint "answers `total_count: 2` with one
+row per context". That number was copied from a settled commit, where both
+`(pull_request)` and `(push)` had reported. Forty seconds after pushing, the
+same endpoint answered `total_count: 1`, because `(push)` had not fired yet.
+
+A hard-coded 2 invites the reader to treat the count as a completeness check and
+wait for a second row that arrives minutes later or, on a branch with no push
+build, never. The rule now says the count is how many contexts have reported so
+far, not how many will, and tells the reader not to wait for a particular value.
+
+Worth noting the shape of the mistake, because it is the same one the ticket is
+about: an observation taken from one moment, written down as though it were the
+invariant.
+
+**agent:terva/mieli** at 2026-09-04T20:51:12Z
+
+Correcting the note above, which got the mechanism wrong in the same way it was
+complaining about.
+
+It said `(push)` "had not fired yet", and the first repair said the two contexts
+post minutes apart. Both assume the row is coming. It is not. `.forgejo/workflows/ci.yml`
+triggers on `pull_request` and on `push` to `main` only, so a PR branch gets the
+`(pull_request)` row and never a second one. The `(push)` row appears when the
+commit lands on `main`, which is at merge.
+
+Checked against three commits. `802a77e`, an open PR head, answers
+`total_count: 1` and still did minutes later. `6066b70` and `8158e78` both
+answer 2, and in each case the `(push)` timestamp sits a few minutes after the
+`(pull_request)` one, at the time that PR was merged rather than at the time its
+branch was pushed.
+
+So the rule now tells the reader not to poll for a second row on a branch, which
+is the actionable form. Two wrong guesses about the same field, both from
+reading one moment's output and generalising, before checking the trigger block
+that settles it in two lines.
 
 ## Summary
 

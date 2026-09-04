@@ -240,10 +240,15 @@ pending` across two contexts, and a dict built from it in one pass reports
 `pending` for a commit that had gone green four minutes earlier. PR #80 was
 nearly merged on exactly that read.
 
-The singular path collapses the history server-side. It answers `total_count: 2`
-with one row per context, each already the newest, plus a top-level `state`. The
-row that gates a PR is the one whose context ends in `(pull_request)`, so read
-that row rather than `state`, which answers for every context at once:
+The singular path collapses the history server-side. It answers with one row per
+context, each already the newest, plus a top-level `state` and a `total_count`.
+That count is how many contexts have reported, and on an open PR it is 1 and
+stays 1. `ci.yml` triggers on `pull_request` and on `push` to `main` only, so a
+branch gets the `(pull_request)` row and nothing else. The `(push)` row appears
+when the commit lands on `main`, which is at merge, minutes later and by then
+you are not waiting on it. Do not poll for a second row on a branch. The row
+that gates a PR is the one whose context ends in `(pull_request)`, so read that
+row rather than `state`, which answers for every context at once:
 
 ```sh
 tea api "repos/terva-sh/git-ticket/commits/$(git rev-parse HEAD)/status" |

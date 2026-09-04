@@ -2436,6 +2436,12 @@ and agent contracts have held through at least one real project. No remote
 helpers, per the sync-helper decision in section 15. Publishing stays the
 user's ordinary Git workflow.
 
+One carve-out, decided 2026-09-04 on TKT-01M1QBSD: the TUI's rendering
+infrastructure, the `tui` package with its terminal abstraction and frame
+renderer, may land ahead of this gate, because it consumes no ticket contract
+and so cannot be destabilized by one. The gate keeps its force for the view
+itself, the part that reads and writes tickets.
+
 ## 14. Acceptance criteria
 
 Format:

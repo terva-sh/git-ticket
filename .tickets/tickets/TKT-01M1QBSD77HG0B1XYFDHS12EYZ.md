@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1QBSD77HG0B1XYFDHS12EYZ
 title: Build the Phase 4 TUI view for browsing and editing tickets
 type: task
-status: draft
+status: in-progress
 status_reason: null
 priority: low
 due_on: null
@@ -15,10 +15,16 @@ dependencies:
   - TKT-01M1QBS9F4Y1YY0J90EBW2FTZS
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: feat/tui-frame-renderer
+  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
+  commit: 758edcf068ad768d968a3b02af03c8104df4b3ff
+  claimed_at: 2026-09-04T23:47:58Z
+  expires_at: null
 archive: null
 created_at: 2026-09-04T23:24:15Z
-updated_at: 2026-09-04T23:24:15Z
+updated_at: 2026-09-04T23:52:20Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -69,4 +75,33 @@ overwrites.
 - [ ] the detail view renders the ticket Markdown with its sections
 - [ ] create and edit write through the library, and a stale revision re-presents instead of overwriting
 - [ ] status transitions, claim, and release are reachable from the list
-- [ ] tests drive a fake terminal and assert the emulated cell grid
+- [x] tests drive a fake terminal and assert the emulated cell grid
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-04T23:52:20Z
+
+The rendering foundation is in. The `tui` package lands the lift and the one
+new core piece, per the description:
+
+- Lifted with the terva MIT notice: `terminal.go` (Terminal, ProcTerm, the
+  escape vocabulary), `resize_unix.go`/`resize_windows.go`, `ansiescape.go`,
+  and the width helpers in `width.go` (VisibleWidth, StripANSI,
+  TruncateToWidth). Inline-image handling was deliberately left behind;
+  `width.go` says so.
+- New: `frame.go`, the alt-screen Frame renderer. Start/Stop own the raw-mode
+  and alternate-screen lifecycle, Draw takes the whole frame as []string and
+  rewrites only the rows that changed, wrapped in synchronized output. Resize
+  and Invalidate force a full repaint. SetCursor/HideCursor place the caret.
+- Lifted: `tuitest` (FakeTerm plus the vt10x Screen), so every frame test
+  asserts the emulated cell grid rather than escape bytes. Sixteen tests
+  cover the lifecycle, the diff, clipping, resize, the cursor, and the
+  width helpers.
+
+Dependencies added to go.mod: golang.org/x/term, golang.org/x/sys,
+github.com/mattn/go-runewidth, github.com/hinshun/vt10x (tests only).
+Consumers that import only ticket or cli do not build any of them.
+
+The fifth acceptance criterion is met and ticked. The remaining four are the
+view itself: list, detail, forms, and transitions, all still to build on this
+foundation. The subcommand-versus-separate-binary sub-decision stays open.

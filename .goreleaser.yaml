@@ -57,15 +57,15 @@ archives:
     # so unpacking it and putting it on PATH is the whole install. Git spells a
     # binary named git-ticket on PATH as `git ticket`.
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    # LICENSE is missing from this list because the repository has no LICENSE
-    # file. goreleaser fails hard on a files: entry that matches nothing, so a
-    # placeholder here would break every release until somebody noticed.
+    # Both travel inside every archive, so a downloaded binary carries its terms
+    # and its documentation without anybody needing the repository. MIT requires
+    # the notice to ship with every copy, and this is what satisfies that for a
+    # binary somebody pulled off a release page.
     #
-    # That absence is worth more attention than this line. The tree is public on
-    # the mirror and unlicensed code is all rights reserved by default, so a
-    # project that wants to adopt this has nothing to rely on. Choosing a licence
-    # is the owner's call, and when one lands it belongs in this list.
+    # goreleaser fails hard on an entry matching nothing, so removing either file
+    # from the tree breaks the release rather than quietly shipping without it.
     files:
+      - LICENSE
       - README.md
     format_overrides:
       - goos: windows

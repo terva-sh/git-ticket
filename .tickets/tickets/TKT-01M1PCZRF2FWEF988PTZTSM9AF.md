@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-04T14:25:58Z
-updated_at: 2026-09-04T15:13:57Z
+updated_at: 2026-09-04T15:26:38Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -81,6 +81,14 @@ The first acceptance criterion is unticked on purpose. The pipeline is written a
 The Forgejo job needs a BOT_TOKEN repository secret holding a token with write access here. It could not be created from this work. The publish step fails loudly when it is missing rather than publishing nothing quietly, so the first tag says so plainly if the secret is absent.
 
 Separately, and larger than this ticket: there is no LICENSE file. goreleaser fails hard on an archive files entry matching nothing, which is how it surfaced, and LICENSE is left out of the archive list until one exists. The tree is public on the mirror and unlicensed code is all rights reserved by default, so a project wanting to adopt this has nothing to rely on. That is a bigger adoption blocker than binaries were, and it is the owner call to settle. Worth its own ticket.
+
+**agent:terva/mieli** at 2026-09-04T15:26:38Z
+
+The LICENSE gap recorded in the note above is closed. MIT, copyright 2026 Drew Short, matching the sibling terva repository, and chosen by the owner rather than assumed.
+
+LICENSE is back in the goreleaser archive list and now ships inside every archive, verified in both the tar.gz and the windows zip. The comment there no longer explains an absence: it records that MIT requires the notice to travel with every copy, and that goreleaser fails hard on an entry matching nothing, so removing the file breaks a release rather than quietly shipping without it.
+
+That leaves the BOT_TOKEN secret and a real tag as the only things standing between this ticket and its first acceptance criterion.
 
 ## Summary
 

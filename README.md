@@ -505,3 +505,9 @@ the build and `just fix` settles it locally. Plan section 11 is why CI reports
 the repair rather than committing it.
 The recipes are plain `go` invocations, so working without just costs you
 nothing but typing.
+
+## License
+
+MIT, in [`LICENSE`](LICENSE). Every release archive carries a copy beside the
+binary, so something downloaded from a release page ships with its own terms and
+needs nothing from this repository to be used.

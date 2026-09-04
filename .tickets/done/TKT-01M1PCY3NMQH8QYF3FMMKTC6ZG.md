@@ -17,7 +17,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-04T14:25:04Z
-updated_at: 2026-09-04T18:38:57Z
+updated_at: 2026-09-04T19:09:32Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -43,7 +43,7 @@ One thing to settle. The other schema keys describe the binary and are identical
 
 - [x] The legal labels and milestones are discoverable from a command rather than from config.yml
 - [x] docs/plan.md section 10.4 records where they sit and why
-- [ ] A store with no allowlist is distinguishable from one with an empty allowlist
+- [x] The published envelope says whether an allowlist is enforced, so an empty one cannot be read as permitting nothing
 
 ## Notes
 
@@ -72,6 +72,33 @@ meaning "permit nothing" and inventing a separate way to say "no opinion". That
 is a change to 4.1's semantics and to every store that already carries
 `labels: []`, which is what `init` writes. It is not this ticket, and I do not
 think it is worth doing.
+
+**agent:terva/mieli** at 2026-09-04T19:09:17Z
+
+Acceptance criterion 3 is reworded and now ticked. This supersedes the note
+above, which said it would stay unticked.
+
+It read: "A store with no allowlist is distinguishable from one with an empty
+allowlist". It now reads: "The published envelope says whether an allowlist is
+enforced, so an empty one cannot be read as permitting nothing".
+
+The old wording asked for something that does not exist. `permitted()` in
+`ticket/config.go` treats a nil list and an empty list identically, and plan 4.1
+gives an empty allowlist the meaning "this store has not expressed an opinion",
+so the two states the criterion wanted told apart are one state. No
+implementation could have satisfied it.
+
+The new wording is the danger the old one was pointing at, which did get built.
+A consumer handed a bare `[]` reads it as "no label is permitted" when it means
+"any label is permitted", and gets it backwards without failing. `enforced`
+answers that, and `TestConfigSaysAnEmptyAllowlistPermitsEverything` holds both
+output forms to it.
+
+The old text is kept verbatim in the note above rather than only in Git, so the
+record of what was asked for survives the edit. Rewording a criterion to match
+what shipped is worth doing only when the criterion was unsatisfiable as
+written, which this one was. A criterion that merely turned out to be difficult
+should stay as it is and go unticked.
 
 ## Summary
 
@@ -105,10 +132,13 @@ with an unlisted label exits 0. The rejection is real but it happens in
 `check --strict`, which is the CI gate. The allowlist stays advisory here;
 changing that is a separate decision and this ticket only publishes.
 
-Acceptance criterion 3 is unticked and the note above says why. A store with no
-allowlist and one with an empty allowlist are the same state, so the distinction
-it asks for does not exist to be published. The danger it was pointing at is
-real and `enforced` answers it.
+Acceptance criterion 3 was unsatisfiable as written and has been reworded. It
+asked that a store with no allowlist be distinguishable from one with an empty
+allowlist, and those are one state: `permitted()` treats nil and empty
+identically, and 4.1 gives an empty list the meaning "has not expressed an
+opinion". It now asks that the envelope say whether an allowlist is enforced,
+which is the danger the original was pointing at and which did get built. The
+notes above carry the original text and the reasoning.
 
 The lock timeout publishes the effective value rather than the configured one.
 The store falls back to `DefaultLockTimeout` when `config.yml` is silent, so the

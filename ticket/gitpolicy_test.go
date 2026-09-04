@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,10 +29,22 @@ var gitHelpers = map[string]bool{"runGit": true, "readGit": true, "writeGit": tr
 // The character class allows the hyphen because `symbolic-ref` has one.
 var planGitCommandPattern = regexp.MustCompile("(?m)^\\| `([a-z-]+)` \\|")
 
-// planAllowedGitCommands reads the allowlist from plan 7.4 rather than
-// duplicating it here, on the same argument as TestCorpusCoversEveryPlanCode:
-// the plan is authoritative, so the test has to fail when the two disagree.
-func planAllowedGitCommands(t *testing.T) map[string]bool {
+// planHeadingPattern matches a Markdown heading of any level the plan uses. A
+// heading ends the section before it, which is how plan74Section knows where
+// 7.4 stops.
+var planHeadingPattern = regexp.MustCompile("(?m)^#{2,6} ")
+
+// plan74Section returns the body of plan 7.4 alone: everything after its
+// heading line and before the next heading of any level.
+//
+// The end has to be the next heading rather than a later named section. It was
+// `## 8. Query surface` once, which is the end of 7.5 rather than of 7.4, and
+// 7.5's merge table matches planGitCommandPattern exactly as a command table
+// does. Its rows are backtick-quoted field names, and `claim`, `archive` and
+// `extensions` are lowercase with no underscore, so the allowlist silently grew
+// by three. One of them is a real Git command: `runGit(dir, "archive", ...)`
+// passed this guard with no row, no reason, and no review.
+func plan74Section(t *testing.T) string {
 	t.Helper()
 	plan, err := os.ReadFile(filepath.Join("..", "docs", "plan.md"))
 	if err != nil {
@@ -39,18 +52,76 @@ func planAllowedGitCommands(t *testing.T) map[string]bool {
 	}
 	text := string(plan)
 	start := strings.Index(text, "### 7.4 The Git commands this code runs")
-	end := strings.Index(text, "## 8. Query surface")
-	if start < 0 || end < 0 || end < start {
+	if start < 0 {
 		t.Fatal("cannot find section 7.4 in docs/plan.md")
 	}
+	rest := text[start:]
+	nl := strings.IndexByte(rest, '\n')
+	if nl < 0 {
+		t.Fatal("section 7.4 in docs/plan.md has a heading and no body")
+	}
+	body := rest[nl+1:]
+	if loc := planHeadingPattern.FindStringIndex(body); loc != nil {
+		return body[:loc[0]]
+	}
+	return body
+}
+
+// planAllowedGitCommands reads the allowlist from plan 7.4 rather than
+// duplicating it here, on the same argument as TestCorpusCoversEveryPlanCode:
+// the plan is authoritative, so the test has to fail when the two disagree.
+func planAllowedGitCommands(t *testing.T) map[string]bool {
+	t.Helper()
 	allowed := map[string]bool{}
-	for _, m := range planGitCommandPattern.FindAllStringSubmatch(text[start:end], -1) {
+	for _, m := range planGitCommandPattern.FindAllStringSubmatch(plan74Section(t), -1) {
 		allowed[m[1]] = true
 	}
 	if len(allowed) == 0 {
 		t.Fatal("section 7.4 lists no commands, which cannot be right")
 	}
 	return allowed
+}
+
+// TestPlanAllowlistIsSection74Alone pins the boundary this file got wrong. The
+// allowlist decides what TestGitCommandsAreReadOnly permits, so an allowlist
+// that reads more of the plan than it should is a guard that passes while
+// allowing commands nobody wrote down.
+func TestPlanAllowlistIsSection74Alone(t *testing.T) {
+	section := plan74Section(t)
+
+	// The slice is 7.4 and nothing after it. Naming both headings catches a
+	// bound that overshoots by one section and one that overshoots further.
+	for _, heading := range []string{"### 7.5", "## 8."} {
+		if strings.Contains(section, heading) {
+			t.Errorf("the 7.4 slice reaches %q, so it is not section 7.4 alone", heading)
+		}
+	}
+
+	allowed := planAllowedGitCommands(t)
+
+	// These three are field names in 7.5's merge table rather than commands,
+	// and they are the exact three that leaked in. `git archive` is real, so
+	// that one was an open door and not only untidy.
+	for _, field := range []string{"claim", "archive", "extensions"} {
+		if allowed[field] {
+			t.Errorf("%q is in the allowlist, but it is a ticket field in 7.5 and not a Git command in 7.4", field)
+		}
+	}
+
+	// The allowlist is exactly what 7.4 lists. This one line is duplicated on
+	// purpose, for the reason gitHelpers above is: growing the table should
+	// make somebody change this test and say why in the commit. That is the
+	// review the guard exists to force, and a test that read the answer from
+	// the same place it is checking could not force it.
+	got := make([]string, 0, len(allowed))
+	for command := range allowed {
+		got = append(got, command)
+	}
+	sort.Strings(got)
+	const want = "config, rev-parse, symbolic-ref"
+	if joined := strings.Join(got, ", "); joined != want {
+		t.Errorf("the allowlist is [%s], want [%s]. If plan 7.4 gained a row, add it here too and say why", joined, want)
+	}
 }
 
 // moduleGoFiles returns every non-test Go file in the module. Test files are

@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1Q57EAEZNA3JD3JW8YM5YSM
 title: Fix the 7.4 allowlist parse leaking 7.5 table rows
 type: bug
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-04T21:29:35Z
-updated_at: 2026-09-04T21:29:35Z
+updated_at: 2026-09-04T21:38:34Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -67,6 +67,45 @@ Found while writing the cross-branch decisions into section 8, by counting the
 
 ## Acceptance criteria
 
-- [ ] The allowlist built from the plan is exactly the commands in 7.4's table
-- [ ] claim, archive and extensions are absent from it, asserted by a test that names them
-- [ ] A test fails if the parsed slice ever extends past the end of 7.4 again
+- [x] The allowlist built from the plan is exactly the commands in 7.4's table
+- [x] claim, archive and extensions are absent from it, asserted by a test that names them
+- [x] A test fails if the parsed slice ever extends past the end of 7.4 again
+
+## Summary
+
+Fixed by bounding the parse to 7.4's own section. `plan74Section` now slices
+from just after the 7.4 heading to the next heading of any level, found with
+`planHeadingPattern`, instead of running to the literal `## 8. Query surface`.
+That string is the end of 7.5, not of 7.4.
+
+The allowlist the guard builds, before and after, against the same file:
+
+    old bound ->  ['archive', 'claim', 'config', 'extensions', 'rev-parse', 'symbolic-ref']
+    new bound ->  ['config', 'rev-parse', 'symbolic-ref']
+
+The three that leaked are field names from 7.5's merge table. Its rows have the
+same `| \`name\` |` shape a command row has, and `claim`, `archive` and
+`extensions` are lowercase with no underscore, so they matched a pattern written
+for commands. `git archive` is a real command, which is what made this an open
+door rather than untidiness: `runGit(dir, "archive", ...)` passed the guard with
+no row, no reason, and no review.
+
+`TestPlanAllowlistIsSection74Alone` holds all three criteria. It asserts the
+slice contains neither `### 7.5` nor `## 8.`, that the three leaked names are
+absent from the allowlist, and that the allowlist is exactly `config`,
+`rev-parse`, `symbolic-ref`.
+
+That last assertion duplicates the plan on purpose, which is worth defending
+because this file's own comment argues the opposite for the allowlist itself.
+The difference is what each one is for. Reading the allowlist from the plan
+keeps the plan authoritative. Pinning the expected result makes growing 7.4 fail
+a test, which is the review the guard exists to force and which a test reading
+its answer from the thing it checks cannot force. `gitHelpers` above is
+hardcoded for the same reason.
+
+Proved rather than assumed. Adding an `archive` row to 7.4 made the test fail on
+both assertions, naming the offending entry and printing the exact diff, and
+reverting the row returned the suite to green.
+
+Found while writing the cross-branch decisions into section 8, by counting 7.4's
+rows to confirm the table had not grown and getting 6 where 3 was correct.

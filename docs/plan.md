@@ -1618,8 +1618,8 @@ git ticket list   [--status S --type T --priority P --label L --assignee A --mil
 git ticket ready
 git ticket show   ID
 git ticket search QUERY [--regex]
-git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --plan --ac --dod]
-git ticket update ID [--title --type --priority --description --milestone --parent --blocks-on --due-on --add-label --remove-label --assign --unassign]
+git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod]
+git ticket update ID [--title --type --priority --description --description-file --milestone --parent --blocks-on --due-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
 git ticket release ID
@@ -1627,10 +1627,10 @@ git ticket link   ID [--depends-on OTHER | --ref proposal:x [--path P]]
 git ticket unlink ID [--depends-on OTHER | --ref proposal:x]
 git ticket ac     ID [--add TEXT] [--check N] [--uncheck N] [--remove N]
 git ticket dod    ID [--add TEXT] [--check N] [--uncheck N] [--remove N]
-git ticket plan   ID TEXT
-git ticket note   ID TEXT
-git ticket comment ID TEXT
-git ticket summary ID TEXT
+git ticket plan   ID (TEXT | --file PATH)
+git ticket note   ID (TEXT | --file PATH)
+git ticket comment ID (TEXT | --file PATH)
+git ticket summary ID (TEXT | --file PATH)
 git ticket deps   ID [--transitive] [--dependents]
 git ticket files  PATH   # the tickets that reference a path
 git ticket refs   REF    # the tickets carrying a ref, whole or a bare namespace
@@ -1654,6 +1654,36 @@ records the module version, the commit, and whether the tree was dirty, and
 `runtime/debug` reads them back, so there is no ldflags recipe and no version
 variable to keep in step with a tag. A build with no tag reachable says `devel`.
 It needs no store, because it describes the binary and not a ledger.
+
+Every section of prose can be read from a file instead of an argument. The
+format is Markdown, and a paragraph passed as one shell word makes the shell
+part of the authoring surface: an apostrophe ends a single-quoted string and a
+backtick inside a double-quoted one runs a command. Writing prose long enough to
+be worth writing is the ordinary case, not the exceptional one, so it gets a
+path that does not go through the shell's parser.
+
+The shape follows how the command already takes the text. A named flag gets a
+named sibling, so `--description` is joined by `--description-file` and `--plan`
+by `--plan-file`. The four commands that take the text as a positional get one
+`--file`, since there is only one thing it could fill. A `PATH` of `-` reads
+stdin.
+
+Giving both the text and its file is a usage error, naming both, the way
+`--depends-on` with `--ref` is. A caller who typed two meant one, and picking by
+precedence writes something nobody asked for. Reading stdin twice in one command
+is refused for the same reason: `--description-file -` with `--plan-file -`
+cannot give both flags what the caller meant, since the second read returns
+nothing.
+
+Trailing whitespace is stripped from what a file or stdin supplies. A final
+newline terminates the last line of a text file rather than being content, and
+`printf` and a heredoc disagree about whether to emit one. Nothing else is
+touched, so indentation inside the prose survives.
+
+The heading warning of section 10 fires the same way and names the flag that
+carried the text, so `--description-file` is what a reader sees. A 5.2 heading is
+more likely from a file, not less, because a file is where somebody writes enough
+prose to want subheadings.
 
 `merge-driver` is plumbing that Git invokes with the three temporary files of a
 merge, rather than something a person types. Section 7.5 is what it does, and

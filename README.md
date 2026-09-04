@@ -314,6 +314,34 @@ Text that opens with a dash goes after a bare `--`, so
 `git ticket note TKT-01K3ZZ2J -- "--force was the wrong default"` records the
 note rather than failing on an unknown flag.
 
+Prose longer than a line comes from a file instead. `create` takes
+`--description-file` and `--plan-file`, `update` takes `--description-file`, and
+`plan`, `note`, `comment`, and `summary` each take one `--file`. A path of `-`
+reads stdin:
+
+```sh
+git ticket create --title "Rotate the signing key" --description-file notes.md
+
+git ticket note TKT-01K3ZZ2J --file - <<'EOF'
+The skew is 40s, not the 5s we assumed. It isn't the NTP config,
+and `ntpq -p` agrees.
+EOF
+
+something-that-prints | git ticket summary TKT-01K3ZZ2J --file -
+```
+
+The format is Markdown, and passing a paragraph as one shell word makes the
+shell part of the authoring surface: an apostrophe ends a single-quoted string
+and a backtick inside a double-quoted one runs a command. A file has neither
+problem. Giving both the text and its file is refused rather than resolved by
+precedence, and so is asking two sections to read stdin. Trailing whitespace is
+stripped, because a final newline terminates a text file's last line rather than
+being content.
+
+Write subheadings in that prose as `###`. A line opening with `## ` starts a new
+section, per plan 5.2, so the text below it lands outside the section you meant.
+The command warns on stderr and still writes.
+
 `deps` walks dependencies, `--transitive` follows the chain, and `--dependents`
 walks it backwards to what is waiting on this ticket. A dependency cycle is a
 state a store can genuinely be in, so the walk terminates on one and reports

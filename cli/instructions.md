@@ -87,6 +87,18 @@ than reformatting it behind your back.
 Types are task, bug, chore, spike, and epic. Add `--description`, `--label`,
 and `--assignee` as they apply, and `--parent` to file it under an epic.
 
+Write a description longer than a line to a file and pass the file. Every
+command that takes prose will read it: `--description-file` and `--plan-file` on
+`create`, `--description-file` on `update`, and `--file` on `plan`, `note`,
+`comment`, and `summary`. A path of `-` reads stdin. Passing a paragraph as one
+shell argument puts an apostrophe and a backtick between you and what you meant
+to write, and a file has neither problem.
+
+Write subheadings inside that prose as `###`. A line opening with `## ` ends the
+section and starts a new one, so everything below it lands somewhere you did not
+intend. The command warns on stderr when it sees one, and the write still
+happens, so read the warning rather than the exit status.
+
 It lands in `draft` and it stays there. That keeps something you filed on the
 way past other work out of the queue, and the decision to promote it belongs to
 a person. File it, say that you filed it, and go back to what you were doing.

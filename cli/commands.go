@@ -208,36 +208,42 @@ func runInit(ctx *cmdContext, args []string) error {
 // runCreate writes a new ticket, which always starts in draft.
 func runCreate(ctx *cmdContext, args []string) error {
 	var (
-		title       string
-		kind        string
-		priority    string
-		description string
-		plan        string
-		milestone   string
-		parent      string
-		blocksOn    string
-		dueOn       string
-		labels      stringList
-		assignees   stringList
-		dependsOn   stringList
-		ac          stringList
-		dod         stringList
+		fs        *flag.FlagSet
+		title     string
+		kind      string
+		priority  string
+		milestone string
+		parent    string
+		blocksOn  string
+		dueOn     string
+		labels    stringList
+		assignees stringList
+		dependsOn stringList
+		ac        stringList
+		dod       stringList
+
+		// Two sections, each takeable inline or from a file, per plan 12.1.
+		description = proseInput{textFlag: "description", fileFlag: "description-file"}
+		plan        = proseInput{textFlag: "plan", fileFlag: "plan-file"}
 	)
-	rest, err := ctx.parseFlags("create", args, func(fs *flag.FlagSet) {
-		fs.StringVar(&title, "title", "", "what the ticket is about")
-		fs.StringVar(&kind, "type", "", "task, bug, chore, spike, or epic")
-		fs.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
-		fs.StringVar(&description, "description", "", "the Description section")
-		fs.StringVar(&plan, "plan", "", "the Implementation plan section")
-		fs.StringVar(&milestone, "milestone", "", "a milestone")
-		fs.StringVar(&parent, "parent", "", "the epic or ticket this belongs to")
-		fs.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
-		fs.StringVar(&dueOn, "due-on", "", "a deadline as a YYYY-MM-DD date")
-		fs.Var(&labels, "label", "a label, repeatable")
-		fs.Var(&assignees, "assignee", "an assignee, repeatable")
-		fs.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
-		fs.Var(&ac, "ac", "an acceptance criterion, repeatable")
-		fs.Var(&dod, "dod", "a definition of done item, repeatable")
+	rest, err := ctx.parseFlags("create", args, func(f *flag.FlagSet) {
+		fs = f
+		f.StringVar(&title, "title", "", "what the ticket is about")
+		f.StringVar(&kind, "type", "", "task, bug, chore, spike, or epic")
+		f.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
+		f.StringVar(&description.text, "description", "", "the Description section")
+		f.StringVar(&description.path, "description-file", "", "read the Description section from this file, or - for stdin")
+		f.StringVar(&plan.text, "plan", "", "the Implementation plan section")
+		f.StringVar(&plan.path, "plan-file", "", "read the Implementation plan section from this file, or - for stdin")
+		f.StringVar(&milestone, "milestone", "", "a milestone")
+		f.StringVar(&parent, "parent", "", "the epic or ticket this belongs to")
+		f.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
+		f.StringVar(&dueOn, "due-on", "", "a deadline as a YYYY-MM-DD date")
+		f.Var(&labels, "label", "a label, repeatable")
+		f.Var(&assignees, "assignee", "an assignee, repeatable")
+		f.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
+		f.Var(&ac, "ac", "an acceptance criterion, repeatable")
+		f.Var(&dod, "dod", "a definition of done item, repeatable")
 	})
 	if err != nil {
 		return err
@@ -247,6 +253,15 @@ func runCreate(ctx *cmdContext, args []string) error {
 	}
 	if title == "" {
 		return usageErr("create needs --title")
+	}
+
+	// Which of the four prose flags were typed, since "" is a legal value for
+	// each and emptiness cannot stand in for absence.
+	given := flagsGiven(fs)
+	description.textGiven, description.fileGiven = given["description"], given["description-file"]
+	plan.textGiven, plan.fileGiven = given["plan"], given["plan-file"]
+	if err := resolveProse(ctx.env.Stdin, "create", &description, &plan); err != nil {
+		return err
 	}
 	if blocksOn != "" && !ticket.ValidBlocksOn(blocksOn) {
 		return usageErr("%q is not one of %s", blocksOn, strings.Join(ticket.BlocksOnValues, ", "))
@@ -276,8 +291,8 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Title:              title,
 		Type:               kind,
 		Priority:           priority,
-		Description:        description,
-		ImplementationPlan: plan,
+		Description:        description.text,
+		ImplementationPlan: plan.text,
 		AcceptanceCriteria: ac,
 		DefinitionOfDone:   dod,
 		Labels:             labels,
@@ -306,8 +321,8 @@ func runCreate(ctx *cmdContext, args []string) error {
 	}
 	// After the write, so the warning describes what the file now holds rather
 	// than what a failed command would have done.
-	warnSectionHeadings(ctx.env.Stderr, "--description", description)
-	warnSectionHeadings(ctx.env.Stderr, "--plan", plan)
+	warnSectionHeadings(ctx.env.Stderr, description.source(), description.text)
+	warnSectionHeadings(ctx.env.Stderr, plan.source(), plan.text)
 	return ctx.writeMutation(s, res, fmt.Sprintf("Created %s  %s", res.Ticket.ID, res.Ticket.Title))
 }
 
@@ -487,26 +502,29 @@ func resolveID(s *ticket.Store, ref string) (string, error) {
 // half-applied update would leave a ticket in a state nobody typed.
 func runUpdate(ctx *cmdContext, args []string) error {
 	var (
-		fs          *flag.FlagSet
-		title       string
-		kind        string
-		priority    string
-		description string
-		milestone   string
-		parent      string
-		blocksOn    string
-		dueOn       string
-		addLabels   stringList
-		rmLabels    stringList
-		assign      stringList
-		unassign    stringList
+		fs        *flag.FlagSet
+		title     string
+		kind      string
+		priority  string
+		milestone string
+		parent    string
+		blocksOn  string
+		dueOn     string
+		addLabels stringList
+		rmLabels  stringList
+		assign    stringList
+		unassign  stringList
+
+		// Takeable inline or from a file, per plan 12.1.
+		description = proseInput{textFlag: "description", fileFlag: "description-file"}
 	)
 	rest, err := ctx.parseFlags("update", args, func(f *flag.FlagSet) {
 		fs = f
 		f.StringVar(&title, "title", "", "a new title")
 		f.StringVar(&kind, "type", "", "task, bug, chore, spike, or epic")
 		f.StringVar(&priority, "priority", "", "low, normal, high, or urgent")
-		f.StringVar(&description, "description", "", "a new Description section")
+		f.StringVar(&description.text, "description", "", "a new Description section")
+		f.StringVar(&description.path, "description-file", "", "read the new Description section from this file, or - for stdin")
 		f.StringVar(&milestone, "milestone", "", "a milestone, or empty to clear it")
 		f.StringVar(&parent, "parent", "", "the epic or ticket this belongs to, or empty to clear it")
 		f.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
@@ -526,6 +544,14 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	// --milestone "" clears the milestone and no --milestone at all leaves it
 	// alone, so the zero value cannot stand in for absence.
 	given := flagsGiven(fs)
+	description.textGiven, description.fileGiven = given["description"], given["description-file"]
+	if err := resolveProse(ctx.env.Stdin, "update", &description); err != nil {
+		return err
+	}
+	// The two flags are one field. Folding the file one into the field's name
+	// keeps changedFields honest, since it reports what the write changed and
+	// not which spelling asked for it.
+	given["description"] = description.given()
 
 	if priority != "" && !ticket.ValidPriority(priority) {
 		return usageErr("%q is not one of %s", priority, strings.Join(ticket.Priorities, ", "))
@@ -560,8 +586,8 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	if given["priority"] {
 		ms = append(ms, ticket.SetPriority{Priority: priority})
 	}
-	if given["description"] {
-		ms = append(ms, ticket.SetDescription{Text: description})
+	if description.given() {
+		ms = append(ms, ticket.SetDescription{Text: description.text})
 	}
 	if given["milestone"] {
 		ms = append(ms, ticket.SetMilestone{Milestone: clearable(milestone)})
@@ -609,7 +635,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	warnSectionHeadings(ctx.env.Stderr, "--description", description)
+	warnSectionHeadings(ctx.env.Stderr, description.source(), description.text)
 	return ctx.writeMutation(s, res, fmt.Sprintf("%s updated: %s",
 		res.Ticket.ID, strings.Join(changedFields(given, rmLabels, addLabels, unassign, assign), ", ")))
 }
@@ -954,27 +980,49 @@ func runSummary(ctx *cmdContext, args []string) error {
 
 func runTextEntry(ctx *cmdContext, name string, args []string, verb string,
 	build func(string) ticket.Mutation) error {
-	rest, err := ctx.parseFlags(name, args, nil)
+	// These four take the text as a positional, so one --file is unambiguous:
+	// there is only one section it could fill. Plan 12.1.
+	var fs *flag.FlagSet
+	text := proseInput{fileFlag: "file"}
+	rest, err := ctx.parseFlags(name, args, func(f *flag.FlagSet) {
+		fs = f
+		f.StringVar(&text.path, "file", "", "read the text from this file, or - for stdin")
+	})
 	if err != nil {
 		return err
 	}
-	if len(rest) != 2 {
+	text.fileGiven = flagsGiven(fs)["file"]
+
+	switch {
+	case len(rest) == 2:
+		text.text, text.textGiven = rest[1], true
+	case len(rest) == 1 && text.fileGiven:
+		// The file carries the text, so no positional is expected.
+	default:
 		// Text starting with a dash looks like a flag, and -- is how a caller
 		// says it is not.
-		return usageErr("%s takes a ticket ID and the text; put text starting with a dash after --", name)
+		return usageErr("%s takes a ticket ID and the text, or --file; put text starting with a dash after --", name)
+	}
+	if err := resolveProse(ctx.env.Stdin, name, &text); err != nil {
+		return err
 	}
 
 	s, err := ctx.openStore()
 	if err != nil {
 		return err
 	}
-	res, err := ctx.applyTo(s, rest[0], build(rest[1]))
+	res, err := ctx.applyTo(s, rest[0], build(text.text))
 	if err != nil {
 		return err
 	}
 	// One call covers note, comment, plan, and summary, which is the reason they
-	// share this function.
-	warnSectionHeadings(ctx.env.Stderr, name, rest[1])
+	// share this function. The source is --file when the file carried the text,
+	// and otherwise the command, since a positional has no flag to name.
+	source := name
+	if from := text.source(); from != "" {
+		source = from
+	}
+	warnSectionHeadings(ctx.env.Stderr, source, text.text)
 	return ctx.writeMutation(s, res, fmt.Sprintf("%s %s", verb, res.Ticket.ID))
 }
 

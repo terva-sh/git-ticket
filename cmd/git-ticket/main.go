@@ -30,5 +30,6 @@ func main() {
 		Getenv: os.Getenv,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
+		Stdin:  os.Stdin,
 	}))
 }

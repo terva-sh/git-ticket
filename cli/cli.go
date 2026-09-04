@@ -35,6 +35,9 @@ type Env struct {
 	Getenv func(string) string
 	Stdout io.Writer
 	Stderr io.Writer
+	// Stdin is what a `-` path reads, per plan 12.1. Nil reads as empty, so a
+	// host that supplies no input gets an empty section rather than a panic.
+	Stdin io.Reader
 	// Now overrides the clock the store writes with. Nil means the real one.
 	Now func() time.Time
 }
@@ -137,6 +140,9 @@ func Run(args []string, env Env) int {
 	}
 	if env.Stderr == nil {
 		env.Stderr = io.Discard
+	}
+	if env.Stdin == nil {
+		env.Stdin = strings.NewReader("")
 	}
 
 	g := &globals{}

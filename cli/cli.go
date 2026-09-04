@@ -151,6 +151,19 @@ func Run(args []string, env Env) int {
 	top.BoolVar(&showVersion, "version", false, "print the build version and exit")
 
 	if err := top.Parse(args); err != nil {
+		// --help is a question at this level too, and parseFlags already answers
+		// it one level down. The standard library reports -h and --help as an
+		// error like any other, so without this a bare `git ticket --help` exits
+		// 1 with "flag: help requested" while `git ticket help` exits 0 with the
+		// usage, which is the first thing anybody types against a new binary.
+		//
+		// The name check below cannot cover it. Parse consumes the flag before
+		// the command name is read, so that branch sees a literal "--help" only
+		// after a bare --, as in `git ticket -- --help`.
+		if errors.Is(err, flag.ErrHelp) {
+			writeUsage(env.Stdout)
+			return exitOK
+		}
 		return fail(env, g, usageErr("%v", err))
 	}
 	if showVersion {

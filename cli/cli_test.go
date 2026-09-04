@@ -122,6 +122,56 @@ func TestSubcommandHelp(t *testing.T) {
 	}
 }
 
+// TestTopLevelHelp holds the bare binary to the answer its subcommands give.
+//
+// TestSubcommandHelp fixed one level down and left this one, so `git ticket
+// --help` exited 1 with "flag: help requested" while `git ticket help` exited 0
+// with the usage. Run parses the globals before it reads the command name, and
+// the standard library reports -h and --help from that parse as flag.ErrHelp.
+// It is the first thing anybody types against an unfamiliar binary, and a tool
+// whose pitch is legibility failing on it reads as broken.
+//
+// The name check in Run cannot cover this. Parse consumes the flag before a
+// command name exists, so that branch sees a literal "--help" only after a bare
+// --, which the third form below exercises so it does not rot unnoticed.
+func TestTopLevelHelp(t *testing.T) {
+	// No store, because asking what the binary does must not need one, any more
+	// than --version does.
+	dir := t.TempDir()
+
+	want := runCLI(t, dir, nil, "help")
+	if want.code != exitOK {
+		t.Fatalf("help exited %d, want 0: %s", want.code, want.stderr)
+	}
+
+	for _, form := range [][]string{{"--help"}, {"-h"}, {"--", "--help"}} {
+		got := runCLI(t, dir, nil, form...)
+		if got.code != exitOK {
+			t.Errorf("%v exited %d, want 0: %s", form, got.code, got.stderr)
+		}
+		if got.stderr != "" {
+			t.Errorf("%v wrote to stderr: %q", form, got.stderr)
+		}
+		// Byte for byte rather than merely similar. Two spellings of one
+		// question that answer differently are a second thing to learn.
+		if got.stdout != want.stdout {
+			t.Errorf("%v stdout differs from `help`:\n got: %q\nwant: %q", form, got.stdout, want.stdout)
+		}
+	}
+
+	// No arguments at all is not a request for help. It is a mistake, and it
+	// keeps the nonzero exit and the usage on stderr that it already had.
+	if got := runCLI(t, dir, nil); got.code == exitOK {
+		t.Errorf("the bare invocation succeeded, want it refused: %s", got.stdout)
+	}
+
+	// A top-level flag that really is wrong still fails, or this would have
+	// turned every parse error into a help page.
+	if got := runCLI(t, dir, nil, "--nope"); got.code == exitOK {
+		t.Errorf("--nope succeeded, want it refused: %s", got.stdout)
+	}
+}
+
 // newStore makes a directory with an initialized store in it.
 func newStore(t *testing.T) string {
 	t.Helper()

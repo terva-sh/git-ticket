@@ -432,12 +432,12 @@ func (s *Store) resolveActor(a Actor) (Actor, error) {
 	if a.ID != "" {
 		return a, nil
 	}
-	if len(s.config.Actors) > 0 {
-		return s.config.Actors[0], nil
+	if d, _, ok := s.config.DefaultActor(); ok {
+		return d, nil
 	}
 	return Actor{}, &Error{
 		Code:    CodeInvalidField,
-		Message: "no actor given and config.yml lists none",
+		Message: "no actor given, and config.yml neither declares defaults.actor nor lists an actor",
 		Field:   "actor",
 	}
 }

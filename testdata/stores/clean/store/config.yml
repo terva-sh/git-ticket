@@ -11,6 +11,7 @@ milestones:
 defaults:
   type: task
   priority: normal
+  actor: null
   claim_expiry: null
 lock:
   timeout: 10s

@@ -19,6 +19,13 @@ downstream repairs it: a commit carries the committer's Git identity while an
 actor is a session, so committing collapses every agent that touched the store
 into whoever ran `git commit`.
 
+The tool warns on stderr when a write lands that way, naming the actor it used.
+That warning is aimed at you, so pass the flag rather than silencing it. The
+opt-out it mentions, `defaults.actor` in `config.yml`, belongs to somebody who
+works a store alone and is tired of being told. Setting it because a warning is
+noisy puts the store back where it started, with your work under a name you did
+not pick.
+
 ### Finding work
 
 `git ticket ready` lists what is open, unblocked, and has every dependency

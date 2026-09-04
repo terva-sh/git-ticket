@@ -314,6 +314,14 @@ appends and the old one still argues the opposite. Then reread the summary:
 `summary` replaces rather than appends, so a summary still describing the old
 state is how a ticket ends up disagreeing with its own checkbox.
 
+Pass `--actor agent:terva/<name>` on every command that writes. This store
+declares no `defaults.actor` in `.tickets/config.yml`, deliberately, so a write
+without the flag warns on stderr and is recorded as `human:sothr`, the first
+entry in `actors`. Do not silence the warning by declaring the field. It is the
+opt-out for a store one person works alone, and this is not one: several agents
+write here at once, and a claim signed with the wrong name tells the others a
+human is holding the ticket.
+
 ## Layout
 
 `docs/plan.md` is the format, the store, the CLI, and every decision behind

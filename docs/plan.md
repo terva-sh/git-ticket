@@ -246,19 +246,33 @@ milestones:
 defaults:
   type: task
   priority: normal
+  actor: null
   claim_expiry: null
 lock:
   timeout: 10s
 ```
 
-`actors` names who writes to this store, and every write resolves one of three
-ways. An explicit `--actor` wins. With none, the store takes the first entry
-here, which is why an agent that omits the flag files its work under whoever
-heads the list. A store listing no actor refuses the write instead, as
-`invalid_field` saying `config.yml` lists none. The fallback is a convenience
-for a store with one writer, not a default identity for a store with several,
-which is why 12.1 has the agent block open by telling an agent to pass
-`--actor`.
+`actors` names who writes to this store, and every write resolves one of four
+ways. An explicit `--actor` wins. Failing that, `defaults.actor` when it names
+one. Failing that, the first entry in `actors`. A store with none of the three
+refuses the write, as `invalid_field` naming both ways to supply one.
+
+The third branch is the one that goes wrong quietly. Nothing chose that actor,
+it is merely first, so an agent that omits `--actor` files its work under
+whoever heads the roster and the record then says a person did it. The CLI warns
+on stderr when it happens, per section 10.
+
+`defaults.actor` is how a store turns that warning off. Declaring one says the
+choice is deliberate, which is what somebody working a store alone wants after
+seeing the warning once. Leaving it null keeps the warning, which is what a
+store several agents write to wants. `init` renders the field as null rather
+than omitting it, so the opt-out is visible in a fresh config instead of being
+something to find in this document.
+
+The warning belongs to the CLI rather than to `check`, and that is not an
+accident. Resolution happens at the write and leaves no trace, so once the file
+names the actor a fallback is byte for byte identical to a deliberate `--actor`
+naming the same one. Only the writer knows, and only while it is writing.
 
 `labels` and `milestones` are advisory allowlists: `check` warns about a value
 outside one and never errors. Configuration sets defaults and vocabulary. It
@@ -1278,11 +1292,16 @@ A warning is not an error and does not behave like one. It goes to stderr in
 both modes, never touches stdout, and moves no exit status, so a caller parsing
 the envelope never has to know one was printed.
 
-One exists today: text written into a body section carrying a line 5.2 would
-read as the start of another. The write still happens, because passing several
-sections in one string works and is sometimes deliberate, and refusing would
-break a path that functions in order to prevent a mistake. The warning names the
-heading it found and `###` as the fix.
+Two exist today. The first is text written into a body section carrying a line
+5.2 would read as the start of another. The write still happens, because passing
+several sections in one string works and is sometimes deliberate, and refusing
+would break a path that functions in order to prevent a mistake. The warning
+names the heading it found and `###` as the fix.
+
+The second is a write that names no actor and lands on the first entry in
+`actors`, per 4.1. It names the actor it used and `defaults.actor` as the way to
+make that deliberate. A store declaring one is silent, and a store with no actor
+at all is refused rather than warned.
 
 Stable codes, which callers may switch on:
 
@@ -1618,7 +1637,7 @@ Like `schema`, it reads no store and answers anywhere.
   "labels": { "values": ["ci", "format", "release"], "enforced": true },
   "milestones": { "values": [], "enforced": false },
   "actors": [{ "id": "human:sothr", "name": "Drew Short" }],
-  "defaults": { "type": "task", "priority": "normal", "claimExpiry": null },
+  "defaults": { "type": "task", "priority": "normal", "actor": null, "claimExpiry": null },
   "lock": { "timeout": "10s" }
 }
 ```

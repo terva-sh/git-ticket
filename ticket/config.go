@@ -24,6 +24,11 @@ type Config struct {
 type Defaults struct {
 	Type     string `yaml:"type"`
 	Priority string `yaml:"priority"`
+	// Actor is who a write is recorded as when the caller names none.
+	// Declaring one is how a store says that choice is deliberate. Leave it
+	// empty and a write still resolves, to the first entry in Actors, but
+	// nothing chose that actor and the CLI warns, per 4.1.
+	Actor string `yaml:"actor"`
 	// ClaimExpiry is how long a new claim lasts. There is no default expiry,
 	// so nil means a claim does not expire on its own.
 	ClaimExpiry *Duration `yaml:"claim_expiry"`
@@ -109,6 +114,13 @@ func RenderConfig(c Config) []byte {
 	d := &ymap{}
 	d.addString("type", c.Defaults.Type)
 	d.addString("priority", c.Defaults.Priority)
+	if c.Defaults.Actor == "" {
+		// Rendered as null rather than omitted, so a reader of a fresh
+		// config.yml can see the field exists and fill it in.
+		d.add("actor", yscalar{"null"})
+	} else {
+		d.addString("actor", c.Defaults.Actor)
+	}
 	if c.Defaults.ClaimExpiry == nil {
 		d.add("claim_expiry", yscalar{"null"})
 	} else {
@@ -123,6 +135,36 @@ func RenderConfig(c Config) []byte {
 	var b strings.Builder
 	m.writeTo(&b, 0)
 	return []byte(b.String())
+}
+
+// DefaultActor returns the actor a write records when the caller names none,
+// per plan 4.1.
+//
+// declared is true when defaults.actor named it, which is a store saying the
+// choice is deliberate. It is false when the actor is merely the first entry in
+// actors: nothing chose that one, it is just first, and that is the case worth
+// warning about. ok is false when the store neither declares a default nor
+// lists an actor, which is the case that refuses the write outright.
+func (c Config) DefaultActor() (a Actor, declared bool, ok bool) {
+	if id := c.Defaults.Actor; id != "" {
+		return c.actorByID(id), true, true
+	}
+	if len(c.Actors) > 0 {
+		return c.Actors[0], false, true
+	}
+	return Actor{}, false, false
+}
+
+// actorByID gives a configured actor its display name, so a declared default
+// carries the same name an explicit --actor naming the same ID would pick up.
+// An ID that is not in the roster is still usable, exactly as --actor is.
+func (c Config) actorByID(id string) Actor {
+	for _, a := range c.Actors {
+		if a.ID == id {
+			return a
+		}
+	}
+	return Actor{ID: id}
 }
 
 // KnownLabel reports whether the label is in the advisory allowlist. An empty

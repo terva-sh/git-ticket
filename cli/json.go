@@ -179,6 +179,11 @@ type allowlistJSON struct {
 type defaultsJSON struct {
 	Type     string `json:"type"`
 	Priority string `json:"priority"`
+	// Actor is the declared default writer, per 4.1, and null when the store
+	// declares none. Null is not the same as the actor a write would fall back
+	// to: it means nothing chose one, which is what makes the fallback worth
+	// warning about.
+	Actor *string `json:"actor"`
 	// ClaimExpiry is null when a claim does not expire on its own, which is the
 	// default, per 6.4.
 	ClaimExpiry *string `json:"claimExpiry"`

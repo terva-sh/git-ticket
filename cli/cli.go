@@ -341,11 +341,35 @@ func (ctx *cmdContext) applyTo(s *ticket.Store, ref string, m ticket.Mutation) (
 	})
 }
 
+// warnDefaultActor reports a write about to be recorded as an actor nobody
+// chose, per plan 4.1.
+//
+// It fires only for the incidental case, where the store neither was given an
+// actor nor declares one and the write lands on whatever heads the roster. A
+// store that declares defaults.actor has said the choice is deliberate and
+// stays silent, so somebody who works a store alone is not warned on every
+// write. A store that has neither is refused by the library rather than warned.
+//
+// This goes to stderr, so it reaches a person without getting into the JSON
+// envelope on stdout, and the write still happens. The check cannot do this
+// job: resolution leaves no trace, so once the file names the actor a fallback
+// is identical to a deliberate --actor naming the same one.
+func warnDefaultActor(w io.Writer, cfg ticket.Config) {
+	a, declared, ok := cfg.DefaultActor()
+	if !ok || declared {
+		return
+	}
+	fmt.Fprintf(w, "git-ticket: warning: no --actor given, so this is recorded as %s, "+
+		"which is only the first actor in config.yml. "+
+		"Pass --actor, or set defaults.actor to make it deliberate.\n", a.ID)
+}
+
 // actor is who the mutation is recorded as. An --actor that names somebody in
 // config.yml picks up their name; anybody else is recorded by ID alone. With no
-// flag the store falls back to the first actor in config.yml.
+// flag the store resolves one itself, per 4.1.
 func (ctx *cmdContext) actor(s *ticket.Store) ticket.Actor {
 	if ctx.g.actor == "" {
+		warnDefaultActor(ctx.env.Stderr, s.Config())
 		return ticket.Actor{}
 	}
 	for _, a := range s.Config().Actors {

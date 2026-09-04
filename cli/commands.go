@@ -1722,6 +1722,14 @@ func runConfig(ctx *cmdContext, args []string) error {
 		lockTimeout = ticket.DefaultLockTimeout
 	}
 
+	// A declared default is a fact about the store. The actor a write would
+	// fall back to is not declared by anybody, so it is not reported here.
+	var declaredActor *string
+	if cfg.Defaults.Actor != "" {
+		v := cfg.Defaults.Actor
+		declaredActor = &v
+	}
+
 	labels := allowlist(cfg.Labels)
 	milestones := allowlist(cfg.Milestones)
 
@@ -1736,6 +1744,7 @@ func runConfig(ctx *cmdContext, args []string) error {
 			Defaults: defaultsJSON{
 				Type:        cfg.Defaults.Type,
 				Priority:    cfg.Defaults.Priority,
+				Actor:       declaredActor,
 				ClaimExpiry: expiry,
 			},
 			Lock: lockJSON{Timeout: lockTimeout.String()},
@@ -1766,8 +1775,12 @@ func runConfig(ctx *cmdContext, args []string) error {
 	if expiry != nil {
 		claim = "claims expire after " + *expiry
 	}
-	fmt.Fprintf(ctx.out, "defaults    type %s, priority %s, %s\n",
-		cfg.Defaults.Type, cfg.Defaults.Priority, claim)
+	writer := "no declared actor"
+	if declaredActor != nil {
+		writer = "actor " + *declaredActor
+	}
+	fmt.Fprintf(ctx.out, "defaults    type %s, priority %s, %s, %s\n",
+		cfg.Defaults.Type, cfg.Defaults.Priority, writer, claim)
 	fmt.Fprintf(ctx.out, "lock        timeout %s\n", lockTimeout)
 	return nil
 }

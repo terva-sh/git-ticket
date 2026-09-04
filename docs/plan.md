@@ -1137,6 +1137,57 @@ collision is reachable rather than theoretical. A broken file's ID comes from
 the parse error when the frontmatter got that far, and from the filename
 otherwise, which is why a ticket file is named for its ID.
 
+### Reading tickets from other branches
+
+`list` and `ready` take `--cross-branch`, which widens the read from the working
+tree to the branches around it. A ticket another agent claimed and moved is then
+visible before their branch merges. No other command takes the flag and it is
+off by default.
+
+It is a flag rather than a store setting because it asks a different question
+than "what is in my tree", and the caller is the one who knows which they want.
+A store setting would answer the wider question for everybody who reads it,
+including scripts that want the narrow one.
+
+**What it reads.** `for-each-ref` over `refs/heads/` and `refs/remotes/`, both.
+An agent working here pushes to `origin`, so in every other worktree their work
+is a remote-tracking ref, and a scan of local heads alone would miss the case
+this exists for. A ref whose last commit is older than 30 days is skipped, which
+bounds the scan; that window comes from the mechanism described in section D of
+`docs/review-backlog-md.md`. Each surviving ref is read with `ls-tree` over the
+whole `.tickets/` subtree rather than `.tickets/tickets/`, because the store
+partitions by status and a file's directory is its status.
+
+**Which copy wins.** The working tree is one source among the refs, not a
+privileged one, and the copy with the later `updated_at` wins. Every mutation
+rewrites `updated_at`, so an uncommitted edit already carries the newest
+timestamp and needs no special rule to beat a committed one. A tie goes to the
+working tree, because that is the copy the caller can act on.
+
+This is the rule 7.5 applies when Git merges two versions of one ticket. A
+listing that resolved differently would predict the wrong outcome of the merge
+it is warning about. It also reads a field rather than guessing from a file's
+modification time, which is the guess this format declines.
+
+**Claims are not resolved.** A live claim on any scanned ref makes the ticket
+not ready, and `ready` never picks between two claims. 7.5 conflicts a differing
+`claim` rather than resolving it, on the ground that resolving hands one ticket
+to two agents each holding a file that says it is theirs. A query has less
+standing to adjudicate than a merge does, so the conservative answer is the only
+one available: if any ref says it is claimed, it is claimed.
+
+**Provenance.** Every row names the ref its winning copy came from, in the short
+form `for-each-ref` reports, so `fix/thing` and `origin/fix/thing` stay
+distinguishable. A row whose winning copy is the working tree names nothing,
+which makes "this file is not in your tree" the visible case rather than the
+silent one. The JSON field is `branch`, in 10.1. Without it a merged view would
+let an agent claim a ticket whose file it cannot open, which is a worse failure
+than not seeing the ticket at all.
+
+**It never writes.** No mutation takes the flag. A claim, a status change, or a
+note still applies to the working tree alone, so seeing another branch's ticket
+is not the same as being able to change it.
+
 ## 9. Mutation surface
 
 Every mutation changes only the fields the caller named. Full-file replacement
@@ -1354,6 +1405,7 @@ answers.
   "id": "TKT-01K3ZYG8K0Y52AD43XRGM4T7WZ",
   "revision": "sha256:…",
   "path": ".tickets/tickets/TKT-01K3ZYG8K0Y52AD43XRGM4T7WZ.md",
+  "branch": null,
   "schema": 1,
   "title": "Rotate the signing key without downtime",
   "type": "epic",
@@ -1412,10 +1464,19 @@ answers.
 }
 ```
 
-The frontmatter fields keep their names in camel case. `revision`, `path`, and
-`readiness` are computed rather than stored, per 7.1 and section 8. `unknown`
-holds the top-level fields this version does not define, per 5.4, which are
-preserved on write whether or not a consumer understands them.
+The frontmatter fields keep their names in camel case. `revision`, `path`,
+`branch`, and `readiness` are computed rather than stored, per 7.1 and section 8.
+`unknown` holds the top-level fields this version does not define, per 5.4, which
+are preserved on write whether or not a consumer understands them.
+
+`branch` is the ref a row's winning copy came from, per section 8, and it is null
+when that copy is the working tree. Every row of an ordinary query carries null,
+because without `--cross-branch` there is nowhere else for a row to come from.
+
+When `branch` is not null, `path` is the file's path on that ref rather than a
+path in the caller's working tree, and opening it will fail. That pairing is why
+the field exists: a row naming a ticket the caller cannot open has to say so,
+and a consumer checks one field to find out.
 
 `body` holds every section exactly as it appears in the file, one type for all of
 them, so nothing a person wrote by hand is dropped on the way out.
@@ -2178,6 +2239,15 @@ A status added later widens `unreadyReasons` without breaking anyone, which is
 what publishing the list buys. A consumer that hard-coded the eight values
 instead would fall through on the ninth, and that is the failure the key exists
 to prevent.
+
+A ticket envelope gains `branch`, per section 8 and 10.1. It is additive and
+null on every row an ordinary query answers with, so a consumer that ignores it
+reads what it read before and this is a minor release. `--cross-branch` adds
+beside the default rather than changing it: without the flag, `list` and `ready`
+answer exactly as they did. This one is cheap for a reason worth naming, which
+is that the field was designed with the flag rather than retrofitted to it. A
+consumer that later reads `branch` without knowing about `--cross-branch` sees
+null and is correct.
 
 `updated_at` and `updated_by` stay in the ticket envelope and are covered from
 `v1.0.0`, per 5.3. This is a decision not to break rather than a break, and it
@@ -2974,10 +3044,10 @@ inserts now have somewhere to be resolved, which is one row in the field table,
 and the honest entry for that row may well be conflict, because two agents
 inserting at the same position genuinely disagree.
 
-**Reading tickets from other branches** (`TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG`).
-Whether a query answers from more than the working tree. Raised by reading
-Backlog.md, section D of `docs/review-backlog-md.md`, and the one place their
-design is ahead of this one on a problem this repository actually has.
+**Reading tickets from other branches** (`TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG`) is
+answered in 8, with the JSON in 10.1. Raised by reading Backlog.md, section D of
+`docs/review-backlog-md.md`, and the one place their design is ahead of this one
+on a problem this repository actually has.
 
 Every query reads the working tree alone, so a ticket claimed and moved to
 `in-progress` in another worktree is invisible until the branch merges. That is
@@ -2993,16 +3063,32 @@ a mistake. 7.5 resolves two edits to one ticket file once Git is already merging
 them. This question is about the window before that, when a claim exists on a
 branch nobody has merged yet.
 
-On shape, if the trigger fires. The reads are honest reads, so 7.4 permits them,
-but `ls-tree` and the `log` behind any modification time are absent from that
-table and would each need a row with its reason before code ran them. Do not
-copy Backlog.md's conflict rule, which resolves two branches by file mtime and
-offers a configuration knob to pick which guess to make. A claim block carries
-an actor and a timestamp and answers the question properly, which is an
-advantage this format has and theirs does not. Open beyond the mechanism is
-whether cross-branch reads are a flag or a store setting, and whether a result
-marks the branch it came from, because a merged view with no provenance would
-let an agent claim a ticket whose file it cannot see.
+The shape is settled and 8 carries it. `--cross-branch` is a flag on `list` and
+`ready`, off by default, because it asks a different question than "what is in
+my tree" and the caller is the one who knows which they want. Every row names
+the ref its winning copy came from, null for the working tree, so a merged view
+cannot let an agent claim a ticket whose file it cannot open. The scan reads
+`refs/heads/` and `refs/remotes/` both, because an agent here pushes to `origin`
+and a scan of local heads alone would miss the case this exists for.
+
+Resolution follows 7.5 rather than inventing a second rule. The later
+`updated_at` wins for display, which is what the merge driver already does, so a
+listing cannot predict the wrong outcome of the merge it is warning about. A
+claim is never adjudicated, which is also 7.5: a live claim on any scanned ref
+makes the ticket not ready. Backlog.md's conflict rule is still declined, and
+now for a sharper reason than taste. It resolves two branches by file mtime and
+offers a knob to pick which guess to make, where `updated_at` is a field every
+mutation writes, so this format reads where theirs guesses.
+
+The reads are honest reads, so 7.4 permits the shape, but the table does not
+grow until code runs them. Drafting the rows against this repository changed
+which rows they are: `ls-tree` and `for-each-ref`, not `ls-tree` and `log`.
+`for-each-ref` returns a branch name and its commit date in one call, which is
+the recency filter, and `log`'s other use was the mtime guess this declines.
+The drafted rows and their reasons are on the ticket, and they move into 7.4 in
+the commit that adds the code.
+
+The trigger for building it has still not fired.
 
 **A reason on `readiness`** (`TKT-01M1J758NJ5T40TX6K7GBEZMCY`) is answered in 8,
 with the JSON in 10.1 and 10.4 and the compatibility note in 12.4.

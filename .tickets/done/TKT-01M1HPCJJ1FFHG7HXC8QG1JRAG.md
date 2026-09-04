@@ -3,8 +3,8 @@ schema: 1
 id: TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG
 title: Decide whether a query reads tickets from other branches
 type: spike
-status: blocked
-status_reason: the three design decisions in the Implementation plan are the user's to make, and they gate any code
+status: done
+status_reason: null
 priority: normal
 due_on: null
 labels:
@@ -20,7 +20,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T18:34:03Z
-updated_at: 2026-09-04T21:07:57Z
+updated_at: 2026-09-04T21:28:20Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -162,3 +162,47 @@ implementation detail.
 The original trigger still has not fired: no two agents in this repository have
 claimed the same ticket blind. The PR rule in AGENTS.md is still absorbing the
 pressure.
+
+## Summary
+
+Decided. Plan section 8 carries the query surface under "Reading tickets from
+other branches", 10.1 carries the `branch` field, 12.4 carries the compatibility
+note, and the section 15 entry is now a pointer at 8 rather than a list of open
+questions.
+
+The three answers. `--cross-branch` is a flag on `list` and `ready` rather than
+a store setting, because it asks a different question than "what is in my tree"
+and the caller is the one who knows which they want. Every row names the ref its
+winning copy came from, null for the working tree, so a merged view cannot let
+an agent claim a ticket whose file it cannot open. The scan reads `refs/heads/`
+and `refs/remotes/` both, because an agent here pushes to `origin` and a scan of
+local heads alone would miss the exact case this exists for.
+
+A fourth question fell out of the third and was not in the original list: what
+happens when a ticket exists in the working tree and on a scanned ref with
+different content. 7.5 already answers it twice, so following it was cheaper
+than inventing a rule. The later `updated_at` wins for display, which is what
+the merge driver does, so a listing cannot predict the wrong outcome of the
+merge it is warning about. A claim is never adjudicated, also 7.5, so a live
+claim on any scanned ref makes the ticket not ready.
+
+That also sharpened why Backlog.md's rule is declined. It was taste before, and
+it is now a fact: they resolve by file mtime and offer a knob to pick which
+guess to make, where `updated_at` is a field every mutation writes. This format
+reads where theirs guesses.
+
+One thing stated during the design turned out to be unnecessary and was cut
+before it reached the plan. The working tree does not need to win as a special
+rule, because an uncommitted edit already rewrites `updated_at` and so already
+carries the newest timestamp. It is one source among the refs, with a tie
+breaking its way because it is the copy the caller can act on.
+
+Plan 7.4 did not grow. The rows stay drafted on this ticket until the code runs
+them, for the reason recorded in the Implementation plan: the guard reads its
+allowlist from that table and checks code against it in one direction only, so a
+row with no caller widens the allowlist and skips the review the guard exists to
+force.
+
+Implementation is `TKT-01M1Q54BRW1NB406RXAKWRF2XP` (Build cross-branch reads for
+list and ready), filed as a draft and depending on this one. The trigger still
+has not fired: no two agents here have claimed the same ticket blind.

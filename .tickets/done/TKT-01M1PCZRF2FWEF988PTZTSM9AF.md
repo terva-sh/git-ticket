@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1PCZRF2FWEF988PTZTSM9AF
 title: Publish binaries with goreleaser on both forges
 type: task
-status: review
+status: done
 status_reason: null
 priority: high
 due_on: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-04T14:25:58Z
-updated_at: 2026-09-04T15:26:38Z
+updated_at: 2026-09-04T17:16:06Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -65,7 +65,7 @@ linux, darwin and windows on amd64 and arm64, CGO_ENABLED 0 and -trimpath, archi
 
 ## Acceptance criteria
 
-- [ ] A v tag publishes archives and a checksums file to a release on both forges
+- [x] A v tag publishes archives and a checksums file to a release on both forges
 - [x] A binary unpacked from a published archive reports the tag from --version, never devel
 - [x] The release path is documented where AGENTS.md describes pushing the mirror
 - [x] If ldflags become necessary, docs/plan.md section 12.1 changes in the same commit
@@ -89,6 +89,45 @@ The LICENSE gap recorded in the note above is closed. MIT, copyright 2026 Drew S
 LICENSE is back in the goreleaser archive list and now ships inside every archive, verified in both the tar.gz and the windows zip. The comment there no longer explains an absence: it records that MIT requires the notice to travel with every copy, and that goreleaser fails hard on an entry matching nothing, so removing the file breaks a release rather than quietly shipping without it.
 
 That leaves the BOT_TOKEN secret and a real tag as the only things standing between this ticket and its first acceptance criterion.
+
+**agent:terva/mieli** at 2026-09-04T17:16:03Z
+
+Criterion 1 is proven rather than assumed. `v0.5.1` at `dac0ff2` published on
+both forges, and the archives were downloaded and checked rather than read off
+an API listing.
+
+Forgejo: 6 assets, 5 archives and `checksums.txt`. Downloaded `linux_amd64` and
+`darwin_arm64`, both `sha256sum -c` OK. The unpacked binary reports
+`git-ticket v0.5.1 (dac0ff2f8b8d, go1.25.5)` and carries `LICENSE` and
+`README.md`.
+
+GitHub: the same 6 assets. `linux_amd64` verifies, and reports
+`git-ticket v0.5.1 (dac0ff2f8b8d, go1.25.14)`. The archives differ in size
+between the two forges by a few kilobytes because the runners build with
+different Go toolchains, alpine's 1.25.5 against ubuntu-latest's 1.25.14. Same
+commit, so this is expected rather than a reproducibility failure. Nothing in
+the plan promises byte-identical archives across forges.
+
+`go list -m github.com/terva-sh/git-ticket@v0.5.1` resolves to
+`dac0ff2f8b8d633c913f9046cca60e5eb539bf78`, matching the tag commit.
+
+The GitHub half did not fire on the first attempt, and the reason is worth
+keeping. `.github/workflows/release.yml` was created after `v0.5.0`, so the
+mirror had no such file until this release. `git push github main --follow-tags`
+carried the workflow and the tag in one push, and GitHub registered the workflow
+from the `main` update but dispatched nothing for the tag: zero runs across the
+whole repository, not a skipped one.
+
+Everything else checked out first, which is what made the cause findable.
+Actions enabled with `allowed_actions: all`, the workflow `state: active`, the
+trigger `on: push: tags: v*` correct, the file present at the tag, and the tag
+object byte-identical on both remotes. A job-level `if:` evaluating false would
+still create a run and mark it skipped, so the guard was not the cause either.
+
+Deleting the tag on the mirror and pushing it again fixed it, and the identical
+tag object `8741937` came back. The second push dispatched immediately. This is
+a first-release-only trap: the workflow is registered now, so the next tag needs
+no intervention.
 
 ## Summary
 

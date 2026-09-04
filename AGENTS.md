@@ -98,7 +98,16 @@ Pushing a `v*` tag publishes binaries, on both forges.
 `.forgejo/workflows/release.yml` and `.github/workflows/release.yml` both fire
 on it, and one `.goreleaser.yaml` is the config behind both. So the
 `--follow-tags` above is what starts the public release, and
-`git push origin v0.6.0` starts the internal one.
+`git push origin v0.5.1` starts the internal one.
+
+`v0.5.1` is the tag that proved this end to end, and it is worth knowing what
+"proved" meant, because a green job is not the same claim. Both forges published
+six assets, five archives and a `checksums.txt`. The archives were downloaded,
+`sha256sum -c` passed, and the unpacked binary reported
+`git-ticket v0.5.1 (dac0ff2f8b8d, ...)` on each. Sizes differ by a few kilobytes
+between the forges because alpine builds with a different Go patch release than
+`ubuntu-latest`. Same commit, so that is expected, and nothing here promises a
+byte-identical archive across forges.
 
 Each builds the same five archives and a `checksums.txt`, then checks that the
 binary reports the tag. That check is not ceremony. Plan 12.1 reads the version
@@ -451,3 +460,28 @@ counts an untracked file as a modified tree, and goreleaser creates `dist/`
 before it builds, so without that line every published binary would report
 `modified: true`. A tagged run in a scratch clone reports `modified: false`,
 which is the check worth repeating if the ignore rule ever moves.
+
+GitHub does not fire a workflow for a tag pushed in the same operation that
+first adds the workflow file. `git push github main --follow-tags` carried
+`.github/workflows/release.yml` and `v0.5.1` together, and GitHub registered the
+workflow from the `main` update and dispatched nothing for the tag. Deleting the
+tag on the mirror and pushing it alone fixed it, and the identical tag object
+came back. This is a first-release-only trap, so it will not recur while the
+file stays put, and it is written down because the evidence points the wrong
+way: every check says the setup is correct.
+
+What makes it findable is that the run count is zero rather than one. A job-level
+`if:` that evaluates false still creates a run and marks it skipped, so a guard
+like `github.server_url == 'https://github.com'` cannot produce zero. Check the
+count before suspecting the guard. `gh` is installed and logged in, and it is to
+the mirror what `tea` is to the instance:
+
+```sh
+gh api repos/terva-sh/git-ticket/actions/runs --jq '.total_count'
+gh api repos/terva-sh/git-ticket/actions/permissions   # enabled, allowed_actions
+gh api repos/terva-sh/git-ticket/actions/workflows --jq '.workflows[].state'
+```
+
+A release is not proven by a green job. Read the assets back, verify
+`sha256sum -c`, and run the unpacked binary, because the failure this catches is
+a build that succeeds while shipping a binary that disagrees with its own tag.

@@ -223,18 +223,46 @@ The recipes wrap plain `go` invocations and hold no logic of their own, so
 `go test ./...` still works when you want one. `just ci` is the gate to run
 before you push.
 
-To read a CI result rather than guess at one, ask for the commit's statuses.
-`tea api` carries the login, so there is no token to resolve and no host to
-write down:
+To read a CI result rather than guess at one, ask for the commit's combined
+status. `tea api` carries the login, so there is no token to resolve and no host
+to write down:
 
 ```sh
-tea api "repos/terva-sh/git-ticket/commits/$(git rev-parse HEAD)/statuses"
-tea api "repos/terva-sh/git-ticket/actions/tasks?limit=5"   # when there is no status yet
+tea api "repos/terva-sh/git-ticket/commits/$(git rev-parse HEAD)/status"
 ```
 
-One context carries several rows at different timestamps, `pending` then
-`success`, so read the newest and not the first. The row that gates a PR is the
-one whose context ends in `(pull_request)`.
+That path is singular, and the difference is the whole rule. The plural
+`/statuses` returns every row ever posted, several per context, grouped by
+context and ordered newest first within each group. So any dedupe that keys on
+context and keeps the row it saw last keeps the oldest row of each group. On
+`6066b70` that array reads `success, pending, pending, success, pending,
+pending` across two contexts, and a dict built from it in one pass reports
+`pending` for a commit that had gone green four minutes earlier. PR #80 was
+nearly merged on exactly that read.
+
+The singular path collapses the history server-side. It answers `total_count: 2`
+with one row per context, each already the newest, plus a top-level `state`. The
+row that gates a PR is the one whose context ends in `(pull_request)`, so read
+that row rather than `state`, which answers for every context at once:
+
+```sh
+tea api "repos/terva-sh/git-ticket/commits/$(git rev-parse HEAD)/status" |
+  python3 -c "import json,sys;[print(s['updated_at'],s['status'],s['context']) for s in json.load(sys.stdin)['statuses']]"
+```
+
+If you have a reason to read the plural path, sort by `updated_at` yourself and
+take the last row. Never trust array order:
+
+```sh
+tea api "repos/terva-sh/git-ticket/commits/$(git rev-parse HEAD)/statuses" |
+  python3 -c "import json,sys;[print(r['updated_at'],r['status'],r['context']) for r in sorted(json.load(sys.stdin),key=lambda r:r['updated_at'])]"
+```
+
+`actions/tasks` is the fallback when no status exists yet, and it has three
+edges worth knowing before you lean on it. `?limit=N` is ignored, so a request
+for 3 rows came back with 185. `conclusion` is `null` on every row, including
+the failures, which makes `status` the field carrying the verdict there. And
+nothing scopes the answer to your commit, so match `head_sha` yourself.
 
 Without tea, the same call needs a token: `$TERVA_FORGE_TOKEN`, or the login
 block matching the host in tea's `config.yml`, which is
@@ -246,7 +274,7 @@ host:
 ```sh
 FORGE=$(git remote get-url origin | sed -E 's#.*@([^:/]+).*#\1#')
 curl -sS -H "Authorization: token $TERVA_FORGE_TOKEN" \
-  "https://$FORGE/api/v1/repos/terva-sh/git-ticket/commits/HEAD_SHA/statuses"
+  "https://$FORGE/api/v1/repos/terva-sh/git-ticket/commits/HEAD_SHA/status"
 ```
 
 The suite includes the tests that hold the corpus to the plan. Run it after

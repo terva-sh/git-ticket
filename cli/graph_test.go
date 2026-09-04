@@ -10,9 +10,12 @@ import (
 )
 
 // makeTicket creates a ticket with the given title and returns its full ID.
-func makeTicket(t *testing.T, dir, title string) string {
+// Anything in extra is passed to create as it stands, for a test that needs a
+// type or a parent set at filing time.
+func makeTicket(t *testing.T, dir, title string, extra ...string) string {
 	t.Helper()
-	got := runCLI(t, dir, nil, "--json", "create", "--title", title, "--actor", "human:sothr")
+	args := append([]string{"--json", "create", "--title", title, "--actor", "human:sothr"}, extra...)
+	got := runCLI(t, dir, nil, args...)
 	if got.code != exitOK {
 		t.Fatalf("create %q: %s", title, got.stderr)
 	}

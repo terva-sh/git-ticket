@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1PQ7T52QP505Y8TGY2NABTN
 title: Build git ticket remove, per plan 9.1
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -15,16 +15,10 @@ dependencies:
   - TKT-01M1PCYC14VD3TJYDE1EWC671Y
 blocks_on: none
 references: []
-claim:
-  actor: agent:terva/mieli
-  branch: feat/remove-command
-  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
-  commit: ab392e505b2943d8cee490964d088191a1e22c3a
-  claimed_at: 2026-09-04T17:32:25Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-04T17:25:07Z
-updated_at: 2026-09-04T17:44:07Z
+updated_at: 2026-09-04T18:15:02Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -103,3 +97,50 @@ referential refusal needs its own scan over both rather than reusing it.
 `Finding` carries exactly `Code`, `File`, `Ticket`, `Field`, with `Message`
 already `json:"-"`. That precedent is what lets a human-only field be added to a
 finding without touching the fixture sidecars.
+
+## Summary
+
+Shipped. `git ticket remove ID` deletes a ticket file and refuses the two cases
+plan 9.1 names, with `--force` overriding both and reporting what it broke.
+
+`Store.Remove` sits beside `Create` and returns a `RemoveResult`, not a
+`Result`. A `Result` carries the ticket a write produced and a removal produces
+none, and `Dangling` has nowhere to live on a `Result` because no other
+operation can create one.
+
+Two new codes, `ticket_referenced` and `ticket_touched`, added to plan section
+10's stable list and to `OperationCodes`, so `schema` publishes them without
+further wiring. They are separate codes rather than one `validation_failed`
+apiece because the repairs differ, and a caller reading the code should know
+which to do. `claim_conflict` is the precedent: a refusal belonging to one
+command and overridden by the same `--force`.
+
+Three things this ticket's own description got wrong, all corrected in the code
+and the plan.
+
+The description said to reuse `deps --dependents`. It cannot be reused:
+`Deps` with `Dependents` walks `dependencies` and never `parent`, so an epic's
+children would not have counted as referrers. `referencesTo` scans both.
+
+The 9.1 table and its prose disagreed about what blocks a removal. The table
+listed notes, comments, summary, and a claim; the prose added `archive` and then
+said the body must carry "a `Description` and nothing else". That last part
+would refuse any ticket filed with `create --plan` or `create --ac`, which seed
+those sections at filing time, so it would have refused exactly the mistakes
+that were filed most carefully. Settled as: notes, comments, summary, claim, or
+an archive record block it, and a plan, acceptance criteria, and a definition of
+done do not. `TestRemoveTakesAFiledTicketWithItsPlan` holds that.
+
+Both the refusal message and the `--force` warning named `unlink` as the repair
+for every reference. `unlink --depends-on` drops a dependency and does nothing
+to a parent, so for an epic it sent the reader to a command that reports success
+and changes nothing. Each now names the repair its field actually takes, and a
+test asserts the parent case does not offer `unlink`.
+
+21 tests across `ticket/remove_test.go` and `cli/remove_test.go`, including the
+constraint that makes the `--force` warning safe: it goes to stderr, so stdout
+stays a parseable envelope.
+
+Docs followed: 9.1 is no longer "Not built", the 12.1 usage block lists the
+command, and the AGENTS.md gotcha that told a reader to `rm` the file now names
+`remove`. README says why it is the one operation that does not undo.

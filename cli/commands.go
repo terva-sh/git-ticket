@@ -1353,6 +1353,57 @@ func runUnarchive(ctx *cmdContext, args []string) error {
 	return ctx.writeMutation(s, res, fmt.Sprintf("%s is now %s", res.Ticket.ID, res.Ticket.Status))
 }
 
+// runRemove deletes a ticket filed by mistake, per plan 9.1.
+//
+// It does not go through applyTo, because a removal is not a mutation: there is
+// no ticket afterwards to rewrite. It still honours --if-revision, which the
+// library checks under the same lock it deletes under.
+func runRemove(ctx *cmdContext, args []string) error {
+	var force bool
+	rest, err := ctx.parseFlags("remove", args, func(fs *flag.FlagSet) {
+		fs.BoolVar(&force, "force", false, "remove a referenced or worked ticket anyway")
+	})
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageErr("remove takes one ticket ID")
+	}
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	res, err := s.Remove(context.Background(), rest[0], ticket.RemoveOptions{
+		IfRevision: ctx.g.ifRevision,
+		Force:      force,
+	})
+	if err != nil {
+		return err
+	}
+
+	// The dangling references go to stderr, so they reach a person without
+	// getting into the JSON envelope on stdout. They are the cost of --force and
+	// somebody has to repair them, so each line carries the command that does it
+	// rather than leaving the reader to work out what to do.
+	//
+	// The two fields take different repairs. unlink drops a dependency, and a
+	// parent is cleared by updating it to empty, per the --parent flag.
+	for _, d := range res.Dangling {
+		repair := fmt.Sprintf("git ticket unlink %s --depends-on %s", d.Ticket, res.Ticket.ID)
+		if d.Field == "parent" {
+			repair = fmt.Sprintf("git ticket update %s --parent \"\"", d.Ticket)
+		}
+		fmt.Fprintf(ctx.env.Stderr,
+			"git-ticket: warning: %s (%s) still names %s in %s; repair it with: %s\n",
+			d.Ticket, d.Title, res.Ticket.ID, d.Field, repair)
+	}
+
+	// A removal reports as the write it is, per plan section 10, carrying the
+	// revision the ticket had and the path it no longer occupies.
+	return ctx.writeMutation(s, &ticket.Result{Ticket: res.Ticket, PathsChanged: res.PathsChanged},
+		fmt.Sprintf("%s (%s) removed", res.Ticket.ID, res.Ticket.Title))
+}
+
 // gitState is what a claim records about where the work is happening, per plan
 // 6.4. Every part is best effort: a directory outside a repository has none of
 // it, a repository with no commits yet has no HEAD, and a detached HEAD has no

@@ -18,6 +18,8 @@ const (
 	CodeDependencyMissing = "dependency_missing"
 	CodeDependencyCycle   = "dependency_cycle"
 	CodeClaimConflict     = "claim_conflict"
+	CodeTicketReferenced  = "ticket_referenced"
+	CodeTicketTouched     = "ticket_touched"
 	CodeParseError        = "parse_error"
 	CodeMergeConflict     = "merge_conflict"
 	CodeSchemaUnsupported = "schema_unsupported"
@@ -59,6 +61,7 @@ var OperationCodes = []string{
 	CodeStoreNotFound, CodeStoreExists, CodeTicketNotFound, CodeAmbiguousID,
 	CodeStaleRevision, CodeInvalidTransition, CodeInvalidField,
 	CodeDependencyMissing, CodeDependencyCycle, CodeClaimConflict,
+	CodeTicketReferenced, CodeTicketTouched,
 	CodeParseError, CodeMergeConflict, CodeSchemaUnsupported, CodeLockTimeout,
 	CodeValidationFailed,
 }

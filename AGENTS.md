@@ -30,10 +30,10 @@ Phase 2, the standalone CLI in section 12.1, has all 24 commands. `cmd/git-ticke
 and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 `ready`, `status`, `claim`, `release`, `link`, `unlink`, `deps`, `files`, `ac`,
 `dod`, `note`, `comment`, `summary`, `archive`, `unarchive`, `check`, `schema`,
-and `instructions`, each in a human form and behind `--json`. Four more landed
-after Phase 2, taking the binary to 28: `plan`, `refs`, `install-merge-driver`,
-and `merge-driver`. All seven JSON kinds of section 10 have a test, and every
-write honours `--if-revision`.
+and `instructions`, each in a human form and behind `--json`. Five more landed
+after Phase 2, taking the binary to 29: `plan`, `refs`, `remove`,
+`install-merge-driver`, and `merge-driver`. All seven JSON kinds of section 10
+have a test, and every write honours `--if-revision`.
 
 The agent workflow block lives at `cli/instructions.md`, embedded with
 `go:embed`. Edit the Markdown, not a Go string.
@@ -466,13 +466,23 @@ again. Repairing it after the fact is worse than it sounds: `update
 --description` replaces the description alone, so the stray sections survive and
 the content ends up duplicated.
 
-So catch it before the commit, `rm` the file, and create the ticket again. There
-is still no `remove` command. Plan 9.1 settles what one would do and
-`TKT-01M1PQ7T` is the work, but until that lands `rm` is the whole repair, and
-for a ticket nobody has referenced it is a complete one: deleting an
-unreferenced ticket file leaves `check --strict` green. If something already
-depends on it, `rm` leaves a `dependency_missing` that `check --fix` will not
-repair, and `unlink` is how you clear it.
+So catch it before the commit, remove the ticket, and create it again. `git
+ticket remove ID` is the repair, per plan 9.1.
+
+`rm` on the file does the same job for a ticket nobody has referenced, and that
+is the point: deleting an unreferenced ticket leaves `check --strict` green, so
+the deletion was never the hard part. What `remove` adds is the refusal. It
+stops with `ticket_referenced` when another ticket names this one in
+`dependencies` or `parent`, naming the tickets that do, because `rm` there
+leaves a `dependency_missing` or `parent_missing` that `check --fix` will not
+repair. It stops with `ticket_touched` when the ticket carries notes, comments,
+a summary, a claim, or an archive record, because that is work somebody did and
+`archive` is the operation for it.
+
+`--force` overrides both and names every dangling reference it created on
+stderr, with the command that repairs it. The repair differs by field: `unlink
+--depends-on` drops a dependency and does nothing to a parent, which `update
+CHILD --parent ""` clears.
 
 A release tag has to agree with the module path, or the binary is quietly wrong
 about itself. `go build` derives the version from the tag reachable at HEAD, and

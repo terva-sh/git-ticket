@@ -208,6 +208,8 @@ git ticket summary TKT-01K3ZZ2J "Widened the window and pinned the clock source"
 git ticket status TKT-01K3ZZ2J done
 git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 
+git ticket remove TKT-01K3ZZ2J    # a ticket filed by mistake, before anybody worked it
+
 git ticket check --strict         # safe in CI: offline, read-only
 git ticket check --fix            # repair the two findings that have one repair
 git ticket schema                 # the values and codes this binary enforces
@@ -219,6 +221,13 @@ git ticket install-merge-driver   # per-field merges instead of line merges
 
 `release` and `unarchive` undo the two that are undoable, and `dod` edits the
 definition of done exactly as `ac` edits the acceptance criteria.
+
+`remove` is the one that is not. It deletes the file, so use it for a ticket
+filed by mistake and `archive` for work that happened. It refuses when another
+ticket names this one in `dependencies` or `parent`, and when the ticket carries
+notes, comments, a summary, a claim, or an archive record. Both refusals name
+what they found, and `--force` overrides them and reports what it broke. Nothing
+is staged either way, so until you commit the deletion Git still has the file.
 
 `update` takes as many flags as you like and applies them as one write. Either
 all of them land or none do, so an update that fails partway leaves a ticket in

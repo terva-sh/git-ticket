@@ -1139,8 +1139,6 @@ Each returns the resulting ticket, its new revision, and the paths changed.
 
 ### 9.1 Removing a ticket filed by mistake
 
-Not built. This section is the design and `TKT-01M1PQ7T` is the work.
-
 The case is concrete. `parseBody` splits a body section on any line opening with
 `## `, per 5.2, so a description written with Markdown subheadings lands partly
 in `body.extra`. The write succeeds, `check` passes, and `update --description`
@@ -1163,19 +1161,27 @@ and the deletion is the part that was never hard.
 
 `remove ID` refuses two things and deletes in every other case:
 
-| Refusal | Why |
-|---|---|
-| another ticket names it in `dependencies` or `parent` | the store fails `check` afterwards and `--fix` cannot repair it |
-| it carries `Notes`, `Comments`, or a `Summary`, or holds a claim | somebody wrote those after filing, and `archive` is the operation for work that happened |
+| Refusal | Code | Why |
+|---|---|---|
+| another ticket names it in `dependencies` or `parent` | `ticket_referenced` | the store fails `check` afterwards and `--fix` cannot repair it |
+| it carries `Notes`, `Comments`, or a `Summary`, holds a claim, or is archived | `ticket_touched` | somebody wrote those after filing, and `archive` is the operation for work that happened |
 
 Both name what they found. The first names the tickets that point at it, which
 is the whole of what it buys over `rm`: finding that out by hand means grepping
 the store for an ID.
 
+A ticket can trip both. `ticket_referenced` is the one reported, because it is
+the one `check --fix` cannot repair, and an `Error` carries one code.
+
 A ticket that trips neither is removed without ceremony. That is the "filed by
 mistake, nobody has touched it" case, and it is checkable rather than a
-judgement: `claim` and `archive` are null and the body carries a `Description`
-and nothing else.
+judgement: `Notes`, `Comments`, and `Summary` are empty, and `claim` and
+`archive` are null.
+
+A plan, acceptance criteria, and a definition of done do not count as touching
+it. `create` seeds all three, per 12.1, so a ticket filed carefully carries them
+from its first revision, and refusing on them would refuse exactly the mistakes
+that were filed best.
 
 `--force` overrides both and reports every dangling reference it created, naming
 `unlink` as the repair. It overrides rather than refusing absolutely because a
@@ -1273,8 +1279,15 @@ Stable codes, which callers may switch on:
 
 `store_not_found`, `store_exists`, `ticket_not_found`, `ambiguous_id`,
 `stale_revision`, `invalid_transition`, `invalid_field`, `dependency_missing`,
-`dependency_cycle`, `claim_conflict`, `parse_error`, `merge_conflict`,
-`schema_unsupported`, `lock_timeout`, `validation_failed`, `usage`.
+`dependency_cycle`, `claim_conflict`, `ticket_referenced`, `ticket_touched`,
+`parse_error`, `merge_conflict`, `schema_unsupported`, `lock_timeout`,
+`validation_failed`, `usage`.
+
+The last two are `remove`'s, per 9.1. They are their own codes rather than a
+`validation_failed` apiece because the repairs differ, so a caller that reads
+the code knows which to do: `unlink` the tickets that point at it, or `archive`
+it instead. `claim_conflict` is the precedent, a refusal belonging to one
+command and overridden by the same `--force`.
 
 `usage` is the CLI's own: an unknown command, a missing argument, or a flag
 value outside its set. It never comes from the library, which is why it names no
@@ -1752,6 +1765,7 @@ git ticket refs   REF    # the tickets carrying a ref, whole or a bare namespace
 git ticket check  [--strict] [--fix [--dry-run]]
 git ticket archive ID [--reason R]
 git ticket unarchive ID
+git ticket remove ID [--force]   # delete a ticket filed by mistake, per 9.1
 git ticket migrate [--to N] [--dry-run]
 git ticket instructions [--write]
 git ticket schema

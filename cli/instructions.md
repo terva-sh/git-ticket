@@ -99,6 +99,14 @@ section and starts a new one, so everything below it lands somewhere you did not
 intend. The command warns on stderr when it sees one, and the write still
 happens, so read the warning rather than the exit status.
 
+When you file one wrong, `git ticket remove ID` deletes it and you file it
+again. Repairing it in place does not work, because `update --description`
+replaces the description alone and the stray sections survive. `remove` refuses
+a ticket another one depends on, and a ticket carrying notes, comments, a
+summary, or a claim, because that is work somebody did rather than a mistake.
+Use `archive` for those. Nothing is staged, so the deletion is a working-tree
+change you commit like any other.
+
 It lands in `draft` and it stays there. That keeps something you filed on the
 way past other work out of the queue, and the decision to promote it belongs to
 a person. File it, say that you filed it, and go back to what you were doing.

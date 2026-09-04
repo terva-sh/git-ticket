@@ -2237,6 +2237,20 @@ Both are taken now for the reason this section already gives for staying at
 change will ever be. Waiting does not avoid a break, it moves it to a release
 where somebody has to be told.
 
+A title over 120 characters is refused, per 5.1 and section 11. `title_long` at
+72 is a warning and additive, but `title_too_long` is an error, and the library
+refuses the write with `invalid_field` and exit status 1 rather than reporting
+it afterwards. It refuses in the mutation path, so every command that sets a
+title is covered and not `create` alone. A title that was accepted before is
+rejected now, and a store already holding one fails `check` where it passed, so
+this is a break on the writing side and on the reading side. The bound is
+inclusive: a title of exactly 120 characters still writes.
+
+The bound exists because the title is quoted beside the ID wherever one appears
+and a ULID carries nothing a reader holds in their head, so an unbounded title
+breaks the listing it sits in rather than the ticket alone. It is taken now for
+the reason the two above were: nothing consumes this surface yet.
+
 `readiness` gains `reason` and the schema kind gains `unreadyReasons`, per
 section 8 and 10.4. Both are additive, so a consumer that ignores the new keys
 reads exactly what it read before and this is a minor release. `Readiness` gains

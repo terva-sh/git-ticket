@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1PCZRF2FWEF988PTZTSM9AF
 title: Publish binaries with goreleaser on both forges
 type: task
-status: draft
+status: review
 status_reason: null
 priority: high
 due_on: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-04T14:25:58Z
-updated_at: 2026-09-04T14:25:58Z
+updated_at: 2026-09-04T15:13:57Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -66,6 +66,30 @@ linux, darwin and windows on amd64 and arm64, CGO_ENABLED 0 and -trimpath, archi
 ## Acceptance criteria
 
 - [ ] A v tag publishes archives and a checksums file to a release on both forges
-- [ ] A binary unpacked from a published archive reports the tag from --version, never devel
-- [ ] The release path is documented where AGENTS.md describes pushing the mirror
-- [ ] If ldflags become necessary, docs/plan.md section 12.1 changes in the same commit
+- [x] A binary unpacked from a published archive reports the tag from --version, never devel
+- [x] The release path is documented where AGENTS.md describes pushing the mirror
+- [x] If ldflags become necessary, docs/plan.md section 12.1 changes in the same commit
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-04T15:13:49Z
+
+Two things this ticket cannot close by itself, recorded here rather than left to be rediscovered.
+
+The first acceptance criterion is unticked on purpose. The pipeline is written and the build half is proven end to end, but no tag has run it, so the publish half is untested. Proving it means cutting a release, which is a decision rather than a task. The ticket sits in review for that reason.
+
+The Forgejo job needs a BOT_TOKEN repository secret holding a token with write access here. It could not be created from this work. The publish step fails loudly when it is missing rather than publishing nothing quietly, so the first tag says so plainly if the secret is absent.
+
+Separately, and larger than this ticket: there is no LICENSE file. goreleaser fails hard on an archive files entry matching nothing, which is how it surfaced, and LICENSE is left out of the archive list until one exists. The tree is public on the mirror and unlicensed code is all rights reserved by default, so a project wanting to adopt this has nothing to rely on. That is a bigger adoption blocker than binaries were, and it is the owner call to settle. Worth its own ticket.
+
+## Summary
+
+Built. One .goreleaser.yaml, two workflows, and the release path documented.
+
+The config question settled as one config rather than two. goreleaser infers github from the remote and derives owner and name from it, and both forges carry the same terva-sh/git-ticket path. Publishing to Forgejo natively would need gitea_urls naming the internal API host in a file that ships to the public mirror, which AGENTS.md reserves to .forgejo. So .goreleaser.yaml stays host free, GitHub publishes through goreleaser, and the Forgejo workflow runs with publish skipped and uploads what goreleaser built, taking the host from the runner at run time. Nothing is duplicated, so there is no drift check to maintain.
+
+The version trap did not fire. Plan 12.1 refuses link time stamping and that survives goreleaser: a tagged run in a scratch clone produced a binary reporting git-ticket v0.6.0 with modified false, and all five archives verified against checksums.txt. No ldflags, so no plan change, which settles the fourth criterion by making it unnecessary.
+
+Two traps surfaced while proving it, both now in AGENTS.md Gotchas. A tag whose major version does not match the module path yields a pseudo-version rather than the tag, silently, which v9.9.9 demonstrated. And dist has to be gitignored, because Go counts an untracked file as a modified tree and goreleaser creates dist before it builds, so without that line every published binary would report modified true. Both workflows check the binary against the tag because of the first.
+
+The first criterion stays unticked and this sits in review rather than done. See Notes.

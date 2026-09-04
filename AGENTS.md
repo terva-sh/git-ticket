@@ -94,6 +94,24 @@ local `main` that has just been fast-forwarded:
 git checkout main && git pull --ff-only && git push github main --follow-tags
 ```
 
+Pushing a `v*` tag publishes binaries, on both forges.
+`.forgejo/workflows/release.yml` and `.github/workflows/release.yml` both fire
+on it, and one `.goreleaser.yaml` is the config behind both. So the
+`--follow-tags` above is what starts the public release, and
+`git push origin v0.6.0` starts the internal one.
+
+Each builds the same five archives and a `checksums.txt`, then checks that the
+binary reports the tag. That check is not ceremony. Plan 12.1 reads the version
+from what `go build` recorded rather than from an ldflag, so a shallow checkout
+produces a binary answering `devel` and nothing else fails. On Forgejo the check
+gates the upload, because that workflow does its own publishing. On GitHub
+goreleaser has already published by then, so a failure turns the job red and
+leaves a release to delete by hand.
+
+The Forgejo job needs a `BOT_TOKEN` repository secret holding a token with write
+access. The GitHub job uses the `GITHUB_TOKEN` that Actions provides. A tag
+pushed without `BOT_TOKEN` fails loudly rather than publishing nothing quietly.
+
 A fresh clone has `origin` alone. Add the mirror when you need it, which is at
 release time and not before:
 `git remote add github git@github.com:terva-sh/git-ticket.git`.
@@ -417,3 +435,19 @@ again. Repairing it after the fact is worse than it sounds: there is no delete
 command, and `update --description` replaces the description alone, so the stray
 sections survive and the content ends up duplicated. Catch it before the commit,
 remove the file, and create the ticket again.
+
+A release tag has to agree with the module path, or the binary is quietly wrong
+about itself. `go build` derives the version from the tag reachable at HEAD, and
+a tag whose major version has no matching path suffix is not a version of this
+module at all, so Go falls back to a pseudo-version. Tagging `v9.9.9` on
+`github.com/terva-sh/git-ticket` produced
+`v0.5.1-0.20260904151039-e40405b4aac2` rather than the tag. Nothing failed: the
+build succeeded, the archives packed, and only the binary disagreed with the
+release it shipped in. Both release workflows check `--version` against the tag
+because of this. Going to `v2` means the module path gains `/v2` first, per 12.4.
+
+Goreleaser's `dist/` is gitignored for the same reason, not for tidiness. Go
+counts an untracked file as a modified tree, and goreleaser creates `dist/`
+before it builds, so without that line every published binary would report
+`modified: true`. A tagged run in a scratch clone reports `modified: false`,
+which is the check worth repeating if the ignore rule ever moves.

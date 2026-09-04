@@ -1,0 +1,156 @@
+# Forgejo release: pushing a v* tag builds every target with goreleaser and
+# publishes the archives on this instance.
+#
+# goreleaser builds but does not publish here. Publishing natively would need
+# `gitea_urls.api` in .goreleaser.yaml naming this instance, and that file ships
+# to the public mirror. AGENTS.md keeps internal hostnames out of the tree with
+# one sanctioned exception, the container image below, so the host is read from
+# ${{ github.server_url }} at run time and written down nowhere.
+#
+# Conventions match .forgejo/workflows/ci.yml, and the reasons are there in
+# full: actions resolve against this Forgejo rather than GitHub, so they come
+# from the public Actions-Mirrors org, and Go comes from the internal registry
+# image rather than setup-go.
+#
+# Needs a BOT_TOKEN repo secret, a Forgejo token with write access to this
+# repository. The publish step fails loudly when it is missing rather than
+# quietly skipping, because a tag that produced no release looks exactly like a
+# tag nobody pushed.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# The publish step creates a release and uploads assets to it.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: docker
+    container:
+      image: container.local.sothr.com/library/golang:1.25-alpine
+    steps:
+      - name: Install dependencies
+        # git for the checkout and for the VCS stamps the version depends on.
+        # curl and jq drive the release API below.
+        run: apk add --no-cache git curl jq
+
+      - name: Checkout Code
+        uses: Actions-Mirrors/forgejo-actions-checkout@v6
+        with:
+          # Full history for two reasons: the changelog reads the log between
+          # tags, and `go build` derives the version from the tag reachable at
+          # HEAD. A shallow checkout loses both, and the version failure is
+          # silent, so the verify step below catches it.
+          fetch-depth: 0
+
+      - name: Build the archives
+        uses: Actions-Mirrors/goreleaser-action@v6
+        with:
+          args: release --clean --skip=publish
+
+      - name: Verify the binary reports the tag
+        # This is the ticket's second acceptance criterion, enforced by the
+        # pipeline rather than trusted. Plan 12.1 refuses link-time stamping, so
+        # the version comes from what `go build` recorded from git. When that
+        # data is missing the binary answers "devel" and says so cheerfully, and
+        # a release that ships devel is worse than one that fails.
+        #
+        # It runs before the upload, so a bad build never becomes a release.
+        run: |
+          set -eu
+          tmp=$(mktemp -d)
+          archive=$(ls dist/git-ticket_*_linux_amd64.tar.gz)
+          tar -xzf "${archive}" -C "${tmp}"
+          got=$("${tmp}/git-ticket" --version)
+          echo "built: ${got}"
+          case "${got}" in
+            *"${GITHUB_REF_NAME}"*) echo "carries ${GITHUB_REF_NAME}" ;;
+            *)
+              echo "::error::the binary reports '${got}', which does not carry ${GITHUB_REF_NAME}"
+              echo "The build lost its VCS stamps. Check that the checkout is not shallow."
+              exit 1
+              ;;
+          esac
+
+      - name: Publish the release
+        env:
+          TOKEN: ${{ secrets.BOT_TOKEN }}
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::BOT_TOKEN is unset, so the archives cannot be published"
+            echo "Add a repository secret holding a Forgejo token with write access."
+            exit 1
+          fi
+          api="${SERVER}/api/v1/repos/${REPO}"
+
+          # The notes are the changelog goreleaser just generated, so the
+          # grouping and the filters match the other forge exactly.
+          #
+          # The `release.header` in .goreleaser.yaml is not part of it. That is
+          # added by goreleaser's own publisher, which only the GitHub workflow
+          # uses, so the public release page carries install instructions and
+          # this one carries the changelog alone. Deliberate: the header exists
+          # for somebody arriving at the mirror without knowing what this is,
+          # and duplicating that prose here would be two copies to keep in step.
+          #
+          # Default to empty rather than failing a release over release notes.
+          [ -f dist/CHANGELOG.md ] || : > dist/CHANGELOG.md
+
+          # A tag carrying a hyphen is a prerelease, which is the same rule
+          # `prerelease: auto` applies on the other forge.
+          case "${TAG}" in
+            *-*) pre=true ;;
+            *)   pre=false ;;
+          esac
+
+          payload=$(jq -n \
+            --arg tag "${TAG}" \
+            --rawfile body dist/CHANGELOG.md \
+            --argjson pre "${pre}" \
+            '{tag_name: $tag, name: $tag, body: $body, draft: false, prerelease: $pre}')
+
+          id=$(curl -sS -X POST "${api}/releases" \
+            -H "Authorization: token ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${payload}" | jq -r '.id // empty')
+
+          # An id that is not a number means the API refused and the response
+          # was an error object. Fail here, where the message is still readable.
+          case "${id}" in
+            ''|*[!0-9]*)
+              echo "::error::creating the release for ${TAG} did not return an id"
+              exit 1
+              ;;
+          esac
+          echo "release ${TAG} is id ${id}"
+
+          uploaded=0
+          for f in dist/*.tar.gz dist/*.zip dist/checksums.txt; do
+            [ -e "${f}" ] || continue
+            name=$(basename "${f}")
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+              "${api}/releases/${id}/assets?name=${name}" \
+              -H "Authorization: token ${TOKEN}" \
+              -F "attachment=@${f}")
+            case "${code}" in
+              2*) echo "uploaded ${name}"; uploaded=$((uploaded + 1)) ;;
+              *)  echo "::error::uploading ${name} answered HTTP ${code}"; exit 1 ;;
+            esac
+          done
+
+          # A release with no assets is the failure this whole job exists to
+          # avoid, and it would otherwise pass with a green tick.
+          if [ "${uploaded}" -eq 0 ]; then
+            echo "::error::the release was created with no assets"
+            exit 1
+          fi
+          echo "published ${uploaded} asset(s) to ${TAG}"

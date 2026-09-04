@@ -1,3 +1,11 @@
 # The README and the CI workflow both build the binary into the repository
 # root, so it lands here on any ordinary day of work.
 /git-ticket
+
+# goreleaser writes its archives, checksums and metadata here. Ignoring it is
+# not tidiness: `go build` records whether the tree was modified, and it counts
+# an untracked file as a modification, so an unignored dist/ would stamp
+# `modified: true` into every binary a release published. --version reports that
+# field, and plan 12.1 has it read from the build rather than from an ldflag,
+# so the provenance is only honest while this line is here.
+/dist/

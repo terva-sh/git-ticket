@@ -1,0 +1,131 @@
+# GoReleaser builds the cross-platform binaries and archives that a release
+# publishes. Pushing a v* tag runs it on both forges, driven by
+# .forgejo/workflows/release.yml and .github/workflows/release.yml.
+#
+# One config serves both, and the only difference is who uploads. On GitHub
+# goreleaser publishes the release itself, because github is the target it
+# infers from the remote. On Forgejo the workflow uploads what goreleaser built,
+# because publishing there natively needs a `gitea_urls.api` naming the internal
+# API host, and this file ships to the public mirror. AGENTS.md keeps internal
+# hostnames out of the tree, with one sanctioned exception under .forgejo/, and
+# that is where the Forgejo host stays. It is read from the runner at run time
+# rather than written down at all.
+#
+# Nothing is stamped at link time, deliberately. Plan 12.1 says `go build`
+# already records the module version and the commit and that runtime/debug reads
+# them back, so there is no -X ldflag here and no version variable to keep in
+# step with a tag. That was verified rather than assumed: goreleaser built at
+# v0.5.0 in a scratch clone and the unpacked binary answered
+# `git-ticket v0.5.0 (41690c445d45, go1.26.2)`.
+#
+# It holds only while the build runs inside the git checkout with the tag
+# present, which is why both workflows check out with fetch-depth 0. A build
+# with no VCS data reports "devel", and a release that says devel is worse than
+# one that fails, because it ships.
+
+version: 2
+
+project_name: git-ticket
+
+# No `before: hooks: go mod tidy`, on purpose, though the sibling terva config
+# has one. `go mod tidy` can rewrite go.mod or go.sum, and a hook runs after
+# goreleaser has checked the tree is clean. A rewrite there would leave the
+# build stamping `modified: true` into every published binary, which is exactly
+# the provenance --version exists to report honestly. CI already runs
+# `go mod download`, so nothing here needs tidying first.
+
+builds:
+  - id: git-ticket
+    main: ./cmd/git-ticket
+    binary: git-ticket
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    # Go ships windows/arm64 and almost nobody runs it. Leaving it out keeps the
+    # artifact list readable; add it when somebody asks for it.
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
+
+archives:
+  - id: git-ticket
+    ids: [git-ticket]
+    # git-ticket_0.5.0_linux_amd64.tar.gz, with the binary at the archive root,
+    # so unpacking it and putting it on PATH is the whole install. Git spells a
+    # binary named git-ticket on PATH as `git ticket`.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # LICENSE is missing from this list because the repository has no LICENSE
+    # file. goreleaser fails hard on a files: entry that matches nothing, so a
+    # placeholder here would break every release until somebody noticed.
+    #
+    # That absence is worth more attention than this line. The tree is public on
+    # the mirror and unlicensed code is all rights reserved by default, so a
+    # project that wants to adopt this has nothing to rely on. Choosing a licence
+    # is the owner's call, and when one lands it belongs in this list.
+    files:
+      - README.md
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  # `goreleaser release --snapshot` needs no tag, so `just release-snapshot`
+  # exercises the whole pipeline without pushing anything.
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  # git, not the forge API. The changelog has to build identically on both
+  # forges, and from either runner only one of them is reachable.
+  use: git
+  filters:
+    exclude:
+      # The scope group is (.*) rather than (\w+) because a scope can be several
+      # words, as in feat(cli,plan):. An anchor matching only an unscoped commit
+      # would publish every scoped housekeeping commit in the notes it exists to
+      # filter out, and that stays invisible until somebody writes the scope
+      # that trips it. The optional ! is the breaking-change marker, which would
+      # otherwise fall through the same hole. Copied deliberately from terva,
+      # which documents having hit both bugs.
+      - "^docs(\\(.*\\))?!?:"
+      - "^chore(\\(.*\\))?!?:"
+      - "^ci(\\(.*\\))?!?:"
+      - "^test(\\(.*\\))?!?:"
+      - "^build(\\(.*\\))?!?:"
+  groups:
+    - title: features
+      regexp: "^.*feat(\\(.*\\))?!?:.*$"
+      order: 0
+    - title: fixes
+      regexp: "^.*fix(\\(.*\\))?!?:.*$"
+      order: 1
+    - title: other
+      order: 999
+
+release:
+  draft: false
+  # A tag like v1.0.0-rc1 publishes as a prerelease without anybody deciding
+  # again at release time.
+  prerelease: auto
+  header: |
+    ## git-ticket {{ .Tag }}
+
+    A Git-native work ledger: Markdown tickets in `.tickets/`, one Go library,
+    and a `git ticket` CLI.
+
+    Download the archive for your platform below, unpack it, and put
+    `git-ticket` on your `PATH`. Git spells a binary named `git-ticket` as
+    `git ticket`. Check what you downloaded against `checksums.txt`.
+
+    With a Go toolchain, `go install github.com/terva-sh/git-ticket/cmd/git-ticket@{{ .Tag }}`
+    gets you the same command.
+
+    Run `git ticket --version` to see the tag and commit the binary was built
+    from, and `git ticket help` for the command list.

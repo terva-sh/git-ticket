@@ -6,8 +6,9 @@ reviewable in `git diff`. One Go library owns the format, and a `git-ticket`
 binary exposes it as `git ticket …`.
 
 > **Partly built.** The library and the 28-command CLI are done and tagged
-> `v0.5.0`. There is no binary release, so installing means building from
-> source. See [Status](#status) before you plan around this.
+> `v0.5.0`. That tag predates the release pipeline and carries no binaries; the
+> next one publishes archives for Linux, macOS and Windows. See
+> [Status](#status) before you plan around this.
 
 ## The problem
 
@@ -156,6 +157,13 @@ come from it. It puts the title in the filename, which this format does not.
 
 ## Using it
 
+A release carries archives for Linux, macOS and Windows, on amd64 and arm64.
+Download one, unpack it, and put `git-ticket` on your `PATH`. The binary sits at
+the root of the archive, and `checksums.txt` beside it verifies what you
+downloaded. Nothing else is needed: no Go toolchain, no runtime.
+
+With a Go toolchain, this gets you the same command:
+
 ```sh
 go install github.com/terva-sh/git-ticket/cmd/git-ticket@latest
 ```
@@ -164,8 +172,13 @@ That lands `git-ticket` in your `GOBIN`, or `GOPATH/bin` without one. Git spells
 a binary named `git-ticket` on `PATH` as `git ticket`. From a clone, `just
 install` does the same thing and `just build` puts the binary in the repository
 root instead. That root copy is gitignored and nothing rebuilds it for you, so
-prefer `just ready` and `just check`, which depend on `build`. A ticket's whole
-life works today:
+prefer `just ready` and `just check`, which depend on `build`.
+
+`git ticket --version` reports the tag and the commit the binary was built from,
+and says so honestly: a build from a tree with no tag reachable answers `devel`
+rather than inventing a version.
+
+A ticket's whole life works today:
 
 ```sh
 git ticket init --actor human:you

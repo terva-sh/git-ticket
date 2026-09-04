@@ -1,0 +1,88 @@
+# Public release: pushing a v* tag to the mirror builds every target with
+# goreleaser and publishes the archives as a GitHub Release.
+#
+# goreleaser publishes here itself, because github is the target it infers from
+# the remote and no host has to be written down for it. The Forgejo workflow
+# takes the other half of that trade: see .forgejo/workflows/release.yml.
+#
+# The mirror is a plain push of the same history, per AGENTS.md and plan 12.2,
+# so this file lives in the same tree as the Forgejo one and both fire on the
+# same tag. `git push github main --follow-tags` is what starts it.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# goreleaser creates the release and uploads the archives to it.
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    name: Build and Publish Release
+    # Forgejo Actions executes .github/workflows too, and it reports this
+    # repository as terva-sh/git-ticket exactly as GitHub does, because the
+    # mirror carries the same owner and name. So the usual repository guard
+    # cannot tell the two apart and this one compares the server instead.
+    #
+    # The guard is load-bearing rather than tidy. Without it the Forgejo runner
+    # would try to resolve actions/checkout against its own instance and 404
+    # before a step ran, which is the failure AGENTS.md records under Gotchas,
+    # and it would race the Forgejo workflow to publish the same tag. Comparing
+    # against the public URL also keeps the internal host out of this file.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          # Full history for two reasons: the changelog reads the log between
+          # tags, and `go build` derives the version from the tag reachable at
+          # HEAD. Plan 12.1 refuses link-time stamping, so a shallow checkout
+          # would silently produce binaries reporting "devel".
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # From go.mod, so this cannot drift from what the module declares.
+          go-version-file: go.mod
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify the published binary reports the tag
+        # The same check the Forgejo workflow runs, and the one difference
+        # between the two forges is worth stating plainly: there it gates the
+        # upload, because that workflow does its own publishing. Here goreleaser
+        # has already published by the time this runs, so this is a post-check.
+        # A failure turns the job red and leaves a release somebody has to
+        # delete by hand.
+        #
+        # It stays anyway. Catching a binary that answers "devel" an hour after
+        # the tag is worth far more than not catching it, and the alternative
+        # is a second full build just to move the check earlier.
+        run: |
+          set -eu
+          tmp=$(mktemp -d)
+          archive=$(ls dist/git-ticket_*_linux_amd64.tar.gz)
+          tar -xzf "${archive}" -C "${tmp}"
+          got=$("${tmp}/git-ticket" --version)
+          echo "built: ${got}"
+          case "${got}" in
+            *"${GITHUB_REF_NAME}"*) echo "carries ${GITHUB_REF_NAME}" ;;
+            *)
+              echo "::error::the binary reports '${got}', which does not carry ${GITHUB_REF_NAME}"
+              echo "The build lost its VCS stamps. Delete the release, then check"
+              echo "that the checkout is not shallow before tagging again."
+              exit 1
+              ;;
+          esac

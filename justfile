@@ -79,6 +79,17 @@ ready: build
 # The full local gate. Same steps as .forgejo/workflows/ci.yml.
 ci: lint test-race check
 
-# Remove the built binary.
+# Build the release archives locally, without a tag and without publishing.
+# Needs goreleaser on PATH. Writes to dist/, which is gitignored: an untracked
+# dist/ would make go build stamp modified:true into every binary.
+release-snapshot:
+    goreleaser release --snapshot --clean --skip=validate
+
+# Validate .goreleaser.yaml without building anything.
+release-check:
+    goreleaser check
+
+# Remove the built binary and the release artifacts.
 clean:
     rm -f ./git-ticket
+    rm -rf ./dist

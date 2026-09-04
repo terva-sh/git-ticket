@@ -293,6 +293,27 @@ Keep a title under 72 characters. `check` warns past that and refuses a write
 past 120, per plan 5.1. Both numbers come from `git ticket schema` rather than
 from memory.
 
+An acceptance criterion is evidence of what was asked for, so do not reword one
+to match what shipped. The single exception is a criterion that was
+unsatisfiable as written, which is not the same as one that turned out to be
+hard. A hard one stays as it is and goes unticked. Closing a ticket that way is
+fine: no check reports an unticked criterion, so an honest `[ ]` costs nothing
+and a false `[x]` costs the next reader their trust in every other box.
+
+`TKT-01M1PCY3` (schema does not publish the label and milestone allowlists) is
+the worked example. Its third criterion asked that a store with no allowlist be
+distinguishable from one with an empty allowlist, and `permitted()` in
+`ticket/config.go` treats nil and empty identically, so those are one state and
+nothing could have satisfied it. It shipped unticked in PR #76 and was reworded
+in #77, once the impossibility was demonstrated rather than asserted.
+
+Rewording one is three edits, not one. Put the original wording verbatim in a
+note, because a reader of the ticket should not have to run `git log` to learn
+what was asked. Add a note naming the earlier note it supersedes, since `note`
+appends and the old one still argues the opposite. Then reread the summary:
+`summary` replaces rather than appends, so a summary still describing the old
+state is how a ticket ends up disagreeing with its own checkbox.
+
 ## Layout
 
 `docs/plan.md` is the format, the store, the CLI, and every decision behind

@@ -303,6 +303,30 @@ updated_by:
 extensions: {}
 ```
 
+`title` is one line saying what the ticket is about, written for a person
+reading it next to an ID that says nothing. A ULID is not something anybody
+holds in their head, so the title is the only part of a reference that carries
+meaning, and it is quoted beside the ID wherever one appears.
+
+It is bounded so it stays readable inline. Over 72 characters is `title_long`, a
+warning. Over 120 is `title_too_long`, an error, and a write is refused at that
+length with `invalid_field` rather than being reported afterwards, the way an
+invalid `priority` is refused by `create`. Length counts characters and not
+bytes, so a title does not fail for being written in a language that needs more
+of them.
+
+Two thresholds rather than one, because a single cap tight enough to be useful
+would be retroactive on a store that already exists. Across the 62 tickets here
+the median title is 57 characters and 23 are over 60, so a cap at 60 would make
+a third of the store non-conforming at once, and `check --strict` is what gates
+CI. A warning names the long ones without stopping anybody, and the error
+threshold sits far enough out that only a title nobody meant to write reaches
+it.
+
+There is no second, shorter title field. 120 characters is generous enough that
+a `short_title` beside it would carry the same meaning twice, and two fields
+that mean one thing drift.
+
 `type` is one of `task`, `bug`, `chore`, `spike`, `epic`. `priority` is one of
 `low`, `normal`, `high`, `urgent`. `blocks_on` is one of `none`, `children`.
 
@@ -1474,6 +1498,7 @@ values without reading this document or hard-coding them:
   "types": ["task", "bug", "chore", "spike", "epic"],
   "priorities": ["low", "normal", "high", "urgent"],
   "unreadyReasons": ["draft", "in-progress", "blocked", "review", "done", "archived", "waiting_on_dependencies", "claimed"],
+  "titleLimits": { "warn": 72, "max": 120 },
   "transitions": { "draft": ["ready", "archived"] },
   "errorCodes": ["store_not_found", "usage"],
   "findingCodes": [{ "code": "duplicate_id", "severity": "error" }]
@@ -1495,6 +1520,11 @@ published for the same reason the rest of this envelope is: a consumer that
 wants the open set otherwise hard-codes five strings and goes wrong the day a
 sixth status arrives. It is derived from `statuses` by removing the terminal
 ones, so the two cannot drift.
+
+`titleLimits` publishes the two thresholds of 5.1 so a caller composing a title
+knows where the line is before it writes one. `warn` is where `title_long`
+starts and `max` is where a write is refused, which is the number that matters
+to a writer. Both count characters rather than bytes.
 
 `unreadyReasons` is every value `readiness.reason` can carry, per section 8, so
 a consumer switching on it does not hard-code the list and fall through the day
@@ -1562,6 +1592,7 @@ Errors:
 | `invalid_priority` | a `priority` outside the set in 5.1 |
 | `invalid_blocks_on` | a `blocks_on` outside the set in 5.1 |
 | `invalid_due_on` | a `due_on` that is not a `YYYY-MM-DD` date, per 5.1. A date that has passed is never a finding |
+| `title_too_long` | `title` is longer than 120 characters, per 5.1 |
 | `location_mismatch` | the status and the directory disagree, per section 4; the status wins |
 
 Warnings:
@@ -1576,6 +1607,7 @@ Warnings:
 | `milestone_unknown` | `milestone` is outside the `config.yml` allowlist |
 | `in_progress_unclaimed` | a ticket is `in-progress` with no claim |
 | `blocks_on_no_children` | `blocks_on` is `children` and no ticket names this one as its parent |
+| `title_long` | `title` is longer than 72 characters, per 5.1 |
 | `epics_index_stale` | `epics.md` disagrees with the epics in the store, per section 4 |
 
 A finding names the file, and the ticket ID and field where they apply. A file
@@ -1785,6 +1817,18 @@ has changed since.
 claim it, record what it learned, and finish, and it names only commands this
 binary has. A test holds it to that, because prose that tells a reader to run
 something that does not exist is worse than no prose.
+
+It also carries one rule about writing rather than about running: an agent
+naming a ticket in prose writes the title beside the ID the first time, as
+`TKT-01M1PQ7T (Build git ticket remove, per plan 9.1)`. Later mentions in the
+same piece of writing use the bare ID, because the point is orienting a reader
+once and not padding every line.
+
+This is in the block rather than left to each project because the cost lands on
+whoever reads the agent, not on the agent. A ULID is unreadable by design, so a
+summary quoting three bare IDs asks a person to look up three tickets to learn
+what it says. The title in 5.1 is bounded for this: it has to fit inline for
+this rule to be worth following.
 
 The block is fenced by two markers, so it can be replaced later without
 disturbing what a person wrote around it:

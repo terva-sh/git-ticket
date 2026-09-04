@@ -116,6 +116,28 @@ prose:
 Split a ticket rather than growing it. If you find work that is not what the
 ticket asked for, file it and link it.
 
+Keep the title under 72 characters. Over that `check` warns, and over 120 the
+write is refused. The title is what a person reads instead of the ID, so it has
+to say what the work is and it has to fit on a line beside one.
+`git ticket schema` prints both numbers.
+
+### Naming a ticket in what you write
+
+When you mention a ticket in prose, put its title beside the ID the first time:
+
+```text
+TKT-01M1PQ7T (Build git ticket remove, per plan 9.1)
+```
+
+After that, in the same summary or comment or commit message, the bare ID is
+enough. The point is to orient a reader once, not to pad every line.
+
+Do this because a ULID is unreadable on purpose. It sorts and it never
+collides, and it tells a person nothing. A summary that names three bare IDs
+asks whoever reads it to look up three tickets before they know what it says,
+and they are usually reading precisely because they were not the one doing the
+work.
+
 ### Driving it from a script
 
 Add `--json` to any command for one envelope on stdout with a stable error

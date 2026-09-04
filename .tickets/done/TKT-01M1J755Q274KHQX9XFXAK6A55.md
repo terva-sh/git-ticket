@@ -1,7 +1,7 @@
 ---
 schema: 1
 id: TKT-01M1J755Q274KHQX9XFXAK6A55
-title: Decide what list shows by default, because it shows 30 done tickets out of 44
+title: Decide what list shows by default, because done tickets crowd it out
 type: spike
 status: done
 status_reason: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-02T23:27:06Z
-updated_at: 2026-09-03T00:08:41Z
+updated_at: 2026-09-04T17:47:57Z
 created_by:
   id: human:sothr
   name: ""

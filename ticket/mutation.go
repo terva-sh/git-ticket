@@ -144,8 +144,31 @@ func (m SetTitle) apply(t *Ticket, env mutEnv) error {
 	if strings.TrimSpace(m.Title) == "" {
 		return &Error{Code: CodeInvalidField, Message: "a ticket needs a title", Ticket: t.ID, Field: "title"}
 	}
+	if err := checkTitleLength(m.Title, t.ID); err != nil {
+		return err
+	}
 	t.Title = m.Title
 	return nil
+}
+
+// checkTitleLength refuses a title past the length plan 5.1 allows a write to
+// store. It is refused here rather than only reported by check, the way an
+// invalid priority is, because a caller that just typed it can fix it now and a
+// finding discovered later has to be chased back to whoever wrote it.
+//
+// The message carries both numbers, since a caller who is 3 over needs to know
+// by how much and not merely that it failed.
+func checkTitleLength(title, id string) error {
+	if !TitleTooLong(title) {
+		return nil
+	}
+	return &Error{
+		Code: CodeInvalidField,
+		Message: fmt.Sprintf("the title is %d characters, over the %d a ticket may hold",
+			TitleLength(title), TitleMax),
+		Ticket: id,
+		Field:  "title",
+	}
 }
 
 // SetType and SetPriority change one enum field each.

@@ -37,6 +37,8 @@ const (
 	CodeInvalidPriority              = "invalid_priority"
 	CodeInvalidBlocksOn              = "invalid_blocks_on"
 	CodeInvalidDueOn                 = "invalid_due_on"
+	CodeTitleTooLong                 = "title_too_long"
+	CodeTitleLong                    = "title_long"
 	CodeBlockingCycle                = "blocking_cycle"
 	CodeBlocksOnNoChildren           = "blocks_on_no_children"
 	CodeLocationMismatch             = "location_mismatch"
@@ -73,14 +75,15 @@ var CheckErrorCodes = []string{
 	CodeSchemaUnsupported, CodeMergeConflict, CodeDependencyMissing,
 	CodeParentMissing, CodeDependencyCycle, CodeParentCycle, CodeInvalidStatus,
 	CodeInvalidType, CodeInvalidPriority, CodeInvalidBlocksOn, CodeInvalidDueOn,
-	CodeBlockingCycle, CodeLocationMismatch,
+	CodeTitleTooLong, CodeBlockingCycle, CodeLocationMismatch,
 }
 
 var CheckWarningCodes = []string{
 	CodeDependencyArchivedIncomplete, CodeClaimExpired,
 	CodeReferencePathUnresolved, CodeReferenceUntyped, CodeLabelUnknown,
 	CodeMilestoneUnknown,
-	CodeInProgressUnclaimed, CodeBlocksOnNoChildren, CodeEpicsIndexStale,
+	CodeInProgressUnclaimed, CodeBlocksOnNoChildren, CodeTitleLong,
+	CodeEpicsIndexStale,
 }
 
 // Error is a coded failure. The code is the stable part; the message is for a
@@ -94,6 +97,12 @@ type Error struct {
 	// Field is the frontmatter field at fault, empty when the failure is about
 	// the file as a whole.
 	Field string
+	// Title is the title of the ticket named above, when one is known. A ULID
+	// says nothing to the person reading the failure, so the message carries the
+	// one part of a reference that means something. It is empty for a failure
+	// where no ticket exists to have a title, which is every ticket_not_found
+	// and every refusal from create.
+	Title string
 	// Details carries the code-specific values a caller needs, such as the
 	// expected and actual revision for stale_revision.
 	Details map[string]string
@@ -102,10 +111,31 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
+	msg := e.Message
 	if e.Field != "" {
-		return fmt.Sprintf("%s: %s (field %s)", e.Code, e.Message, e.Field)
+		msg = fmt.Sprintf("%s (field %s)", msg, e.Field)
 	}
-	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+	// The subject goes first, so a person reads which ticket failed before why.
+	// The title comes with it because the ID alone sends them to look it up.
+	switch {
+	case e.Ticket != "" && e.Title != "":
+		return fmt.Sprintf("%s: %s (%s): %s", e.Code, e.Ticket, e.Title, msg)
+	case e.Ticket != "":
+		return fmt.Sprintf("%s: %s: %s", e.Code, e.Ticket, msg)
+	}
+	return fmt.Sprintf("%s: %s", e.Code, msg)
+}
+
+// withTitle names the ticket's title on a coded failure that already names its
+// ID. It is called at the one point where both the error and the parsed ticket
+// are in hand, so no individual mutation has to remember to do it.
+func withTitle(err error, title string) error {
+	var e *Error
+	if title == "" || !errors.As(err, &e) || e.Ticket == "" || e.Title != "" {
+		return err
+	}
+	e.Title = title
+	return err
 }
 
 func (e *Error) Unwrap() error { return e.Err }

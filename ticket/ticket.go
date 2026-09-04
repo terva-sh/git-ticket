@@ -9,6 +9,7 @@ package ticket
 
 import (
 	"time"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -171,6 +172,38 @@ func ValidDueOn(s string) bool {
 
 // ValidBlocksOn reports whether b is in the set of plan 5.1.
 func ValidBlocksOn(b string) bool { return validValue(BlocksOnValues, b) }
+
+// Title length thresholds, per plan 5.1. A title is the only part of a ticket
+// reference that means anything to a person, since a ULID does not, so it is
+// bounded to stay readable beside an ID rather than to save space.
+//
+// Two thresholds rather than one because a single useful cap would be
+// retroactive. TitleWarn names a title that has grown into a sentence and
+// TitleMax is where a write is refused. The gap between them is deliberate: a
+// store that predates this rule keeps working and surfaces its long titles as
+// warnings, while only a title nobody meant to write reaches the refusal.
+const (
+	TitleWarn = 72
+	TitleMax  = 120
+)
+
+// TitleLength counts a title the way plan 5.1 measures it, in characters rather
+// than bytes. A title written in a language that needs more bytes per character
+// is not longer to read, and measuring bytes would cap it shorter for no reason
+// the author could see.
+func TitleLength(title string) int { return utf8.RuneCountInString(title) }
+
+// TitleTooLong reports whether a title exceeds the length a write may store.
+func TitleTooLong(title string) bool { return TitleLength(title) > TitleMax }
+
+// TitleLong reports whether a title is past the point check warns about. It is
+// false once TitleTooLong is true, so one title raises one finding rather than
+// both: the error already says the title is too long and a warning beside it
+// would be the same sentence twice.
+func TitleLong(title string) bool {
+	n := TitleLength(title)
+	return n > TitleWarn && n <= TitleMax
+}
 
 // Timestamp is an instant that remembers how it was written. Rendering emits
 // Raw when it is set, so a file that spells an instant differently than this

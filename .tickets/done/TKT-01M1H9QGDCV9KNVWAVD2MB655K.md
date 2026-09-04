@@ -1,28 +1,30 @@
 ---
 schema: 1
 id: TKT-01M1H9QGDCV9KNVWAVD2MB655K
-title: instructions tells an agent to claim a ticket that create leaves in draft
+title: instructions tells an agent to claim a ticket create leaves in draft
 type: bug
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: workflow:instructions
     path: cli/instructions.md
 claim: null
 archive: null
 created_at: 2026-09-02T14:52:49Z
-updated_at: 2026-09-02T14:57:13Z
+updated_at: 2026-09-04T17:47:57Z
 created_by:
   id: agent:terva/dev-loop
   name: ""
 updated_by:
-  id: agent:terva/dev-loop
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---

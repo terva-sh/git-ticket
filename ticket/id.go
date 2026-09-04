@@ -115,8 +115,10 @@ func ResolveRef(ref string, ids []string) (string, error) {
 			}
 		}
 		return "", &Error{
-			Code:    CodeTicketNotFound,
-			Message: fmt.Sprintf("no ticket %s in this store", full),
+			Code: CodeTicketNotFound,
+			// The ID is not repeated here. Error() prefixes it from Ticket, and
+			// naming it in both places printed it twice in one sentence.
+			Message: "no such ticket in this store",
 			Ticket:  full,
 		}
 	}

@@ -1,23 +1,25 @@
 ---
 schema: 1
 id: TKT-01M1F7Z31HR5GV06D6Y7WZWJK4
-title: Set the compatibility policy for the module after the first stable schema
+title: Set the module compatibility policy after the first stable schema
 type: spike
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-01T19:43:32Z
-updated_at: 2026-09-02T17:17:33Z
+updated_at: 2026-09-04T17:48:04Z
 created_by:
   id: human:sothr
   name: ""

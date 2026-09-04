@@ -13,6 +13,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode/utf8"
 
 	"github.com/terva-sh/git-ticket/ticket"
 )
@@ -1480,8 +1481,15 @@ func writeCheckHuman(w io.Writer, s *ticket.Store, r *ticket.Report, strict bool
 		if field == "" {
 			field = "-"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-			severity, f.Code, displayPath(s, filepath.Join(s.Path(), f.File)), field, f.Message)
+		// The title sits next to the path because the path names the ticket in
+		// the one form a person cannot read. A file that did not parse has no
+		// title, and a dash says so rather than leaving the column ragged.
+		title := abbreviate(f.Title, titleColumn)
+		if title == "" {
+			title = "-"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			severity, f.Code, displayPath(s, filepath.Join(s.Path(), f.File)), title, field, f.Message)
 	}
 	for _, f := range r.Errors {
 		line("error", f)
@@ -1495,6 +1503,25 @@ func writeCheckHuman(w io.Writer, s *ticket.Store, r *ticket.Report, strict bool
 	if strict && len(r.Errors) == 0 && len(r.Warnings) > 0 {
 		fmt.Fprintln(w, "Failing because --strict counts a warning as a failure.")
 	}
+}
+
+// titleColumn is how much of a title a finding line shows. A title may run to
+// the 120 of plan 5.1, and a row that wide stops being scannable, which is the
+// whole reason the title is here. Enough to recognise the ticket is the job;
+// `show` has the rest.
+const titleColumn = 48
+
+// abbreviate cuts s to at most n characters, marking that it did. It counts
+// runes rather than bytes for the reason TitleLength does, so a title in a
+// language that needs more bytes is not cut shorter than one that does not.
+func abbreviate(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	// Cut on a rune boundary, and spend one of the budget on the ellipsis so the
+	// column width still holds.
+	out := []rune(s)[:n-1]
+	return strings.TrimRight(string(out), " ") + "…"
 }
 
 func count(n int, noun string) string {
@@ -1560,6 +1587,7 @@ func runSchema(ctx *cmdContext, args []string) error {
 			Priorities:     ticket.Priorities,
 			BlocksOn:       ticket.BlocksOnValues,
 			UnreadyReasons: ticket.UnreadyReasons,
+			TitleLimits:    titleLimitsJSON{Warn: ticket.TitleWarn, Max: ticket.TitleMax},
 			Transitions:    transitions,
 			ErrorCodes:     errorCodes,
 			FindingCodes:   findings,
@@ -1575,6 +1603,8 @@ func runSchema(ctx *cmdContext, args []string) error {
 	fmt.Fprintf(ctx.out, "priorities  %s\n", strings.Join(ticket.Priorities, " "))
 	fmt.Fprintf(ctx.out, "blocks on   %s\n", strings.Join(ticket.BlocksOnValues, " "))
 	fmt.Fprintf(ctx.out, "unready     %s\n", strings.Join(ticket.UnreadyReasons, " "))
+	fmt.Fprintf(ctx.out, "title       warn over %d, refused over %d characters\n",
+		ticket.TitleWarn, ticket.TitleMax)
 
 	fmt.Fprintln(ctx.out, "\ntransitions")
 	tw := tabwriter.NewWriter(ctx.out, 0, 0, 2, ' ', 0)

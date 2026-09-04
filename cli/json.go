@@ -118,10 +118,22 @@ type schemaEnvelope struct {
 	// UnreadyReasons is every value readiness.reason can carry, so a consumer
 	// switching on it does not hard-code the list and fall through the day a
 	// status is added. The empty string a ready ticket carries is not in it.
-	UnreadyReasons []string            `json:"unreadyReasons"`
-	Transitions    map[string][]string `json:"transitions"`
-	ErrorCodes     []string            `json:"errorCodes"`
-	FindingCodes   []findingCodeJSON   `json:"findingCodes"`
+	UnreadyReasons []string `json:"unreadyReasons"`
+	// TitleLimits publishes the two thresholds of plan 5.1, so a caller
+	// composing a title knows where the line is before it writes one rather
+	// than after a write is refused.
+	TitleLimits  titleLimitsJSON     `json:"titleLimits"`
+	Transitions  map[string][]string `json:"transitions"`
+	ErrorCodes   []string            `json:"errorCodes"`
+	FindingCodes []findingCodeJSON   `json:"findingCodes"`
+}
+
+// titleLimitsJSON carries the title length thresholds. Warn is where
+// title_long starts and Max is where a write is refused, which is the number
+// that matters to a writer. Both count characters and not bytes.
+type titleLimitsJSON struct {
+	Warn int `json:"warn"`
+	Max  int `json:"max"`
 }
 
 type findingCodeJSON struct {

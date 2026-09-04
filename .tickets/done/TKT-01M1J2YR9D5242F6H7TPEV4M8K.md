@@ -1,7 +1,7 @@
 ---
 schema: 1
 id: TKT-01M1J2YR9D5242F6H7TPEV4M8K
-title: Decide whether ready ranks by priority, and where priority sits against a deadline
+title: Decide whether ready ranks by priority, and how it weighs a deadline
 type: spike
 status: done
 status_reason: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-02T22:13:41Z
-updated_at: 2026-09-03T03:36:27Z
+updated_at: 2026-09-04T17:47:57Z
 created_by:
   id: agent:terva/mieli
   name: ""

@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "title_long",
+      "file": "tickets/TKT-01K400GBC1WHK14CSBHQ8WSEPA.md",
+      "ticket": "TKT-01K400GBC1WHK14CSBHQ8WSEPA",
+      "field": "title"
+    }
+  ]
+}

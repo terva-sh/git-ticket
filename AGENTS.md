@@ -262,6 +262,23 @@ usually the larger one. Read it before reporting that there is nothing to pick
 up. Promoting a draft is the user's call: name what looks startable and let them
 choose.
 
+Name a ticket with its title the first time you mention it, in a summary, a
+commit message, a PR body, or a ticket note:
+
+```text
+TKT-01M1PQ7T (Build git ticket remove, per plan 9.1)
+```
+
+After that the bare ID is enough within the same piece of writing. A ULID is
+unreadable on purpose, so a summary naming three bare IDs asks the reader to
+look up three tickets before it says anything, and the reader is usually the
+person who did not do the work. `cli/instructions.md` carries the same rule for
+every project, and plan 12.1 records why.
+
+Keep a title under 72 characters. `check` warns past that and refuses a write
+past 120, per plan 5.1. Both numbers come from `git ticket schema` rather than
+from memory.
+
 ## Layout
 
 `docs/plan.md` is the format, the store, the CLI, and every decision behind

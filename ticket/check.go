@@ -22,6 +22,15 @@ type Finding struct {
 	// Message is not part of the recorded contract, so it stays out of the
 	// JSON. The fixture sidecars carry exactly code, file, ticket, and field.
 	Message string `json:"-"`
+	// Title is the title of the ticket this finding names, for a person reading
+	// a report. It is empty when the file did not parse far enough to have one.
+	//
+	// It stays out of the JSON with Message, for the same reason and one more.
+	// The recorded contract is exactly four keys and every fixture sidecar
+	// records them, so adding a fifth rewrites the corpus for something no
+	// consumer asked for. A machine reading a report already has the ID and can
+	// look the title up; the person reading the terminal is the one who cannot.
+	Title string `json:"-"`
 }
 
 // MarshalJSON writes the four keys of the contract, with null for an absent
@@ -303,7 +312,7 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 // in Check.
 func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) (errs, warns []Finding) {
 	at := func(code, field, msg string) Finding {
-		return Finding{Code: code, File: rel, Ticket: t.ID, Field: field, Message: msg}
+		return Finding{Code: code, File: rel, Ticket: t.ID, Field: field, Message: msg, Title: t.Title}
 	}
 
 	// An unknown top-level field is an error here and a warning on an ordinary
@@ -338,6 +347,19 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 	if t.DueOn != nil && !ValidDueOn(*t.DueOn) {
 		errs = append(errs, at(CodeInvalidDueOn, "due_on",
 			fmt.Sprintf("%q is not a YYYY-MM-DD date", *t.DueOn)))
+	}
+	// Length, per plan 5.1. The two thresholds are exclusive, so one title
+	// raises one finding: TitleLong is false once TitleTooLong is true, and a
+	// warning beside the error would say the same sentence twice.
+	if TitleTooLong(t.Title) {
+		errs = append(errs, at(CodeTitleTooLong, "title",
+			fmt.Sprintf("the title is %d characters, over the %d a write may store",
+				TitleLength(t.Title), TitleMax)))
+	}
+	if TitleLong(t.Title) {
+		warns = append(warns, at(CodeTitleLong, "title",
+			fmt.Sprintf("the title is %d characters, past the %d that reads well beside an ID",
+				TitleLength(t.Title), TitleWarn)))
 	}
 
 	if t.Claim.Expired(now) {

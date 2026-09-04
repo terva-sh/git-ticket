@@ -78,12 +78,20 @@ func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOption
 	}
 	actualRevision := Revision(data)
 	if o.IfRevision != "" && o.IfRevision != actualRevision {
-		return nil, &Error{
+		e := &Error{
 			Code:    CodeStaleRevision,
 			Message: "ticket changed since it was read",
 			Ticket:  id,
 			Details: map[string]string{"expected": o.IfRevision, "actual": actualRevision},
 		}
+		// This returns before the parse below, so the title is taken here from
+		// bytes already in hand. Losing a race is the failure an agent hits most,
+		// and it is worth naming the ticket it lost. A file that no longer parses
+		// still reports the staleness, without a title.
+		if parsed, perr := Parse(data); perr == nil {
+			e.Title = parsed.Title
+		}
+		return nil, e
 	}
 
 	t, err := Parse(data)
@@ -100,7 +108,9 @@ func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOption
 		exists: func(other string) bool { _, ok := index[other]; return ok },
 	}
 	if err := m.apply(t, env); err != nil {
-		return nil, err
+		// The one place holding both the failure and the parsed ticket, so a
+		// mutation never has to carry the title itself.
+		return nil, withTitle(err, t.Title)
 	}
 
 	// Every mutation records who touched the ticket and when, so the diff says
@@ -152,6 +162,11 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	}
 	if o.Title == "" {
 		return nil, &Error{Code: CodeInvalidField, Message: "a ticket needs a title", Field: "title"}
+	}
+	// The ID does not exist yet, so the refusal names no ticket. There is
+	// nothing to look up and the caller is holding the title it just typed.
+	if err := checkTitleLength(o.Title, ""); err != nil {
+		return nil, err
 	}
 	kind := o.Type
 	if kind == "" {
@@ -465,7 +480,8 @@ func unreadable(id string, err *Error) *Error {
 	if err != nil {
 		return err
 	}
-	return &Error{Code: CodeParseError, Message: "ticket " + id + " could not be read", Ticket: id}
+	// Error() supplies the ID from Ticket, so the message does not repeat it.
+	return &Error{Code: CodeParseError, Message: "could not be read", Ticket: id}
 }
 
 // mutEnv is what a mutation needs beyond the ticket itself.

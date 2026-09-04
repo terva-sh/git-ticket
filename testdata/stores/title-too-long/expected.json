@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "title_too_long",
+      "file": "tickets/TKT-01K400GBC2WHK14CSBHQ8WSEPB.md",
+      "ticket": "TKT-01K400GBC2WHK14CSBHQ8WSEPB",
+      "field": "title"
+    }
+  ],
+  "warnings": []
+}

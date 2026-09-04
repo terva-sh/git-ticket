@@ -87,6 +87,12 @@ than reformatting it behind your back.
 Types are task, bug, chore, spike, and epic. Add `--description`, `--label`,
 and `--assignee` as they apply, and `--parent` to file it under an epic.
 
+Run `git ticket config` before you invent a label. It prints the labels and
+milestones this store permits, and a label outside that set is `label_unknown`,
+which is a warning that fails `check --strict`. When `enforced` is false nothing
+is listed and any value is fine. `git ticket schema` is the other half, the
+types, priorities and statuses that every store shares.
+
 Write a description longer than a line to a file and pass the file. Every
 command that takes prose will read it: `--description-file` and `--plan-file` on
 `create`, `--description-file` on `update`, and `--file` on `plan`, `note`,

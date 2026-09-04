@@ -141,6 +141,53 @@ type findingCodeJSON struct {
 	Severity string `json:"severity"`
 }
 
+// configEnvelope carries what one store configured, per plan 10.6.
+//
+// It is a separate kind from schema because schema reads no store, which is
+// what lets it answer before init and outside a repository. Every value here is
+// per-store, so putting them in that envelope would make the same command
+// answer differently depending on where it ran.
+type configEnvelope struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	Kind          string `json:"kind"`
+	TicketSchema  int    `json:"ticketSchema"`
+	// Labels and Milestones are the advisory allowlists of plan 4.1.
+	Labels     allowlistJSON `json:"labels"`
+	Milestones allowlistJSON `json:"milestones"`
+	Actors     []actorJSON   `json:"actors"`
+	Defaults   defaultsJSON  `json:"defaults"`
+	Lock       lockJSON      `json:"lock"`
+}
+
+// allowlistJSON is one advisory allowlist.
+//
+// It is an object rather than a bare list because the list alone is ambiguous
+// in the direction that matters. Per plan 4.1 an empty allowlist permits
+// everything, so a consumer handed an empty array and reading it the obvious
+// way concludes that nothing is permitted, which is exactly backwards and fails
+// silently. Enforced names the regime, so a consumer reading only that key is
+// still right.
+type allowlistJSON struct {
+	Values []string `json:"values"`
+	// Enforced is derived from the length of Values rather than stored, so the
+	// two cannot drift. There is no "empty and enforcing": a store that never
+	// listed a value and one that listed none are the same state, per 4.1.
+	Enforced bool `json:"enforced"`
+}
+
+// defaultsJSON is what create uses when the caller names no type or priority.
+type defaultsJSON struct {
+	Type     string `json:"type"`
+	Priority string `json:"priority"`
+	// ClaimExpiry is null when a claim does not expire on its own, which is the
+	// default, per 6.4.
+	ClaimExpiry *string `json:"claimExpiry"`
+}
+
+type lockJSON struct {
+	Timeout string `json:"timeout"`
+}
+
 // instructionsEnvelope carries the agent workflow block. The block is prose, so
 // the envelope holds it as one string rather than pretending it has structure.
 type instructionsEnvelope struct {

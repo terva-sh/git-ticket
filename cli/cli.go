@@ -118,6 +118,7 @@ func commands() []command {
 		{"remove", "delete a ticket filed by mistake", "ID [--force]", runRemove},
 		{"check", "validate every ticket in the store", "[--strict] [--fix [--dry-run]]", runCheck},
 		{"schema", "print the values and codes this binary enforces", "", runSchema},
+		{"config", "print what this store configured, including the allowlists", "", runConfig},
 		{"instructions", "print the agent workflow block for an AGENTS.md", "[--write]", runInstructions},
 		{"install-merge-driver", "configure this binary as Git's merge driver for ticket files", "", runInstallMergeDriver},
 		{"merge-driver", "resolve a ticket file mid-merge, for git's merge.*.driver", "BASE OURS THEIRS", runMergeDriver},

@@ -1587,7 +1587,7 @@ func count(n int, noun string) string {
 // any Go type in this package.
 var envelopeKinds = []string{
 	"ticket", "ticket-list", "mutation-result", "check-report", "error",
-	"schema", "instructions", "version",
+	"schema", "config", "instructions", "version",
 }
 
 // runSchema prints the values a consumer would otherwise have to read the plan
@@ -1680,6 +1680,119 @@ func runSchema(ctx *cmdContext, args []string) error {
 		fmt.Fprintf(tw, "  %s\t%s\n", f.Code, f.Severity)
 	}
 	return tw.Flush()
+}
+
+// runConfig prints what this store configured, per plan 10.6.
+//
+// It is its own command rather than more keys on schema because schema reads no
+// store, which is what lets it answer before init and outside a repository.
+// Everything here is per-store, so this one needs a store.
+func runConfig(ctx *cmdContext, args []string) error {
+	rest, err := ctx.parseFlags("config", args, nil)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 0 {
+		return usageErr("config takes no arguments")
+	}
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	cfg := s.Config()
+
+	actors := make([]actorJSON, 0, len(cfg.Actors))
+	for _, a := range cfg.Actors {
+		actors = append(actors, actorJSON{ID: a.ID, Name: a.Name})
+	}
+
+	// A claim does not expire on its own, so an unset expiry is null rather than
+	// a zero duration, which would read as "expires immediately".
+	var expiry *string
+	if e := cfg.Defaults.ClaimExpiry; e != nil && e.Duration() > 0 {
+		v := e.String()
+		expiry = &v
+	}
+
+	// The store falls back to DefaultLockTimeout when config.yml does not say,
+	// so publishing the raw zero would report 0s for a store that waits 10.
+	// What is published is what is enforced.
+	lockTimeout := cfg.Lock.Timeout.Duration()
+	if lockTimeout <= 0 {
+		lockTimeout = ticket.DefaultLockTimeout
+	}
+
+	labels := allowlist(cfg.Labels)
+	milestones := allowlist(cfg.Milestones)
+
+	if ctx.g.json {
+		writeJSON(ctx.out, configEnvelope{
+			SchemaVersion: schemaVersion,
+			Kind:          "config",
+			TicketSchema:  cfg.Schema,
+			Labels:        labels,
+			Milestones:    milestones,
+			Actors:        actors,
+			Defaults: defaultsJSON{
+				Type:        cfg.Defaults.Type,
+				Priority:    cfg.Defaults.Priority,
+				ClaimExpiry: expiry,
+			},
+			Lock: lockJSON{Timeout: lockTimeout.String()},
+		})
+		return nil
+	}
+
+	fmt.Fprintf(ctx.out, "store %s\n\n", displayPath(s, s.Path()))
+	fmt.Fprintf(ctx.out, "ticket schema %d\n\n", cfg.Schema)
+	fmt.Fprintf(ctx.out, "labels      %s\n", describeAllowlist(labels))
+	fmt.Fprintf(ctx.out, "milestones  %s\n", describeAllowlist(milestones))
+
+	if len(actors) == 0 {
+		fmt.Fprintf(ctx.out, "actors      none listed\n")
+	} else {
+		names := make([]string, 0, len(actors))
+		for _, a := range actors {
+			if a.Name == "" {
+				names = append(names, a.ID)
+				continue
+			}
+			names = append(names, fmt.Sprintf("%s (%s)", a.ID, a.Name))
+		}
+		fmt.Fprintf(ctx.out, "actors      %s\n", strings.Join(names, ", "))
+	}
+
+	claim := "claims do not expire"
+	if expiry != nil {
+		claim = "claims expire after " + *expiry
+	}
+	fmt.Fprintf(ctx.out, "defaults    type %s, priority %s, %s\n",
+		cfg.Defaults.Type, cfg.Defaults.Priority, claim)
+	fmt.Fprintf(ctx.out, "lock        timeout %s\n", lockTimeout)
+	return nil
+}
+
+// allowlist turns a configured list into the published object of plan 10.6.
+// Enforced is derived from the length rather than stored, so the two cannot
+// drift.
+func allowlist(values []string) allowlistJSON {
+	out := allowlistJSON{Values: values, Enforced: len(values) > 0}
+	if out.Values == nil {
+		// An absent collection is [] in the envelope and never null, per
+		// section 10.
+		out.Values = []string{}
+	}
+	return out
+}
+
+// describeAllowlist says what an allowlist means rather than only what it
+// holds. An empty one permits everything, per 4.1, and printing an empty line
+// there would read as the opposite.
+func describeAllowlist(a allowlistJSON) string {
+	if !a.Enforced {
+		return "none listed, so any value is permitted"
+	}
+	return strings.Join(a.Values, " ")
 }
 
 // writeMutation reports a mutation as the envelope or as one human line.

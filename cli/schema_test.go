@@ -161,6 +161,7 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		{"a check", []string{"--json", "check"}},
 		{"a failure", []string{"--json", "show", "TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ"}},
 		{"the schema", []string{"--json", "schema"}},
+		{"the config", []string{"--json", "config"}},
 		{"the instructions", []string{"--json", "instructions"}},
 		// --version is top level only, so it goes before any subcommand.
 		{"the version", []string{"--json", "--version"}},

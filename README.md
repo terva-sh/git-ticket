@@ -213,6 +213,7 @@ git ticket remove TKT-01K3ZZ2J    # a ticket filed by mistake, before anybody wo
 git ticket check --strict         # safe in CI: offline, read-only
 git ticket check --fix            # repair the two findings that have one repair
 git ticket schema                 # the values and codes this binary enforces
+git ticket config                 # what this store configured: labels, milestones, defaults
 git ticket instructions           # the agent workflow block, for an AGENTS.md
 git ticket instructions --write   # put it in AGENTS.md, or refresh it in place
 
@@ -264,6 +265,19 @@ the exclusion. The rule is an exclusion rather than a list of the open statuses,
 so a status added later is included without an edit. `git ticket schema`
 publishes the open set as `openStatuses` rather than making a consumer hard-code
 it.
+
+`schema` and `config` split the vocabulary between them. `schema` is what this
+binary enforces, identical in every store, so it answers before `init` and
+outside a repository. `config` is what one store chose: its label and milestone
+allowlists, its actors, the type and priority `create` falls back to, and the
+lock timeout. It needs a store, because that is what it describes.
+
+An allowlist comes back as `{"values": [...], "enforced": true}` rather than a
+bare list. An empty allowlist permits everything, so a consumer handed `[]` and
+reading it the obvious way would conclude the opposite. `enforced` says which
+rule is in force. Both lists stay advisory either way: an unlisted label still
+writes, and `check` reports `label_unknown` as a warning, which is where
+`check --strict` fails a build.
 
 `search` takes a regular expression and matches it against the title and the
 body, and it takes every filter `list` takes, so you narrow by status or type

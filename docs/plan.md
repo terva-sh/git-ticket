@@ -1216,9 +1216,9 @@ Every machine-readable operation emits a versioned envelope on stdout:
 ```
 
 Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, `error`,
-`schema`, `instructions`, and `version`. Absent scalars are `null` and absent
-collections are `[]`, always present rather than omitted, so a consumer never
-has to distinguish missing from empty.
+`schema`, `config`, `instructions`, and `version`. Absent scalars are `null` and
+absent collections are `[]`, always present rather than omitted, so a consumer
+never has to distinguish missing from empty.
 
 A mutation result:
 
@@ -1524,7 +1524,7 @@ values without reading this document or hard-coding them:
   "schemaVersion": 1,
   "kind": "schema",
   "ticketSchema": 1,
-  "kinds": ["ticket", "ticket-list", "mutation-result", "check-report", "error", "schema"],
+  "kinds": ["ticket", "ticket-list", "mutation-result", "check-report", "error", "schema", "config", "instructions", "version"],
   "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
   "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
@@ -1572,6 +1572,10 @@ disagree.
 This command reads no store. It answers outside a repository and before `init`,
 because a consumer asks what is legal before it has anything to ask about.
 
+That is also why the label and milestone allowlists are not here. They are
+per-store rather than facts about the binary, so they would make this answer
+depend on where it ran. `config`, in 10.6, is where they live.
+
 ### 10.5 The instructions kind
 
 `instructions` carries the agent workflow block of 12.1 as one string:
@@ -1591,6 +1595,64 @@ read.
 current. That is the kind for a command that changed files, and this one did.
 
 Like `schema`, it reads no store and answers anywhere.
+
+### 10.6 The config kind
+
+`config` prints what this store configured, which is the half of the vocabulary
+`schema` cannot answer for:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "config",
+  "ticketSchema": 1,
+  "labels": { "values": ["ci", "format", "release"], "enforced": true },
+  "milestones": { "values": [], "enforced": false },
+  "actors": [{ "id": "human:sothr", "name": "Drew Short" }],
+  "defaults": { "type": "task", "priority": "normal", "claimExpiry": null },
+  "lock": { "timeout": "10s" }
+}
+```
+
+It is a separate kind rather than more keys on `schema` because of the last line
+of 10.4. `schema` reads no store, so it answers before `init` and outside a
+repository, and that is the property that lets a consumer ask what is legal
+before it has anything to ask about. Labels and milestones are per-store, so
+putting them in that envelope would make the same command answer differently
+depending on where it ran, and would cost `schema` the one guarantee that makes
+it useful early. The split is the whole design: `schema` is what the binary
+enforces and is identical everywhere, `config` is what this store chose.
+
+This command reads a store and needs one, which is what separates it from the
+other two commands that answer a question rather than reporting on tickets.
+
+An allowlist is an object and not a bare list, because the list alone is
+ambiguous in the direction that matters. Per 4.1 an empty allowlist permits
+everything, so a consumer handed `"labels": []` and reading it the obvious way
+concludes that no label is permitted, which is exactly backwards, and the
+mistake is silent. `enforced` names the regime, and a consumer that reads only
+that key is still right.
+
+`enforced` is derived from the length of `values` rather than stored, so the two
+cannot drift, for the reason `openStatuses` is derived from `statuses`.
+
+There is no way to say "empty and enforcing". A store that never listed a label
+and a store that listed none are the same state, because 4.1 gives an empty list
+the meaning "this store has not expressed an opinion" rather than "this store
+permits nothing". This envelope reports which regime is in force instead of
+inventing a distinction the format does not carry.
+
+Publishing an allowlist does not make it stricter. It stays advisory, per 4.1: a
+write naming a label outside the list succeeds, and `check` reports
+`label_unknown` as a warning, so it is `check --strict` where an unlisted label
+fails a build. Anything else is a change to enforcement rather than to what is
+published, and belongs in its own decision.
+
+`actors`, `defaults`, and `lock` are here for the same reason the allowlists
+are. Each is per-store, each changes what a caller should send, and none of them
+was reachable except by reading `config.yml`. `defaults` says what `create` uses
+when the caller names no type or priority, and `claimExpiry` is null when a
+claim does not expire on its own.
 
 ## 11. Validation
 
@@ -1769,6 +1831,7 @@ git ticket remove ID [--force]   # delete a ticket filed by mistake, per 9.1
 git ticket migrate [--to N] [--dry-run]
 git ticket instructions [--write]
 git ticket schema
+git ticket config   # what this store configured, including the allowlists
 ```
 
 Global flags: `--json`, `--store PATH`, `--if-revision R`, `--actor ID`,

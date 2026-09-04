@@ -30,10 +30,24 @@ Phase 2, the standalone CLI in section 12.1, has all 24 commands. `cmd/git-ticke
 and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 `ready`, `status`, `claim`, `release`, `link`, `unlink`, `deps`, `files`, `ac`,
 `dod`, `note`, `comment`, `summary`, `archive`, `unarchive`, `check`, `schema`,
-and `instructions`, each in a human form and behind `--json`. Five more landed
-after Phase 2, taking the binary to 29: `plan`, `refs`, `remove`,
-`install-merge-driver`, and `merge-driver`. All seven JSON kinds of section 10
+and `instructions`, each in a human form and behind `--json`. Six more landed
+after Phase 2, taking the binary to 30: `plan`, `refs`, `remove`, `config`,
+`install-merge-driver`, and `merge-driver`. All nine JSON kinds of section 10
 have a test, and every write honours `--if-revision`.
+
+`schema` and `config` split the vocabulary and the split is load-bearing.
+`schema` is what the binary enforces, identical in every store, and plan 10.4
+requires it to read no store so it answers before `init` and outside a
+repository. `config` is what one store chose, per 10.6: the label and milestone
+allowlists, the actors, the `create` defaults, and the lock timeout. Do not move
+a per-store value into `schema`, because that costs `schema` the one property
+that makes it useful early.
+
+An allowlist publishes as `{"values": [...], "enforced": bool}` and never as a
+bare list. Per plan 4.1 an empty allowlist permits everything, so a consumer
+handed `[]` reads it backwards and fails silently. `enforced` is derived from
+the length, so the two cannot drift. Both allowlists are advisory: an unlisted
+label still writes and `check` warns, which is where `check --strict` bites.
 
 The agent workflow block lives at `cli/instructions.md`, embedded with
 `go:embed`. Edit the Markdown, not a Go string.

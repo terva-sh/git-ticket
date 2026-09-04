@@ -251,6 +251,15 @@ lock:
   timeout: 10s
 ```
 
+`actors` names who writes to this store, and every write resolves one of three
+ways. An explicit `--actor` wins. With none, the store takes the first entry
+here, which is why an agent that omits the flag files its work under whoever
+heads the list. A store listing no actor refuses the write instead, as
+`invalid_field` saying `config.yml` lists none. The fallback is a convenience
+for a store with one writer, not a default identity for a store with several,
+which is why 12.1 has the agent block open by telling an agent to pass
+`--actor`.
+
 `labels` and `milestones` are advisory allowlists: `check` warns about a value
 outside one and never errors. Configuration sets defaults and vocabulary. It
 cannot add a status, change a transition rule, or grant a consumer authority it
@@ -1913,6 +1922,17 @@ has changed since.
 claim it, record what it learned, and finish, and it names only commands this
 binary has. A test holds it to that, because prose that tells a reader to run
 something that does not exist is worse than no prose.
+
+It opens by telling an agent to pass `--actor` on every write, as
+`agent:tool/session`. That is the block's first instruction because it is the
+one whose absence is silent: with no flag the store falls back to the first
+actor in `config.yml`, per 4.1, which is usually a person, so an agent's notes
+arrive under their name and its claim reports a human holding the ticket. The
+record is wrong and nothing downstream says so. Nor does committing repair it,
+for the reason 5.3 gives: a commit carries the committer's Git identity while an
+actor is a session, so a commit collapses every actor in the store into one
+person. The provenance pair is only worth storing if the writes that fill it say
+who was writing.
 
 It also carries one rule about writing rather than about running: an agent
 naming a ticket in prose writes the title beside the ID the first time, as

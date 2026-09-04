@@ -5,6 +5,20 @@
 Work is tracked as Markdown tickets in `.tickets/`, managed with `git ticket`.
 Run `git ticket help` for the full command list.
 
+Every write records who made it, and `--actor` is how you say. Name yourself on
+every command that writes, as `agent:tool/session`:
+
+```sh
+git ticket note TKT-01M1PQ7T "..." --actor agent:terva/mieli
+```
+
+With no `--actor` the store falls back to the first actor in `config.yml`, which
+is usually a person. Your notes then arrive signed with their name, and your
+claim tells every other agent that a human is holding the ticket. Nothing
+downstream repairs it: a commit carries the committer's Git identity while an
+actor is a session, so committing collapses every agent that touched the store
+into whoever ran `git commit`.
+
 ### Finding work
 
 `git ticket ready` lists what is open, unblocked, and has every dependency
@@ -29,8 +43,16 @@ Promotion is where somebody weighs this work against everything you cannot see,
 so an agent that promotes its own next ticket has appointed itself.
 
 Read the whole ticket with `git ticket show ID` before you start, including its
-acceptance criteria and its dependencies. Anywhere an ID is taken, a unique
-prefix works, with or without the `TKT-` part.
+acceptance criteria and its dependencies. `show` is also how you read the
+criteria at all: `git ticket ac ID` with no flag is a refusal rather than a
+listing.
+
+Anywhere an ID is taken, a unique prefix works, with or without the `TKT-` part,
+down to four characters. Do not shorten one yourself. A ULID opens with about
+ten characters of timestamp, so tickets filed in the same session are identical
+that far in and a prefix that looks distinctive comes back `ambiguous_id`. Copy
+the ID from `git ticket list`, which already shortens each row to what resolves
+across this store.
 
 Before you change a file, `git ticket files PATH` lists the tickets that
 recorded a reference to it. It reports what other agents wrote, so it is only as
@@ -63,8 +85,17 @@ While you work:
 - `git ticket ac ID --check N` ticks an acceptance criterion. N counts checkbox
   lines from one, not array positions.
 
+Leave unticked any criterion you could not satisfy. Nothing reports an empty
+box, so an honest one costs nothing, while a tick you did not earn costs the
+next reader their trust in every other box on the ticket. Say what stopped you
+in a note.
+
 Finish with `git ticket summary ID "..."` saying where it landed, then
 `git ticket status ID done` and `git ticket release ID`.
+
+`note` appends and `summary` replaces, as `plan` does. So a summary is rewritten
+by setting it again, while a note you got wrong stays where it is: correct it by
+adding another that says which one it supersedes.
 
 If you cannot proceed, `git ticket status ID blocked --reason "..."`. The
 reason is required, because a blocked ticket that does not say why tells the
@@ -157,6 +188,12 @@ work.
 Add `--json` to any command for one envelope on stdout with a stable error
 `code` to switch on. `git ticket schema` prints the legal statuses, types,
 priorities, transitions, and codes, so read those rather than hard-coding them.
+
+Three shapes are worth knowing before you parse one. A write answers with
+`mutation-result`, whose `ticket` is a `{id, revision}` stub and not the ticket,
+so read the body back with `show --json` when you need it. `check` answers with
+`errors` and `warnings` as two arrays and no combined `findings` key. Body
+sections come back camelCase, as `implementationPlan` and `acceptanceCriteria`.
 
 Every write takes `--if-revision R` and refuses if the ticket moved since you
 read it. Pass it whenever you read, decide, and then write, which is most of

@@ -97,10 +97,14 @@ is how a branch finds out it is wrong. The mirror is not a backup and does not
 want your daily commits. Push it when there is something to release, which means
 a tag, and let a release carry the commits behind it.
 
-The reason is where the work runs. `origin` builds on the instance's own
-runners, which cost nothing but their own capacity. The mirror is on public
-infrastructure, so every push there spends somebody else's runners on work that
-is not finished.
+The reason is what a push publishes, not what it costs to run. A push to the
+mirror puts unfinished history in front of anyone reading the public repository,
+and `main` there is what a visitor takes for the project. Runners are not the
+argument: the mirror's only workflow is `.github/workflows/release.yml`, which
+triggers on `push` of a `v*` tag and nothing else, so a branch push starts no
+run at all. Pushing three docs commits took the mirror's run count from 2 to 2.
+A tag is what spends public capacity, and a tag is the thing worth spending it
+on.
 
 `main` moves by merging a PR, so the mirror push comes after the merge, from a
 local `main` that has just been fast-forwarded:

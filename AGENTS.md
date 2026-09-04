@@ -605,11 +605,23 @@ a build that succeeds while shipping a binary that disagrees with its own tag.
 `go list -m` answers from the local module cache before it asks the proxy, so it
 can report a hash that was never published. Verifying v0.6.0 returned
 `Origin.Hash = e40405b`, a commit on neither remote and in no clone, which reads
-exactly like a botched tag. The cached `.info` was dated seven hours before the
-tag existed and carried no `URL` field under `Origin`, which is the signature of
-a direct local-VCS resolution rather than a proxy fetch: some worktree had its
-own `v0.6.0` at that commit. The published tag was right the whole time. Ask for
+exactly like a botched tag. The published tag was right the whole time. Ask for
 `@v/$TAG.info` over HTTP instead, which has no local cache to answer from. Clear
 a poisoned entry by removing
 `$(go env GOMODCACHE)/cache/download/github.com/terva-sh/git-ticket/@v/$TAG.*`,
 which is read-only and needs `chmod u+w` on the directory and the files first.
+
+The proving run above is where that entry came from. It tagged a scratch clone
+`v0.6.0` at `e40405b` to watch goreleaser stamp a real version, and a
+`v0.6.0.info` naming that commit appeared in the shared module cache. The clone
+was thrown away and the commit reached no remote, but the cache entry outlived
+both and was still sitting there when the real v0.6.0 was tagged seven hours
+later. Prove a release with a number you will never ship. The same run also used
+`v9.9.9` and that left no entry behind, because nothing ever asks the cache for
+it again.
+
+Do not try to tell a poisoned entry from a good one by reading it. The obvious
+tell is wrong: `Origin.URL` is absent from 68 of the 72 entries cached here, and
+both a proxy fetch and a `GOPROXY=direct` fetch write it, so its absence
+separates nothing. Which invocation writes a `URL`-less entry was never pinned
+down. Compare the hash against `git rev-parse` and do not read the tea leaves.

@@ -2675,6 +2675,62 @@ stale index. The verification command is `check --fix --dry-run --strict`, and
 without `--strict` a job goes green over the exact condition it was added to
 catch.
 
+**A hand-set order in the format** (`TKT-01M1HPCJH5RWSA6Z28QM3QV1H0`). Whether a
+ticket carries an ordinal somebody sets. Raised by reading Backlog.md, section
+B6 of `docs/review-backlog-md.md`. `List` sorts by ID, which 5.5 makes
+chronological because a ULID sorts by creation time, so the only sequence this
+format can express is the order tickets were filed in.
+
+Half of it is already answered, and the half that is left is the one no flag
+reaches. Sorting a listing is display, and display needs no format change:
+`list --sort priority` and `ready` ranking by priority arrived with
+`TKT-01M1J2YR9D5242F6H7TPEV4M8K`, a flag over data every consumer already had.
+A sequence set by hand is different, because no interface can persist a field
+the format does not define. Backlog.md keeps an ordinal per task, and that is
+what makes its drag-and-drop stick.
+
+The trigger is a board with reorderable columns, or a request for an order
+inside one priority level where a fifth priority is not the answer. Neither has
+happened.
+
+The cost, if it is ever met, is a frontmatter field on every ticket under 5.3,
+which means every fixture. The harder part is that an ordinal would be the first
+field whose value means nothing alone and only means something against its
+neighbours. 7.5 changed what that costs rather than removing it. Concurrent
+inserts now have somewhere to be resolved, which is one row in the field table,
+and the honest entry for that row may well be conflict, because two agents
+inserting at the same position genuinely disagree.
+
+**Reading tickets from other branches** (`TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG`).
+Whether a query answers from more than the working tree. Raised by reading
+Backlog.md, section D of `docs/review-backlog-md.md`, and the one place their
+design is ahead of this one on a problem this repository actually has.
+
+Every query reads the working tree alone, so a ticket claimed and moved to
+`in-progress` in another worktree is invisible until the branch merges. That is
+the situation `AGENTS.md` describes as ordinary here: several agents at once, in
+separate worktrees, each holding a `main` it believes is current.
+
+The trigger is two agents claiming the same ticket because neither could see the
+other's claim. It has not fired, and the pull request rule is what has been
+absorbing the pressure.
+
+The merge driver does not cover this, and reading 7.5 as though it did would be
+a mistake. 7.5 resolves two edits to one ticket file once Git is already merging
+them. This question is about the window before that, when a claim exists on a
+branch nobody has merged yet.
+
+On shape, if the trigger fires. The reads are honest reads, so 7.4 permits them,
+but `ls-tree` and the `log` behind any modification time are absent from that
+table and would each need a row with its reason before code ran them. Do not
+copy Backlog.md's conflict rule, which resolves two branches by file mtime and
+offers a configuration knob to pick which guess to make. A claim block carries
+an actor and a timestamp and answers the question properly, which is an
+advantage this format has and theirs does not. Open beyond the mechanism is
+whether cross-branch reads are a flag or a store setting, and whether a result
+marks the branch it came from, because a merged view with no provenance would
+let an agent claim a ticket whose file it cannot see.
+
 ## 16. References
 
 - [Backlog.md](https://github.com/MrLesk/Backlog.md) and its

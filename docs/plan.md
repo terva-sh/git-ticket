@@ -1225,6 +1225,25 @@ A mutation result:
 }
 ```
 
+`remove` emits this kind too, carrying the id and the revision the ticket had
+and the path it no longer occupies. It is a write like any other and reports
+like one.
+
+The `ticket` stub holds an identity rather than a body because a caller wanting
+the whole thing asks `show` for it. `remove` is the one command that breaks that
+reasoning, since `show` afterwards is `ticket_not_found`. It keeps the stub
+regardless. A caller needing the body reads it before removing, the library hands
+`Store.Remove` callers the removed ticket in full, and Git has it whenever the
+file was committed. Adding a key that carries the body is additive under 12.4
+and can happen when a consumer needs one, while removing a key that shipped is a
+break, so the smaller envelope is the reversible way round.
+
+That leaves one sharp edge worth stating: a ticket created and removed without an
+intervening commit is gone, because Git never saw it. This is the ordinary case
+rather than the exotic one, since the mis-sectioned ticket of 9.1 is usually
+fixed in the session that filed it. What survives is what the caller already had,
+which is the text it meant to write.
+
 An error leaves stdout empty in human mode and writes the envelope to stdout in
 `--json` mode, with the message on stderr in both, and exits nonzero:
 

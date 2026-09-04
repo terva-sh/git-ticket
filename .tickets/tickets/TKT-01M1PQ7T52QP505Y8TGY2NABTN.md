@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1PQ7T52QP505Y8TGY2NABTN
 title: Build git ticket remove, per plan 9.1
 type: task
-status: draft
+status: in-progress
 status_reason: null
 priority: normal
 due_on: null
@@ -15,10 +15,16 @@ dependencies:
   - TKT-01M1PCYC14VD3TJYDE1EWC671Y
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: feat/remove-command
+  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
+  commit: ab392e505b2943d8cee490964d088191a1e22c3a
+  claimed_at: 2026-09-04T17:32:25Z
+  expires_at: null
 archive: null
 created_at: 2026-09-04T17:25:07Z
-updated_at: 2026-09-04T17:26:29Z
+updated_at: 2026-09-04T17:44:07Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -69,3 +75,31 @@ direction and is the thing to reuse.
 Removing an epic leaves `epics.md` stale. That is `epics_index_stale`, which
 `check --fix` already repairs, and this command should not rewrite the index
 itself.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-04T17:44:07Z
+
+Parked mid-build to take the ticket-title work first. Claimed and in-progress on
+`feat/remove-command`, which holds one commit and nothing else.
+
+Done so far: plan section 10 records which kind carries a removed ticket.
+`remove` emits `mutation-result` with the id, the revision the ticket had, and
+the path it no longer occupies. It keeps the two-key `ticket` stub even though
+`remove` is the one command that breaks the stub's stated justification, since
+`show` afterwards is `ticket_not_found`. Adding a key that carries the body is
+additive under 12.4 and removing one is a break, so the smaller envelope is the
+reversible way round. The sharp edge is recorded there too: a ticket created and
+removed without an intervening commit is gone, because Git never saw it.
+
+Not started: `Store.Remove`, the CLI command, the tests, and the doc updates
+that turn 9.1 from "not built" into built.
+
+Two findings from the survey worth keeping, so they are not re-derived:
+
+`Deps` with `Dependents` walks `dependencies` only and never `parent`, so the
+referential refusal needs its own scan over both rather than reusing it.
+
+`Finding` carries exactly `Code`, `File`, `Ticket`, `Field`, with `Message`
+already `json:"-"`. That precedent is what lets a human-only field be added to a
+finding without touching the fixture sidecars.

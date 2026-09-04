@@ -398,6 +398,13 @@ because a missing expectation cannot be told apart from a forgotten one.
 Time-dependent behaviour uses the fixed reference instant
 `2026-09-30T00:00:00Z`. Inject it. Never read the system clock in a test.
 
+A claim about mechanism goes into a permanent file only after you ran the thing
+that would falsify it. `docs/plan.md`, this file, and a tag message all outlive
+the session that wrote them, so a wrong explanation costs a later reader more
+than no explanation would. PR #88 shipped a guess about `Origin.URL` that read
+like a finding, and #89 withdrew it. Write what you observed, or run the test
+that settles it.
+
 ## Policy
 
 This repository owns the format, the store, validation, and the CLI. Nothing
@@ -625,3 +632,10 @@ tell is wrong: `Origin.URL` is absent from 68 of the 72 entries cached here, and
 both a proxy fetch and a `GOPROXY=direct` fetch write it, so its absence
 separates nothing. Which invocation writes a `URL`-less entry was never pinned
 down. Compare the hash against `git rev-parse` and do not read the tea leaves.
+
+A release number comes from plan 12.4, not from the size of the diff. Under
+`v0.x` a break bumps the minor and everything else bumps the patch, so v0.5.1
+shipped a set of new flags as a patch and said so in its tag message. v0.6.0 is
+a minor because `title_too_long` refuses a write that used to work, not because
+19 commits landed. Read what an earlier release decided with
+`git tag -l v0.5.1 -n99` before picking one.

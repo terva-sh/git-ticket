@@ -109,16 +109,33 @@ func commonPrefixLen(a, b string) int {
 // included, because what a listing prints gets pasted into a command that
 // resolves against all of them.
 //
+// shown is the listing about to be printed, and its IDs join the set. They are
+// usually already in the store, but a cross-branch row is a ticket that lives
+// only on another ref, and leaving those out got both halves wrong: such a row
+// printed its full ID because nothing shortened it, and a working-tree row
+// could shorten to a prefix that is ambiguous against the row printed beneath
+// it. A prefix a reader can see two matches for is worse than a long ID.
+//
 // A failure here costs only brevity, so it falls back to full IDs rather than
 // failing a read the caller asked for.
-func storeAbbreviations(s *ticket.Store) map[string]string {
+func storeAbbreviations(s *ticket.Store, shown []*ticket.Ticket) map[string]string {
 	all, err := s.List(context.Background(), ticket.Filter{All: true})
 	if err != nil {
 		return nil
 	}
-	ids := make([]string, 0, len(all))
+	seen := make(map[string]bool, len(all)+len(shown))
+	ids := make([]string, 0, len(all)+len(shown))
 	for _, t := range all {
-		ids = append(ids, t.ID)
+		if !seen[t.ID] {
+			seen[t.ID] = true
+			ids = append(ids, t.ID)
+		}
+	}
+	for _, t := range shown {
+		if !seen[t.ID] {
+			seen[t.ID] = true
+			ids = append(ids, t.ID)
+		}
 	}
 	return shortestUnique(ids)
 }
@@ -399,6 +416,7 @@ func runList(ctx *cmdContext, args []string) error {
 		dueBy     string
 		sortBy    string
 		all       bool
+		cross     bool
 	)
 	rest, err := ctx.parseFlags("list", args, func(fs *flag.FlagSet) {
 		fs.Var(&status, "status", "a status to include, repeatable")
@@ -411,6 +429,7 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.StringVar(&dueBy, "due-by", "", "only tickets due on or before this YYYY-MM-DD date")
 		fs.StringVar(&sortBy, "sort", sortByID, "order the result: "+strings.Join(sortOrders, ", "))
 		fs.BoolVar(&all, "all", false, "include every status, done and archived too")
+		fs.BoolVar(&cross, "cross-branch", false, "also read the recent local and remote-tracking refs, per plan 8")
 	})
 	if err != nil {
 		return err
@@ -454,15 +473,16 @@ func runList(ctx *cmdContext, args []string) error {
 	}
 
 	tickets, err := s.List(context.Background(), ticket.Filter{
-		Status:    status,
-		Type:      kind,
-		Priority:  priority,
-		Labels:    labels,
-		Assignees: assignees,
-		Milestone: milestone,
-		Parent:    parents,
-		DueBy:     dueBy,
-		All:       all,
+		Status:      status,
+		Type:        kind,
+		Priority:    priority,
+		Labels:      labels,
+		Assignees:   assignees,
+		Milestone:   milestone,
+		Parent:      parents,
+		DueBy:       dueBy,
+		All:         all,
+		CrossBranch: cross,
 	})
 	if err != nil {
 		return err
@@ -479,7 +499,7 @@ func runList(ctx *cmdContext, args []string) error {
 		ticket.SortByPriority(tickets)
 	}
 
-	return ctx.writeTicketList(s, tickets, "No tickets match.")
+	return ctx.writeTicketListWith(s, tickets, "No tickets match.", listView{CrossBranch: cross})
 }
 
 // resolveID turns a user-typed reference into the canonical ID the library
@@ -884,7 +904,10 @@ func runSearch(ctx *cmdContext, args []string) error {
 // runReady lists what could be started now: status ready, no live claim, and
 // every dependency satisfied, per plan section 8.
 func runReady(ctx *cmdContext, args []string) error {
-	rest, err := ctx.parseFlags("ready", args, nil)
+	var cross bool
+	rest, err := ctx.parseFlags("ready", args, func(fs *flag.FlagSet) {
+		fs.BoolVar(&cross, "cross-branch", false, "also read the recent local and remote-tracking refs, per plan 8")
+	})
 	if err != nil {
 		return err
 	}
@@ -896,11 +919,14 @@ func runReady(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	tickets, err := s.Ready(context.Background())
+	// With --cross-branch a live claim on any scanned ref makes a ticket not
+	// ready, which is the whole point: the failure this guards against is two
+	// agents claiming one ticket because neither could see the other.
+	tickets, err := s.ReadyWith(context.Background(), ticket.ReadyOptions{CrossBranch: cross})
 	if err != nil {
 		return err
 	}
-	return ctx.writeTicketList(s, tickets, "Nothing is ready to pick up.")
+	return ctx.writeTicketListWith(s, tickets, "Nothing is ready to pick up.", listView{CrossBranch: cross})
 }
 
 // runFiles finds the tickets that recorded a reference to a path.
@@ -1830,10 +1856,22 @@ func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human 
 // emits the same kind, and each supplies its own line for an empty answer,
 // because "nothing" means something different to search and to ready.
 func (ctx *cmdContext) writeTicketList(s *ticket.Store, tickets []*ticket.Ticket, empty string) error {
+	return ctx.writeTicketListWith(s, tickets, empty, listView{})
+}
+
+// listView says what the listing was read from, so the explanation beside it is
+// computed over the same set. A cross-branch listing explained by a
+// working-tree readiness reports no reason at all for a row that lives only on
+// another ref.
+type listView struct {
+	CrossBranch bool
+}
+
+func (ctx *cmdContext) writeTicketListWith(s *ticket.Store, tickets []*ticket.Ticket, empty string, v listView) error {
 	if ctx.g.json {
 		// One call for the whole listing. Readiness reads the store to resolve
 		// dependencies, so asking per row would re-read it per row.
-		ready, err := s.Readiness(context.Background())
+		ready, err := s.ReadinessWith(context.Background(), ticket.ReadyOptions{CrossBranch: v.CrossBranch})
 		if err != nil {
 			return err
 		}
@@ -1860,7 +1898,7 @@ func (ctx *cmdContext) writeTicketList(s *ticket.Store, tickets []*ticket.Ticket
 		fmt.Fprintln(ctx.out, empty)
 		return nil
 	}
-	writeListHuman(ctx.out, tickets, storeAbbreviations(s))
+	writeListHuman(ctx.out, tickets, storeAbbreviations(s, tickets))
 	return nil
 }
 

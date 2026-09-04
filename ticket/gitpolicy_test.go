@@ -118,7 +118,12 @@ func TestPlanAllowlistIsSection74Alone(t *testing.T) {
 		got = append(got, command)
 	}
 	sort.Strings(got)
-	const want = "config, rev-parse, symbolic-ref"
+	// Grown once since this line was written, for cross-branch reads. 7.4 gained
+	// `for-each-ref` for the refs worth reading and their commit dates,
+	// `ls-tree` for the ticket files on one ref, and `cat-file` for the contents
+	// a tree listing names without opening. Each arrived with the code that runs
+	// it, which is the sequencing the guard is here to enforce.
+	const want = "cat-file, config, for-each-ref, ls-tree, rev-parse, symbolic-ref"
 	if joined := strings.Join(got, ", "); joined != want {
 		t.Errorf("the allowlist is [%s], want [%s]. If plan 7.4 gained a row, add it here too and say why", joined, want)
 	}

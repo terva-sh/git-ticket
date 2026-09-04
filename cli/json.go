@@ -217,6 +217,7 @@ type ticketJSON struct {
 	ID           string          `json:"id"`
 	Revision     string          `json:"revision"`
 	Path         *string         `json:"path"`
+	Branch       *string         `json:"branch"`
 	Schema       int             `json:"schema"`
 	Title        string          `json:"title"`
 	Type         string          `json:"type"`
@@ -364,6 +365,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 		ID:           t.ID,
 		Revision:     t.Revision,
 		Path:         optionalString(displayPath(s, t.Path)),
+		Branch:       optionalString(t.Branch),
 		Schema:       t.Schema,
 		Title:        t.Title,
 		Type:         t.Type,

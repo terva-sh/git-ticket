@@ -22,7 +22,7 @@ func TestReadinessReasonNamesEveryStatus(t *testing.T) {
 	for _, status := range Statuses {
 		t.Run(status, func(t *testing.T) {
 			tk := &Ticket{ID: "TKT-01K3ZZAAA000000000000001", Status: status}
-			r := readinessOf([]*Ticket{tk}, referenceInstant)[tk.ID]
+			r := readinessOf([]*Ticket{tk}, referenceInstant, nil)[tk.ID]
 
 			if status == StatusReady {
 				if !r.Ready || r.Reason != "" {
@@ -100,7 +100,7 @@ func TestReadinessReasonPrecedence(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			all := []*Ticket{blocker, c.ticket}
-			r := readinessOf(all, referenceInstant)[c.ticket.ID]
+			r := readinessOf(all, referenceInstant, nil)[c.ticket.ID]
 			if r.Reason != c.want {
 				t.Errorf("reason = %q, want %q", r.Reason, c.want)
 			}
@@ -119,7 +119,7 @@ func TestReadinessReasonPopulatesTheSlicesToo(t *testing.T) {
 		Dependencies: []string{blocker.ID},
 	}
 
-	r := readinessOf([]*Ticket{blocker, draft}, referenceInstant)[draft.ID]
+	r := readinessOf([]*Ticket{blocker, draft}, referenceInstant, nil)[draft.ID]
 
 	if r.Reason != StatusDraft {
 		t.Errorf("reason = %q, want draft", r.Reason)
@@ -155,7 +155,7 @@ func TestReasonIsEmptyExactlyWhenReady(t *testing.T) {
 		}
 	}
 
-	got := readinessOf(all, referenceInstant)
+	got := readinessOf(all, referenceInstant, nil)
 	for _, tk := range all {
 		r := got[tk.ID]
 		if r.Ready != (r.Reason == "") {
@@ -211,7 +211,7 @@ func TestExpiredClaimIsNotAReason(t *testing.T) {
 		Claim: &Claim{Actor: "agent:other/session", ExpiresAt: &past},
 	}
 
-	r := readinessOf([]*Ticket{tk}, referenceInstant)[tk.ID]
+	r := readinessOf([]*Ticket{tk}, referenceInstant, nil)[tk.ID]
 
 	if !r.Ready || r.Reason != "" {
 		t.Errorf("got %+v, want ready with no reason: the claim has expired", r)

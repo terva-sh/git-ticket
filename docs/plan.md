@@ -793,12 +793,15 @@ it. This is the enumerated list, and a test holds the source to it.
 | `rev-parse` | the repository root for path resolution, the common Git directory for the lock, and `HEAD` for the commit a claim records |
 | `symbolic-ref` | the branch a claim records. It fails on a detached HEAD, and that is what tells the two apart |
 | `config` | `install-merge-driver` sets `merge.gitticket.name` and `merge.gitticket.driver`, and reads them back to report what it changed |
+| `for-each-ref` | the refs a cross-branch query considers and the last commit date of each, which is the recency filter it applies before reading any tree, per section 8. `%(symref)` comes back too, so `origin/HEAD` can be skipped rather than read twice under a second name |
+| `ls-tree` | the ticket files on one ref and the blob name of each, for a cross-branch query. It reads a named tree object and never the working tree and never the index |
+| `cat-file` | one ticket as it stands on one ref, by the blob name `ls-tree` gave. Listing a tree names files without opening them, so a cross-branch read needs both, and the blob name is what lets a version shared by ten branches be read once |
 
-The first two only read. `config` writes, and the exception is narrow on purpose:
-it touches `.git/config` alone, never history, the index, or a tracked file, and
-it runs from `install-merge-driver` and from no other command. Somebody typing
-that command is asking for exactly that write, which is the whole of what it
-does.
+Every row but `config` only reads. `config` writes, and the exception is narrow
+on purpose: it touches `.git/config` alone, never history, the index, or a
+tracked file, and it runs from `install-merge-driver` and from no other command.
+Somebody typing that command is asking for exactly that write, which is the
+whole of what it does.
 
 Every call goes through one helper per package, `runGit` in `ticket` and
 `readGit` or `writeGit` in `cli`, and `TestGitCommandsAreReadOnly` asserts three
@@ -1157,6 +1160,12 @@ bounds the scan; that window comes from the mechanism described in section D of
 `docs/review-backlog-md.md`. Each surviving ref is read with `ls-tree` over the
 whole `.tickets/` subtree rather than `.tickets/tickets/`, because the store
 partitions by status and a file's directory is its status.
+
+`ls-tree` names the files and their blobs without opening them, so `cat-file`
+reads the ones that matter. It is addressed by blob rather than by path and ref,
+which is what makes the scan affordable: a ticket nobody has touched is the same
+blob on every branch, so the cost is one read per distinct version rather than
+one per ticket per ref.
 
 **Which copy wins.** The working tree is one source among the refs, not a
 privileged one, and the copy with the later `updated_at` wins. Every mutation

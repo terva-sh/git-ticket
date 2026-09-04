@@ -50,6 +50,14 @@ type Filter struct {
 	// thing: everything-except-archived plus archived was everything. 12.4
 	// records the rename.
 	All bool
+	// CrossBranch widens the read from the working tree to the recent local and
+	// remote-tracking refs, per plan section 8. Off by default, because it asks
+	// a different question than what is in my tree and the caller is the one who
+	// knows which they want.
+	//
+	// The filters above apply to the merged answer, so --status ready with this
+	// set means ready wherever the winning copy came from.
+	CrossBranch bool
 }
 
 // wantsTerminal reports whether a terminal status belongs in the result. The
@@ -223,8 +231,7 @@ func (s *Store) tickets(ctx context.Context) ([]*Ticket, error) {
 			out = append(out, f.Ticket)
 		}
 	}
-	// ULIDs sort by creation time, so this is chronological for free.
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	sortByID(out)
 	return out, nil
 }
 
@@ -233,6 +240,13 @@ func (s *Store) List(ctx context.Context, f Filter) ([]*Ticket, error) {
 	all, err := s.tickets(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if f.CrossBranch {
+		view, err := s.crossBranchView(ctx, all)
+		if err != nil {
+			return nil, err
+		}
+		all = view.Tickets
 	}
 	out := make([]*Ticket, 0, len(all))
 	for _, t := range all {
@@ -398,11 +412,32 @@ type Readiness struct {
 // One call builds the index once, so a caller explaining a whole listing does
 // not re-read the store per row.
 func (s *Store) Readiness(ctx context.Context) (map[string]Readiness, error) {
+	return s.ReadinessWith(ctx, ReadyOptions{})
+}
+
+// ReadinessWith is Readiness over the same view ReadyWith reads.
+//
+// A cross-branch listing has to explain itself with this rather than with
+// Readiness, because a ticket living only on another ref is absent from the
+// working-tree map and would come back as the zero Readiness: not ready, not
+// blocked, and no reason. That combination is the complaint section 15 records
+// against readiness before it carried a reason at all, and answering it again
+// from a wider listing would be the same bug with a new cause.
+func (s *Store) ReadinessWith(ctx context.Context, o ReadyOptions) (map[string]Readiness, error) {
 	all, err := s.tickets(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return readinessOf(all, s.now()), nil
+	var elsewhere map[string]bool
+	if o.CrossBranch {
+		view, err := s.crossBranchView(ctx, all)
+		if err != nil {
+			return nil, err
+		}
+		all = view.Tickets
+		elsewhere = view.ClaimedElsewhere
+	}
+	return readinessOf(all, s.now(), elsewhere), nil
 }
 
 // Ready returns the tickets that can be started now: status ready, no live
@@ -415,11 +450,34 @@ func (s *Store) Readiness(ctx context.Context) (map[string]Readiness, error) {
 // It filters on the same verdict Readiness computes rather than repeating the
 // rule, so the query and the field cannot come to disagree about one ticket.
 func (s *Store) Ready(ctx context.Context) ([]*Ticket, error) {
+	return s.ReadyWith(ctx, ReadyOptions{})
+}
+
+// ReadyOptions widens what Ready reads. It is a separate type rather than a
+// parameter on Ready so that adding to it later stays additive, per 12.4.
+type ReadyOptions struct {
+	// CrossBranch reads the recent refs as well as the working tree, per plan
+	// section 8. A live claim on any scanned ref makes a ticket not ready, and
+	// no claim is ever adjudicated against another.
+	CrossBranch bool
+}
+
+// ReadyWith is Ready with the options above.
+func (s *Store) ReadyWith(ctx context.Context, o ReadyOptions) ([]*Ticket, error) {
 	all, err := s.tickets(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ready := readinessOf(all, s.now())
+	var elsewhere map[string]bool
+	if o.CrossBranch {
+		view, err := s.crossBranchView(ctx, all)
+		if err != nil {
+			return nil, err
+		}
+		all = view.Tickets
+		elsewhere = view.ClaimedElsewhere
+	}
+	ready := readinessOf(all, s.now(), elsewhere)
 	out := make([]*Ticket, 0, len(all))
 	for _, t := range all {
 		if ready[t.ID].Ready {
@@ -436,7 +494,12 @@ func (s *Store) Ready(ctx context.Context) ([]*Ticket, error) {
 	return out, nil
 }
 
-func readinessOf(all []*Ticket, now time.Time) map[string]Readiness {
+// claimedElsewhere names the IDs a live claim was found for on some other ref,
+// and is nil for a working-tree read. A ticket in that set is held whatever its
+// own copy says, per plan section 8: 7.5 conflicts a differing claim rather
+// than resolving it, and a query has less standing to adjudicate than a merge
+// does, so the conservative answer is the only one available.
+func readinessOf(all []*Ticket, now time.Time, claimedElsewhere map[string]bool) map[string]Readiness {
 	// Counting rather than only indexing is what makes an ambiguous dependency
 	// fail closed. Two files claiming one ID is the duplicate_id that check
 	// reports as an error, and until somebody repairs it neither file can be
@@ -494,7 +557,7 @@ func readinessOf(all []*Ticket, now time.Time) map[string]Readiness {
 		r.Blocked = len(r.Blocking)+len(r.Missing)+len(r.BlockingChildren) > 0
 		// An expired claim does not hold a ticket. It grants no exclusivity to
 		// anyone, so the ticket is available again.
-		held := t.Claim != nil && !t.Claim.Expired(now)
+		held := (t.Claim != nil && !t.Claim.Expired(now)) || claimedElsewhere[t.ID]
 		r.Ready = t.Status == StatusReady && !r.Blocked && !held
 		r.Reason = unreadyReason(t.Status, r.Blocked, held)
 

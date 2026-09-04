@@ -354,6 +354,16 @@ type Ticket struct {
 	// file, per plan 7.1.
 	Path     string
 	Revision string
+
+	// Branch is the ref this copy came from, in the short form for-each-ref
+	// prints, and empty when the copy came from the working tree. Only a
+	// cross-branch query sets it, per plan section 8, so every row of an
+	// ordinary query carries the empty string.
+	//
+	// When it is set, Path is where the file sits on that ref rather than a
+	// path in the caller's working tree, and opening it will fail. That pairing
+	// is the point: a row naming a ticket the caller cannot open has to say so.
+	Branch string
 }
 
 // Archived reports whether the status is archived. The status is

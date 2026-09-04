@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1QBS9F4Y1YY0J90EBW2FTZS
 title: Decide what the library must add to serve an interactive TUI host
 type: spike
-status: review
+status: done
 status_reason: null
 priority: low
 due_on: null
@@ -24,7 +24,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-04T23:24:12Z
-updated_at: 2026-09-04T23:35:13Z
+updated_at: 2026-09-04T23:40:55Z
 created_by:
   id: agent:terva/mieli
   name: ""

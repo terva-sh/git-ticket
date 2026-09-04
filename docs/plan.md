@@ -2731,6 +2731,39 @@ whether cross-branch reads are a flag or a store setting, and whether a result
 marks the branch it came from, because a merged view with no provenance would
 let an agent claim a ticket whose file it cannot see.
 
+**A reason on `readiness`** (`TKT-01M1J758NJ5T40TX6K7GBEZMCY`) is answered in 8,
+with the JSON in 10.1 and 10.4 and the compatibility note in 12.4.
+
+The complaint was that `readiness` reported `isReady: false`, `isBlocked: false`
+and three empty arrays for every draft in the store. That is correct and it is
+useless. A caller learned that a ticket could not be picked up and nothing about
+why, so the reason had to be re-derived from `status` and `claim`, which is the
+restating that `readiness` exists to prevent.
+
+`reason` names what has to change first, and is empty exactly when `isReady` is
+true. It is one enum rather than a set of booleans, so the precedence is
+answered once here instead of separately in every consumer.
+
+Two names moved during the work rather than in the ticket. The dependency reason
+is `waiting_on_dependencies` and not `dependencies`, because `isBlocked` already
+means the graph and the `blocked` status means somebody marked it, so each word
+keeps one meaning per field. The claim reason is `claimed` and not
+`claimed_by_other`, because `readinessOf` takes a store and a clock and no actor
+at all. It cannot tell your claim from somebody else's, and a name asserting a
+difference the code cannot check is one no reader should trust. A caller holding
+`claim.by` can draw that distinction properly.
+
+The precedence is status, then dependencies, then the claim. A draft waiting on a
+dependency reports `draft`, because promoting it is the first move. Nothing is
+hidden by that: `blockingDependencies` and `blockingChildren` stay populated, so
+the reason ranks the blockers while the arrays carry them.
+
+`UnreadyReasons` is derived from `Statuses` the way `OpenStatuses` is, so every
+status except `ready` is its own reason and one added to 6.1 becomes a reason
+with no edit and no decision. That matters to **Custom statuses** above, which is
+still open: whatever it settles, the reason list follows rather than needing a
+migration of its own.
+
 ## 16. References
 
 - [Backlog.md](https://github.com/MrLesk/Backlog.md) and its

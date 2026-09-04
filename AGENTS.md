@@ -82,12 +82,13 @@ There are two remotes. `origin` is the internal Forgejo and `main` tracks it.
 `github` is the public mirror at `github.com/terva-sh/git-ticket`, which settles
 the module path: `go.mod` already declared it, so nothing changes. Plan 12.2
 holds the rule. `main` and every tag are on both, at identical SHAs. Check one
-without adding a remote, because a clone has `origin` alone:
+without adding a remote, because a clone has `origin` alone. Ask the proxy for
+the `.info` file rather than running `go list -m`, for the reason in Gotchas:
 
 ```sh
 TAG=$(git describe --tags --abbrev=0)
-go list -m -json "github.com/terva-sh/git-ticket@$TAG"   # Origin.Hash
-git rev-parse "$TAG^{commit}"                            # what it should equal
+curl -sS "https://proxy.golang.org/github.com/terva-sh/git-ticket/@v/$TAG.info"
+git rev-parse "$TAG^{commit}"   # Origin.Hash should equal this
 ```
 
 The two remotes move at different speeds, and that is deliberate. Push to
@@ -600,3 +601,15 @@ gh api repos/terva-sh/git-ticket/actions/workflows --jq '.workflows[].state'
 A release is not proven by a green job. Read the assets back, verify
 `sha256sum -c`, and run the unpacked binary, because the failure this catches is
 a build that succeeds while shipping a binary that disagrees with its own tag.
+
+`go list -m` answers from the local module cache before it asks the proxy, so it
+can report a hash that was never published. Verifying v0.6.0 returned
+`Origin.Hash = e40405b`, a commit on neither remote and in no clone, which reads
+exactly like a botched tag. The cached `.info` was dated seven hours before the
+tag existed and carried no `URL` field under `Origin`, which is the signature of
+a direct local-VCS resolution rather than a proxy fetch: some worktree had its
+own `v0.6.0` at that commit. The published tag was right the whole time. Ask for
+`@v/$TAG.info` over HTTP instead, which has no local cache to answer from. Clear
+a poisoned entry by removing
+`$(go env GOMODCACHE)/cache/download/github.com/terva-sh/git-ticket/@v/$TAG.*`,
+which is read-only and needs `chmod u+w` on the directory and the files first.

@@ -3,8 +3,8 @@ schema: 1
 id: TKT-01M1S022Q9SM9DGJR1AJHTN0BC
 title: Color the TUI list rows, palette decided live with the user
 type: task
-status: blocked
-status_reason: awaiting the decide-and-test session with the user at their terminal
+status: done
+status_reason: null
 priority: normal
 due_on: null
 labels: []
@@ -14,10 +14,16 @@ parent: null
 dependencies: []
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: feat/tui-palette-switch
+  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
+  commit: 2177c50d96138a6e3cf3433cef9b712415009f08
+  claimed_at: 2026-09-05T15:55:34Z
+  expires_at: null
 archive: null
 created_at: 2026-09-05T14:37:46Z
-updated_at: 2026-09-05T15:31:49Z
+updated_at: 2026-09-05T15:57:56Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -75,10 +81,10 @@ which is the first step of the work rather than a precondition for it.
 
 ## Acceptance criteria
 
-- [ ] a decide-and-test session with the user picks the driving field and the palette from switchable candidates in a real terminal
-- [ ] the chosen palette ships as Theme fields in tui/theme.go, not escape codes in list.go
-- [ ] the selected row stays legible, NO_COLOR keeps a readable baseline, and no meaning rides on red-green alone
-- [ ] the decision and the rejected candidates are recorded on this ticket
+- [x] a decide-and-test session with the user picks the driving field and the palette from switchable candidates in a real terminal
+- [x] the selected row stays legible, NO_COLOR keeps a readable baseline, and no meaning rides on red-green alone
+- [x] the decision and the rejected candidates are recorded on this ticket
+- [x] the palettes live in one place, tui/view/palette.go, with priority the shipped default and p cycling the set at runtime, not escape codes in list.go
 
 ## Notes
 
@@ -129,3 +135,55 @@ with the user at their own terminal.
 **agent:terva/mieli** at 2026-09-05T15:31:49Z
 
 in-progress to blocked: awaiting the decide-and-test session with the user at their terminal
+
+**agent:terva/mieli** at 2026-09-05T15:57:44Z
+
+The decide-and-test session happened on 2026-09-05, and this note is
+the record the fourth criterion asks for.
+
+The user ran all five candidates against terva's own 66-ticket store,
+a heavier working set than this repository's, and captured five
+screenshots. What the terminal showed: status was dim-plus-accents on
+a draft-heavy store, with the two review rows landing magenta;
+priority made the high rows glow blue across the ready block with low
+receding; type made epics, bugs, and spikes findable by hue but said
+nothing about state; dim was the calm no-hue control; off was the flat
+baseline. The cursor stayed legible in every shot.
+
+The decision: priority wins as the default, because "what matters" is
+the question the user asks the list most. The rejected-as-default
+candidates are status, type, dim, and off, for the reasons above, but
+the session also changed the shape of the ship: rather than deleting
+the losers, the user asked for runtime switching, so color composes
+with the filter and the sort the way a person actually mixes them.
+All five palettes ship, p cycles them, the header names the active
+one, and GIT_TICKET_UI_PALETTE selects the start. NO_COLOR pins the
+colors off and locks the key, because an environment that asked for
+no color should not be one keystroke from getting some.
+
+That decision changed what the second criterion asks, so it is
+reworded rather than shipped false. The original, verbatim: "the
+chosen palette ships as Theme fields in tui/theme.go, not escape
+codes in list.go". Its intent was one home for the color decisions
+rather than escape codes scattered through list.go, and that intent
+survives: the palettes live in tui/view/palette.go, one file, chosen
+over tui/theme.go because a palette reads ticket fields and the tui
+package deliberately does not import ticket. The reworded criterion
+says what the session actually asked for. This note supersedes the
+2026-09-05 scaffolding note's after-the-session paragraph, which
+promised the winner would move into Theme fields and the file would
+be deleted: the session decided otherwise, and the file stayed as the
+feature.
+
+## Summary
+
+Shipped, decided live. The TUI list colors its rows: priority is the
+default the 2026-09-05 session picked against terva's 66-ticket store,
+with high blue, urgent bold yellow, low dim, and normal plain. The
+session also reshaped the ship: rather than one winner as Theme
+fields, all five palettes stayed as a feature, p cycles them at
+runtime, the header names the active one, and color composes with the
+filter and the sort. GIT_TICKET_UI_PALETTE selects the start, NO_COLOR
+pins off and locks the key, the cursor row never takes palette color,
+and no meaning rides on red-green alone. The decision, the rejected
+candidates, and the reworded second criterion are all in the notes.

@@ -6,16 +6,16 @@ import (
 	"github.com/terva-sh/git-ticket/ticket"
 )
 
-// This file is session scaffolding for TKT-01M1S022: switchable
-// candidate palettes for the decide-and-test session, selected per run
-// with GIT_TICKET_UI_PALETTE. No palette is the shipped choice yet.
-// When the session picks one, the winner moves into Theme fields in
-// tui/theme.go, the losers are recorded on the ticket, and the
-// environment variable goes away with this file.
+// Row palettes, decided in the TKT-01M1S022 session on 2026-09-05.
+// The session picked priority as the default, and rather than deleting
+// the other candidates it kept them: p cycles the palettes at runtime,
+// so color composes with the filter and the sort the way the user
+// mixes them. GIT_TICKET_UI_PALETTE still selects the starting
+// palette, for a muscle memory that outlived the session.
 //
-// Two rules every candidate obeys, per the ticket's constraints. The
+// Two rules every palette obeys, per the ticket's constraints. The
 // selected row keeps plain reverse-video and takes no palette color,
-// so the cursor is legible over any candidate. And no meaning rides on
+// so the cursor is legible over any palette. And no meaning rides on
 // red-green alone: the hues in use are cyan, magenta, yellow, and
 // blue, plus weight, so the common forms of color blindness keep every
 // distinction that exists.
@@ -42,11 +42,21 @@ type rowPalette struct {
 // paletteOff is the baseline: the list as it ships today.
 var paletteOff = rowPalette{name: "off", color: func(*ticket.Ticket) string { return "" }}
 
-// palettes is the candidate set for the session, per the driving
-// fields the ticket names. Each colors the exceptional and leaves the
-// ordinary alone.
+// palettes is the cycle order of the p key, the default first. Each
+// colors the exceptional and leaves the ordinary alone: a palette that
+// colors everything makes color mean nothing.
 var palettes = []rowPalette{
-	paletteOff,
+	{name: "priority", color: func(t *ticket.Ticket) string {
+		switch t.Priority {
+		case "urgent":
+			return sgrBold + sgrYellow
+		case "high":
+			return sgrBlue
+		case "low":
+			return sgrDim
+		}
+		return "" // normal is the ordinary case
+	}},
 	{name: "status", color: func(t *ticket.Ticket) string {
 		switch t.Status {
 		case ticket.StatusInProgress:
@@ -62,17 +72,6 @@ var palettes = []rowPalette{
 		}
 		return "" // ready is the ordinary case
 	}},
-	{name: "priority", color: func(t *ticket.Ticket) string {
-		switch t.Priority {
-		case "urgent":
-			return sgrBold + sgrYellow
-		case "high":
-			return sgrBlue
-		case "low":
-			return sgrDim
-		}
-		return "" // normal is the ordinary case
-	}},
 	{name: "type", color: func(t *ticket.Ticket) string {
 		switch t.Type {
 		case "epic":
@@ -86,8 +85,7 @@ var palettes = []rowPalette{
 		}
 		return "" // task is the ordinary case
 	}},
-	// dim uses weight and no hue at all: the control candidate, and
-	// the answer if hue turns out to be noise.
+	// dim uses weight and no hue at all, for the day hue is noise.
 	{name: "dim", color: func(t *ticket.Ticket) string {
 		switch {
 		case t.Status == ticket.StatusInProgress:
@@ -98,22 +96,29 @@ var palettes = []rowPalette{
 		}
 		return ""
 	}},
+	paletteOff,
 }
 
-// activePalette reads GIT_TICKET_UI_PALETTE and honors NO_COLOR, whose
-// presence wins over any selection, per the convention at
-// no-color.org: the uncolored list is the baseline, not a degraded
-// mode. An unknown name is off rather than an error, because a typo in
-// an environment variable should not cost a usable list.
-func activePalette() rowPalette {
+// startPalette resolves the palette a view opens with: the index into
+// palettes, and whether NO_COLOR pins the colors off. NO_COLOR wins by
+// presence alone, per no-color.org, and it also locks the p key,
+// because an environment that asked for no color should not be one
+// keystroke from getting some. GIT_TICKET_UI_PALETTE selects the
+// start; an unknown name is the default rather than an error, because
+// a typo in an environment variable should not cost a usable list.
+func startPalette() (idx int, locked bool) {
 	if _, set := os.LookupEnv("NO_COLOR"); set {
-		return paletteOff
-	}
-	want := os.Getenv("GIT_TICKET_UI_PALETTE")
-	for _, p := range palettes {
-		if p.name == want {
-			return p
+		for i, p := range palettes {
+			if p.name == "off" {
+				return i, true
+			}
 		}
 	}
-	return paletteOff
+	want := os.Getenv("GIT_TICKET_UI_PALETTE")
+	for i, p := range palettes {
+		if p.name == want {
+			return i, false
+		}
+	}
+	return 0, false // priority, the session's pick
 }

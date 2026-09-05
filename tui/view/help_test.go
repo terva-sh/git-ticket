@@ -103,6 +103,7 @@ func TestEveryListKeyIsHintedSomewhere(t *testing.T) {
 		"u":           {"\n  u "},
 		"/":           {"/ filter", "\n  / "},
 		"o":           {"\n  o "},
+		"p":           {"\n  p "},
 		"r":           {"\n  r "},
 		"?":           {"? help", "\n  ? "},
 		"Esc":         {"Esc"},

@@ -49,10 +49,11 @@ type ListView struct {
 	// names it, because an invisible sort mode reads as a broken list.
 	order int
 
-	// palette is the row-color candidate for the TKT-01M1S022
-	// decide-and-test session, resolved once at construction from
-	// GIT_TICKET_UI_PALETTE. Off unless asked for.
-	palette rowPalette
+	// paletteIdx indexes palettes, the row-color mode the p key
+	// cycles, per the TKT-01M1S022 session. paletteLocked pins it to
+	// off when NO_COLOR is set, and p says so instead of cycling.
+	paletteIdx    int
+	paletteLocked bool
 }
 
 // listOrders is the sort vocabulary of plan 8, in the order o cycles
@@ -75,7 +76,8 @@ var listOrders = []struct {
 // through acts; a zero Actions makes the view read-only, and each
 // action key says so instead of doing nothing.
 func NewListView(relist Lister, acts Actions) *ListView {
-	v := &ListView{relist: relist, acts: acts, palette: activePalette()}
+	v := &ListView{relist: relist, acts: acts}
+	v.paletteIdx, v.paletteLocked = startPalette()
 	v.Reload()
 	return v
 }
@@ -205,6 +207,14 @@ func (v *ListView) HandleKey(k tui.Key) (quit bool) {
 		v.order = (v.order + 1) % len(listOrders)
 		v.applyFilter(v.SelectedID())
 		v.msg = ""
+		return false
+	case k.Kind == tui.KeyRune && k.Rune == 'p':
+		if v.paletteLocked {
+			v.say("NO_COLOR is set; row colors stay off")
+			return false
+		}
+		v.paletteIdx = (v.paletteIdx + 1) % len(palettes)
+		v.say("color: " + palettes[v.paletteIdx].name)
 		return false
 	case k.Kind == tui.KeyRune && k.Rune == 'c':
 		v.claim()
@@ -371,7 +381,9 @@ func (v *ListView) widths() (id, status, typ, prio int) {
 // the view one keystroke deeper.
 func (v *ListView) header() string {
 	idW, stW, tyW, prW := v.widths()
-	return fmt.Sprintf("  %-*s  %-*s  %-*s  %-*s  %-5s  · sort: %s", idW, "ID", stW, "STATUS", tyW, "TYPE", prW, "PRIORITY", "TITLE", listOrders[v.order].name)
+	return fmt.Sprintf("  %-*s  %-*s  %-*s  %-*s  %-5s  · sort: %s · color: %s",
+		idW, "ID", stW, "STATUS", tyW, "TYPE", prW, "PRIORITY", "TITLE",
+		listOrders[v.order].name, palettes[v.paletteIdx].name)
 }
 
 func (v *ListView) row(i int, selected bool) string {
@@ -383,7 +395,7 @@ func (v *ListView) row(i int, selected bool) string {
 	if selected {
 		return "\x1b[7m▸ " + text + "\x1b[27m"
 	}
-	if c := v.palette.color(t); c != "" {
+	if c := palettes[v.paletteIdx].color(t); c != "" {
 		return "  " + c + text + "\x1b[0m"
 	}
 	return "  " + text

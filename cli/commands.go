@@ -238,6 +238,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		status    string
 		created   string
 		reason    string
+		tmpl      string
 		labels    stringList
 		assignees stringList
 		dependsOn stringList
@@ -266,6 +267,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		f.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
 		f.Var(&ac, "ac", "an acceptance criterion, repeatable")
 		f.Var(&dod, "dod", "a definition of done item, repeatable")
+		f.StringVar(&tmpl, "template", "", "seed from .tickets/templates/NAME.md; explicit flags win, per plan 4.2")
 		f.StringVar(&status, "status", "", "file directly as done or archived, for a backport, per plan 6.2.1")
 		f.StringVar(&created, "created", "", "backdate the ticket: RFC 3339, or YYYY-MM-DD read as midnight UTC")
 		f.StringVar(&reason, "reason", "", "why, with --status archived only; lands in the archive block and Notes")
@@ -339,6 +341,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Status:             status,
 		Created:            createdAt,
 		Reason:             reason,
+		Template:           tmpl,
 		Actor:              ctx.actor(s),
 	}
 	if dueOn != "" {
@@ -1824,6 +1827,14 @@ func runConfig(ctx *cmdContext, args []string) error {
 	labels := allowlist(cfg.Labels)
 	milestones := allowlist(cfg.Milestones)
 
+	templates, err := s.Templates()
+	if err != nil {
+		return err
+	}
+	if templates == nil {
+		templates = []string{}
+	}
+
 	if ctx.g.json {
 		writeJSON(ctx.out, configEnvelope{
 			SchemaVersion: schemaVersion,
@@ -1838,7 +1849,8 @@ func runConfig(ctx *cmdContext, args []string) error {
 				Actor:       declaredActor,
 				ClaimExpiry: expiry,
 			},
-			Lock: lockJSON{Timeout: lockTimeout.String()},
+			Lock:      lockJSON{Timeout: lockTimeout.String()},
+			Templates: templates,
 		})
 		return nil
 	}
@@ -1847,6 +1859,11 @@ func runConfig(ctx *cmdContext, args []string) error {
 	fmt.Fprintf(ctx.out, "ticket schema %d\n\n", cfg.Schema)
 	fmt.Fprintf(ctx.out, "labels      %s\n", describeAllowlist(labels))
 	fmt.Fprintf(ctx.out, "milestones  %s\n", describeAllowlist(milestones))
+	if len(templates) == 0 {
+		fmt.Fprintf(ctx.out, "templates   none defined\n")
+	} else {
+		fmt.Fprintf(ctx.out, "templates   %s\n", strings.Join(templates, " "))
+	}
 
 	if len(actors) == 0 {
 		fmt.Fprintf(ctx.out, "actors      none listed\n")

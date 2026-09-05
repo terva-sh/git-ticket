@@ -24,7 +24,9 @@ type Actions struct {
 	// Create files a new ticket and returns its ID. The store fills
 	// every field the form does not ask for from its own defaults,
 	// which is the same shape `git ticket create --title` has.
-	Create func(title, description string) (id string, err error)
+	// template names a store template to seed from, per plan 4.2, and
+	// empty means a bare create.
+	Create func(title, description, template string) (id string, err error)
 	// Edit replaces the title and the description as one write, so a
 	// half-applied edit cannot exist. The revision precondition rides
 	// on it like every other write.
@@ -41,6 +43,17 @@ type Actions struct {
 	// an epic's done children are exactly what a person checks an epic
 	// for.
 	Links func(ref string) ([]Linked, error)
+	// Templates lists the store's templates for the create flow, per
+	// plan 4.2, with each description along so the form can prefill
+	// its editor: the person edits the skeleton instead of typing over
+	// an invisible one. Nil or empty means n opens the bare form.
+	Templates func() ([]TemplateChoice, error)
+}
+
+// TemplateChoice is one template the create flow can start from.
+type TemplateChoice struct {
+	Name        string
+	Description string
 }
 
 // Linked is one edge from a ticket, ready for the picker: the role the
@@ -108,16 +121,32 @@ func StoreActions(p StoreParams) Actions {
 		SetStatus: func(ref, revision, status, reason string) error {
 			return apply(ref, revision, ticket.SetStatus{Status: status, Reason: reason})
 		},
-		Create: func(title, description string) (string, error) {
+		Create: func(title, description, template string) (string, error) {
 			res, err := p.Store.Create(context.Background(), ticket.CreateOptions{
 				Title:       title,
 				Description: description,
+				Template:    template,
 				Actor:       p.Actor,
 			})
 			if err != nil {
 				return "", err
 			}
 			return res.Ticket.ID, nil
+		},
+		Templates: func() ([]TemplateChoice, error) {
+			names, err := p.Store.Templates()
+			if err != nil {
+				return nil, err
+			}
+			choices := make([]TemplateChoice, 0, len(names))
+			for _, name := range names {
+				tpl, err := p.Store.Template(name)
+				if err != nil {
+					return nil, err
+				}
+				choices = append(choices, TemplateChoice{Name: name, Description: tpl.Description})
+			}
+			return choices, nil
 		},
 		Edit: func(ref, revision, title, description string) error {
 			return apply(ref, revision, ticket.Mutations{

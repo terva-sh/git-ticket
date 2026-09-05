@@ -18,6 +18,7 @@ type App struct {
 	details []*DetailView
 	links   *LinkPicker
 	picker  *StatusPicker
+	tmpl    *TemplatePicker
 	form    *FormView
 	help    *HelpView
 }
@@ -100,6 +101,23 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 		}
 		return false
 	}
+	if a.tmpl != nil {
+		act := a.tmpl.HandleKey(k)
+		if act.Quit {
+			return true
+		}
+		switch {
+		case act.Blank:
+			a.tmpl = nil
+			a.form = NewCreateForm()
+		case act.Choose != nil:
+			a.tmpl = nil
+			a.form = NewCreateFormFrom(*act.Choose)
+		case act.Cancel:
+			a.tmpl = nil
+		}
+		return false
+	}
 	if a.form != nil {
 		act := a.form.HandleKey(k)
 		if act.Quit {
@@ -140,6 +158,20 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 		if a.list.acts.Create == nil {
 			a.list.say("creating is not wired in this host")
 			return false
+		}
+		// The template picker fronts the form only when the store
+		// defines templates, per plan 4.2: a store without them keeps
+		// the one-keystroke path to a blank form.
+		if a.list.acts.Templates != nil {
+			choices, err := a.list.acts.Templates()
+			if err != nil {
+				a.list.say("templates failed: " + err.Error())
+				return false
+			}
+			if len(choices) > 0 {
+				a.tmpl = NewTemplatePicker(choices)
+				return false
+			}
 		}
 		a.form = NewCreateForm()
 		return false
@@ -203,7 +235,7 @@ func (a *App) openLinks() {
 func (a *App) saveForm() {
 	title, desc := a.form.Values()
 	if a.form.ref == "" {
-		id, err := a.list.acts.Create(title, desc)
+		id, err := a.list.acts.Create(title, desc, a.form.template)
 		if err != nil {
 			a.form.SetError(err.Error())
 			return
@@ -244,6 +276,9 @@ func (a *App) Render(cols, rows int) []string {
 	}
 	if a.picker != nil {
 		return a.picker.Render(cols, rows)
+	}
+	if a.tmpl != nil {
+		return a.tmpl.Render(cols, rows)
 	}
 	if a.form != nil {
 		return a.form.Render(cols, rows)

@@ -157,6 +157,12 @@ type configEnvelope struct {
 	Actors     []actorJSON   `json:"actors"`
 	Defaults   defaultsJSON  `json:"defaults"`
 	Lock       lockJSON      `json:"lock"`
+	// Templates is the names in .tickets/templates/, sorted, per plan 4.2.
+	// A bare list rather than an allowlist object, because it carries no
+	// enforcement regime to disambiguate: a template is something you may
+	// ask for, not a rule about what you may write. Never null, so a
+	// consumer ranges without a nil check.
+	Templates []string `json:"templates"`
 }
 
 // allowlistJSON is one advisory allowlist.

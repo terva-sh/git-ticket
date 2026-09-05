@@ -167,6 +167,11 @@ type CreateOptions struct {
 	// block and Notes, the same two places ArchiveTicket writes. With any
 	// other status it is refused, because there is nothing for it to mean.
 	Reason string
+	// Template names a file in the store's templates directory to seed
+	// from, per plan 4.2. Every explicit field here wins over the template,
+	// because a template is a starting point and not an argument. A name
+	// that resolves to no file refuses the create.
+	Template string
 }
 
 // Create writes a new ticket and returns it.
@@ -182,6 +187,40 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	// nothing to look up and the caller is holding the title it just typed.
 	if err := checkTitleLength(o.Title, ""); err != nil {
 		return nil, err
+	}
+	// The template merges before the defaults resolve, so the precedence
+	// reads option, then template, then store default, per plan 4.2. The
+	// template's own values pass through the same validation as typed ones,
+	// so a template carrying a type the schema does not know refuses here
+	// like any other bad field.
+	var tpl *Template
+	if o.Template != "" {
+		loaded, err := s.loadTemplate(o.Template)
+		if err != nil {
+			return nil, err
+		}
+		tpl = loaded
+		if o.Type == "" {
+			o.Type = tpl.Type
+		}
+		if o.Priority == "" {
+			o.Priority = tpl.Priority
+		}
+		if len(o.Labels) == 0 {
+			o.Labels = tpl.Labels
+		}
+		if len(o.Assignees) == 0 {
+			o.Assignees = tpl.Assignees
+		}
+		if o.Milestone == nil {
+			o.Milestone = tpl.Milestone
+		}
+		if o.Description == "" {
+			o.Description = tpl.Description
+		}
+		if o.ImplementationPlan == "" {
+			o.ImplementationPlan = tpl.ImplementationPlan
+		}
 	}
 	kind := o.Type
 	if kind == "" {
@@ -300,6 +339,17 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	dod, err := checklistSection(o.DefinitionOfDone)
 	if err != nil {
 		return nil, err
+	}
+	// The checklists merge at the section level: a template carries them as
+	// rendered "- [ ]" lines, and explicit --ac and --dod items win
+	// wholesale, the same per-field rule as everything else.
+	if tpl != nil {
+		if ac == "" {
+			ac = tpl.AcceptanceCriteria
+		}
+		if dod == "" {
+			dod = tpl.DefinitionOfDone
+		}
 	}
 
 	t := &Ticket{

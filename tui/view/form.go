@@ -25,6 +25,10 @@ type FormView struct {
 	desc     *tui.Editor
 	focus    int // 0 title, 1 description
 	errMsg   string
+	// template is the store template this create seeds from, per plan
+	// 4.2, empty for a bare create and always empty for an edit. The
+	// header names it, because an invisible mode reads as broken.
+	template string
 }
 
 // FormAction is what a key resolved to. Zero means the form stays up.
@@ -37,6 +41,18 @@ type FormAction struct {
 // NewCreateForm is an empty form; save files a new ticket.
 func NewCreateForm() *FormView {
 	return &FormView{title: tui.NewEditor(""), desc: tui.NewEditor("")}
+}
+
+// NewCreateFormFrom is the create form seeded from a template, per
+// plan 4.2: the description editor holds the template's skeleton so
+// the person edits it instead of typing over an invisible one, and
+// the template's name rides to the store with the save, where the
+// remaining fields seed.
+func NewCreateFormFrom(tc TemplateChoice) *FormView {
+	f := NewCreateForm()
+	f.template = tc.Name
+	f.desc.SetValue(tc.Description)
+	return f
 }
 
 // NewEditForm prefills from t and remembers the revision the edit is
@@ -110,10 +126,13 @@ func (f *FormView) Render(cols, rows int) []string {
 	}
 
 	out := make([]string, 0, rows)
-	if f.ref == "" {
-		out = append(out, "  \x1b[1mNew ticket\x1b[22m")
-	} else {
+	switch {
+	case f.ref != "":
 		out = append(out, "  \x1b[1mEdit\x1b[22m "+dim(f.ref))
+	case f.template != "":
+		out = append(out, "  \x1b[1mNew ticket\x1b[22m "+dim("from template: "+f.template))
+	default:
+		out = append(out, "  \x1b[1mNew ticket\x1b[22m")
 	}
 	if f.errMsg != "" {
 		out = append(out, "  ! "+f.errMsg)

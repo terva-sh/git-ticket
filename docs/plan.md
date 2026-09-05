@@ -289,6 +289,35 @@ warning still earns its place: `milestone` is a bare scalar with no registry, so
 nothing else can tell `v1.2` from `v1.2.0`, and a store left alone accumulates
 near-duplicates until `list --milestone` quietly answers about the wrong one.
 
+### 4.2 Templates
+
+A template is a ticket-shaped Markdown file a person reviewed, in
+`.tickets/templates/NAME.md`, so it versions, diffs, and reviews like
+everything else in the store, and it travels with the repository the way a
+form travels with a team. `create --template NAME` seeds a new ticket from
+it, and every explicit flag wins over the template, because a template is a
+starting point and not an argument.
+
+A template seeds type, priority, labels, assignees, milestone, the two
+checklists, the description, and the implementation plan. It seeds nothing
+lifecycle-shaped: no status, no created instant. A backport script passes
+those explicitly through 6.2.1, and a template that files things as done is a
+foot-gun. The loader reads the seedable fields and ignores everything else in
+the file, which is what lets a template be made by copying a real ticket: the
+id, status, and timestamps riding along in the copy are ignored rather than
+refused.
+
+A `--template` naming no file refuses the create. Unlike an unlisted label,
+there is no advisory value in a half-applied ask: a ticket that silently
+lacks the definition of done its author expected is worse than a stopped
+command. The refusal names the templates directory so the repair is obvious.
+
+Templates seed and never bind. `check` holds no ticket to its template and
+does not scan `templates/`, because a ticket that outgrew its template is the
+normal case, not a finding. `config` publishes the template names, per 10.6,
+so a consumer building a create form gets the list without globbing the
+store, and the TUI's create form offers the same list when it is non-empty.
+
 ## 5. Ticket format
 
 ### 5.1 Frontmatter
@@ -1775,9 +1804,16 @@ Like `schema`, it reads no store and answers anywhere.
   "milestones": { "values": [], "enforced": false },
   "actors": [{ "id": "human:sothr", "name": "Drew Short" }],
   "defaults": { "type": "task", "priority": "normal", "actor": null, "claimExpiry": null },
-  "lock": { "timeout": "10s" }
+  "lock": { "timeout": "10s" },
+  "templates": ["adr", "bug"]
 }
 ```
+
+`templates` is the names in `.tickets/templates/`, sorted, per 4.2. It is a
+bare list rather than an allowlist object because it carries no enforcement
+regime to disambiguate: a template is something you may ask for, not a rule
+about what you may write, and an empty list means only that the store defined
+none.
 
 It is a separate kind rather than more keys on `schema` because of the last line
 of 10.4. `schema` reads no store, so it answers before `init` and outside a
@@ -2003,7 +2039,7 @@ git ticket ui       # browse the store interactively; no --json form
 git ticket show   ID [--body]
 git ticket copy   ID     # put the body on the system clipboard, per 12.7
 git ticket search QUERY [--regex]
-git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --status, --created, --reason per 6.2.1
+git ticket create --title T [--template NAME --type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --template per 4.2; --status, --created, --reason per 6.2.1
 git ticket update ID [--title --type --priority --description --description-file --milestone --parent --blocks-on --due-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]

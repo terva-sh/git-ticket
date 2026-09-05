@@ -19,7 +19,7 @@ func TestCreateFlowFilesATicket(t *testing.T) {
 	var got struct{ title, desc string }
 	created := false
 	a := NewApp(fixed(tktA), Actions{
-		Create: func(title, desc string) (string, error) {
+		Create: func(title, desc, _ string) (string, error) {
 			got.title, got.desc = title, desc
 			created = true
 			return "TKT-01NEWZZZZZZZZZZZZZZZZZZZZZ", nil
@@ -50,7 +50,7 @@ func TestCreateFlowFilesATicket(t *testing.T) {
 
 func TestCreateRequiresATitle(t *testing.T) {
 	a := NewApp(fixed(tktA), Actions{
-		Create: func(string, string) (string, error) {
+		Create: func(string, string, string) (string, error) {
 			t.Fatal("Create ran without a title")
 			return "", nil
 		},
@@ -148,7 +148,7 @@ func TestFormEscCancelsWithoutWriting(t *testing.T) {
 			t.Fatal("Esc wrote")
 			return nil
 		},
-		Create: func(string, string) (string, error) {
+		Create: func(string, string, string) (string, error) {
 			t.Fatal("Esc wrote")
 			return "", nil
 		},
@@ -165,7 +165,7 @@ func TestFormEscCancelsWithoutWriting(t *testing.T) {
 }
 
 func TestFormTabSwitchesFieldsAndKeysAreText(t *testing.T) {
-	a := NewApp(fixed(revved()), Actions{Create: func(string, string) (string, error) { return "", nil }})
+	a := NewApp(fixed(revved()), Actions{Create: func(string, string, string) (string, error) { return "", nil }})
 	a.HandleKey(tui.Key{Kind: tui.KeyRune, Rune: 'n'})
 	// q, s, e, n are text inside the form, not shortcuts.
 	typeInto(a, "qsen")

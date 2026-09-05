@@ -1,7 +1,7 @@
 ---
 schema: 1
 id: TKT-01M1R4B5K2SGFCDHX53WPA0FRS
-title: Decide how prefixed ID tracks subdivide a store
+title: Decide how prefixed ID series subdivide a store
 type: spike
 status: draft
 status_reason: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T06:33:23Z
-updated_at: 2026-09-05T19:50:24Z
+updated_at: 2026-09-05T20:11:57Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -209,3 +209,85 @@ two lands first pays for the schema bump.
 The trigger has still not fired. Confirmed with the user on the same
 day: this remains a design conversation, and nothing here promotes the
 ticket.
+
+**agent:terva/mieli** at 2026-09-05T20:11:57Z
+
+The name is settled: series. Decided with the user on 2026-09-05,
+after a test rather than a lean. This supersedes the "The name" section
+of the description above, which named track as the current lean. That
+lean is withdrawn.
+
+### The method
+
+Two passes. First, a case-insensitive whole-word grep for each
+candidate across the Go and Markdown files, excluding .tickets/, to
+find what each word already means in this project. Second, writing each
+candidate out in every register it would appear in: the config key, the
+create flag, the error message, and the prose compounds.
+
+### What the grep found
+
+`stream` is taken. Eleven live uses, every one of them meaning I/O: the
+streams on `Env`, stdin in cli/prose.go, the byte stream in
+tui/input.go, and the escape-sequence stream in cli/ui.go. The stdio
+adapter draft would add more. Disqualified outright.
+
+`track` collides in a subtler way that the description's lean did not
+price. Zero uses as a noun, seventeen as a verb, and the two worst
+sit where a reader cannot miss them: docs/plan.md line 1 is
+"repository-native work tracking for agents", and the `--cross-branch`
+help says "remote-tracking refs", which is git's own term. So
+`tracks: [TKT, IDEA]` would land in a document that says "a work ledger
+that lives in the repository it tracks" on its first page, where the
+natural reading of `tracks:` is "the things this store tracks", which
+is every ticket.
+
+`series`, `lane` and `docket` are unused. `desk` appears once.
+
+### Why series
+
+An invoice or cheque series is a numbered run distinguished by a
+prefix. That is not an analogy for the mechanism, it is the mechanism,
+and it puts the name in the register this project already occupies,
+which is a ledger.
+
+It also names the half being built first. The description defers
+per-track create defaults and allowlists to "a later config dimension,
+not part of the first cut", so the first cut is purely ID
+partitioning. Track names the deferred half, the parallel lanes with
+their own rules. Series names the half that ships.
+
+The known weakness, recorded rather than argued away: series reads the
+same singular and plural, so the config key `series:` does not announce
+that it holds a list the way `tracks:` would. And the word hints at an
+ordinal position that the ULID does not supply. Neither was judged to
+outweigh a clean namespace.
+
+### Why not the others
+
+`desk` implies a person or a team behind the partition, but the driver
+is subdividing a monorepo by component, and `assignees` already carries
+the person. `lane` is free today but a board view is a plausible future
+here, and a board's swimlanes group by status or assignee, so the
+collision would arrive with the feature that most wants the word.
+
+### The vocabulary this settles
+
+The config key is `series`, holding the list of prefixes a store uses,
+beside the label and milestone allowlists. The create flag is
+`--series`. In prose: "the idea series", "a cross-series reference",
+"per-series create defaults", "series-aware abbreviation".
+
+What this does not settle is the error spelling. The templates work set
+a precedent that a name resolving to nothing refuses with
+`invalid_field` naming the directory rather than earning a new code, so
+a missing series may well do the same. A new error code is a surface
+plan 12.4 covers and needs its own decision.
+
+### One consequence applied
+
+This ticket's title said "prefixed ID tracks", which the settled name
+makes wrong. It is now "Decide how prefixed ID series subdivide a
+store". The description's own prose still says track throughout and is
+left as it stands, because it is the record of what was thought at the
+time and this note is the correction.

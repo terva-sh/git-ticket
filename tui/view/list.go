@@ -314,28 +314,33 @@ func (v *ListView) footerRow() string {
 	return dim(v.footer())
 }
 
-// widths returns the ID, status, and priority column widths for the
-// current rows. Content-derived, because a fixed ID width is exactly
-// the abbreviation mistake the store's own CLI refuses to make.
-func (v *ListView) widths() (id, status, prio int) {
-	id, status, prio = 2, 6, 8 // header widths: ID, STATUS, PRIORITY
+// widths returns the ID, status, type, and priority column widths for
+// the current rows. Content-derived, because a fixed ID width is
+// exactly the abbreviation mistake the store's own CLI refuses to make.
+func (v *ListView) widths() (id, status, typ, prio int) {
+	id, status, typ, prio = 2, 6, 4, 8 // header widths: ID, STATUS, TYPE, PRIORITY
 	for _, t := range v.shown {
 		id = max(id, len(v.short[t.ID]))
 		status = max(status, len(t.Status))
+		typ = max(typ, len(t.Type))
 		prio = max(prio, len(t.Priority))
 	}
-	return id, status, prio
+	return id, status, typ, prio
 }
 
+// header and row put TYPE between STATUS and PRIORITY because that is
+// the order the detail header prints: "draft spike low" is status,
+// type, priority, and the list should not teach a different order than
+// the view one keystroke deeper.
 func (v *ListView) header() string {
-	idW, stW, prW := v.widths()
-	return fmt.Sprintf("  %-*s  %-*s  %-*s  %s", idW, "ID", stW, "STATUS", prW, "PRIORITY", "TITLE")
+	idW, stW, tyW, prW := v.widths()
+	return fmt.Sprintf("  %-*s  %-*s  %-*s  %-*s  %s", idW, "ID", stW, "STATUS", tyW, "TYPE", prW, "PRIORITY", "TITLE")
 }
 
 func (v *ListView) row(i int, selected bool) string {
 	t := v.shown[i]
-	idW, stW, prW := v.widths()
-	text := fmt.Sprintf("%-*s  %-*s  %-*s  %s", idW, v.short[t.ID], stW, t.Status, prW, t.Priority, t.Title)
+	idW, stW, tyW, prW := v.widths()
+	text := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %s", idW, v.short[t.ID], stW, t.Status, tyW, t.Type, prW, t.Priority, t.Title)
 	if selected {
 		return "\x1b[7m▸ " + text + "\x1b[27m"
 	}

@@ -64,6 +64,37 @@ func TestListShowsOpenWork(t *testing.T) {
 	}
 }
 
+// TestListShowsTheTypeColumn holds the column order to the detail
+// header's: status, type, priority. An epic and a task are otherwise
+// indistinguishable until the detail view opens.
+func TestListShowsTheTypeColumn(t *testing.T) {
+	epic := mk("TKT-01ARZ3NDEKTSV4RRFFQ69G5FAV", "ready", "high", "Ship the quarter")
+	epic.Type = "epic"
+	task := mk("TKT-01BX5ZZKBKACTAV9WEVGEMMVRZ", "ready", "normal", "One slice of it")
+	task.Type = "task"
+
+	v := newTestList(fixed(epic, task))
+	rows := plain(v, 100, 10)
+
+	header := rows[0]
+	for _, col := range []string{"ID", "STATUS", "TYPE", "PRIORITY", "TITLE"} {
+		if !strings.Contains(header, col) {
+			t.Fatalf("header lacks %q: %q", col, header)
+		}
+	}
+	if strings.Index(header, "STATUS") > strings.Index(header, "TYPE") ||
+		strings.Index(header, "TYPE") > strings.Index(header, "PRIORITY") {
+		t.Fatalf("TYPE is not between STATUS and PRIORITY: %q", header)
+	}
+
+	body := strings.Join(rows, "\n")
+	for _, want := range []string{"epic", "task"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("rendered view lacks type %q:\n%s", want, body)
+		}
+	}
+}
+
 func TestShortIDsAreShortestUnique(t *testing.T) {
 	v := newTestList(fixed(tktTwinA, tktTwinB))
 	body := strings.Join(plain(v, 120, 10), "\n")

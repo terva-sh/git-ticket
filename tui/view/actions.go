@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+	"os"
 
 	"github.com/terva-sh/git-ticket/ticket"
 )
@@ -28,6 +29,12 @@ type Actions struct {
 	// half-applied edit cannot exist. The revision precondition rides
 	// on it like every other write.
 	Edit func(ref, revision, title, description string) error
+	// Copy puts the ticket's stored body on the system clipboard and
+	// reports which path took it and how many bytes, so the footer can
+	// tell the truth. It reads the file rather than the view's styled
+	// render, per plan 12.7: a paste carries what a reader of the file
+	// sees.
+	Copy func(ref string) (via string, bytes int, err error)
 }
 
 // StoreParams is everything a store-backed TUI needs that the view
@@ -41,6 +48,11 @@ type StoreParams struct {
 	Branch   string
 	Worktree string
 	Commit   string
+	// Clipboard writes body to the system clipboard and names the path
+	// it took, per plan 12.7. The cli package binds its probing helper
+	// here; nil leaves Copy unwired and the view says so instead of
+	// doing nothing silently.
+	Clipboard func(body []byte) (via string, err error)
 }
 
 // RunProcStore runs the TUI on the process terminal over a store. It
@@ -99,5 +111,34 @@ func StoreActions(p StoreParams) Actions {
 		Release: func(ref, revision string) error {
 			return apply(ref, revision, ticket.ReleaseClaim{})
 		},
+		Copy: storeCopy(p),
+	}
+}
+
+// storeCopy binds Actions.Copy to the store and the clipboard writer,
+// or to nil when no writer is wired, which is the same nil-ness
+// degradation every other action uses.
+func storeCopy(p StoreParams) func(string) (string, int, error) {
+	if p.Clipboard == nil {
+		return nil
+	}
+	return func(ref string) (string, int, error) {
+		t, err := p.Store.Get(context.Background(), ref)
+		if err != nil {
+			return "", 0, err
+		}
+		data, err := os.ReadFile(t.Path)
+		if err != nil {
+			return "", 0, err
+		}
+		body, err := ticket.RawBody(data)
+		if err != nil {
+			return "", 0, err
+		}
+		via, err := p.Clipboard([]byte(body))
+		if err != nil {
+			return "", 0, err
+		}
+		return via, len(body), nil
 	}
 }

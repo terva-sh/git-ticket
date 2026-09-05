@@ -81,6 +81,13 @@ type UIParams struct {
 	Branch   string
 	Worktree string
 	Commit   string
+	// Clipboard writes body to the system clipboard and names the path
+	// it took: the same probing helper `copy` uses, per plan 12.7, so
+	// the TUI's y binding and the copy command cannot disagree about
+	// how a clipboard is reached. The field sits last in both structs,
+	// because the cast in the composition root needs the field order
+	// identical.
+	Clipboard func(body []byte) (via string, err error)
 }
 
 func (e Env) getenv(key string) string {

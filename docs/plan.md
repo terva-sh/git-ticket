@@ -2537,6 +2537,15 @@ The clipboard tools are the only external processes the CLI runs besides
 git. They are write-only: the body goes to their stdin and nothing is read
 back. `copy` mutates no ticket and takes no lock, the same as `show`.
 
+The TUI detail view binds `y` to the same write, through a clipboard field
+the composition root passes in, so the two surfaces cannot disagree about how
+a clipboard is reached. The probe order holds there too, tools before OSC 52,
+and for the same honesty: an OSC 52 write cannot report failure, so a footer
+that confirmed "copied via OSC 52" while a working tool sat on PATH would lie
+exactly when the terminal ignored it. The footer names the ticket, the byte
+count, and the path taken, and a host that wires no clipboard gets a footer
+saying so rather than a silent no-op.
+
 ## 13. Phases
 
 ### Phase 0: format and fixtures

@@ -22,6 +22,11 @@ type DetailView struct {
 	// wrap is the expensive part.
 	body     []string
 	bodyCols int
+
+	// msg is a one-render flash on the footer line, the same shape as
+	// the list's: the copy confirmation lives here, and the next key
+	// clears it back to the hints.
+	msg string
 }
 
 // NewDetailView shows t. The caller keeps ownership of the ticket.
@@ -29,12 +34,17 @@ func NewDetailView(t *ticket.Ticket) *DetailView {
 	return &DetailView{t: t}
 }
 
+// say puts m on the footer line until the next key.
+func (d *DetailView) say(m string) { d.msg = m }
+
 // HandleKey routes one key. back closes the view, quit ends the
 // application. Esc, q, backspace, and h all go back, because every
 // convention this view's users carry (tig, lazygit, vi) spells
 // "leave" one of those ways. Ctrl+C is the one key that quits from
-// anywhere.
+// anywhere. The y binding lives in the App, which holds the actions
+// this view deliberately does not.
 func (d *DetailView) HandleKey(k tui.Key) (back, quit bool) {
+	d.msg = ""
 	switch {
 	case k.Kind == tui.KeyCtrlC:
 		return false, true
@@ -76,7 +86,14 @@ func (d *DetailView) Render(cols, rows int) []string {
 	for len(out) < rows-1 {
 		out = append(out, "")
 	}
-	out = append(out, dim("  ↑/↓ j/k scroll · g/G jump · Esc back · Ctrl+C quit"))
+	if d.msg != "" {
+		out = append(out, "  "+d.msg)
+		return out
+	}
+	// j/k names the scroll and the arrows go unhinted: they are the
+	// one binding nobody needs taught, and the column they freed is
+	// what lets y copy fit a 60-column pane.
+	out = append(out, dim("  j/k scroll · g/G jump · y copy · Esc back · Ctrl+C quit"))
 	return out
 }
 

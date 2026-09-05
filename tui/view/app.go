@@ -1,6 +1,8 @@
 package view
 
 import (
+	"fmt"
+
 	"github.com/terva-sh/git-ticket/ticket"
 	"github.com/terva-sh/git-ticket/tui"
 )
@@ -25,6 +27,13 @@ func NewApp(relist Lister, acts Actions) *App {
 // HandleKey routes one key to whichever view is on top.
 func (a *App) HandleKey(k tui.Key) (quit bool) {
 	if a.detail != nil {
+		// y is handled here rather than in the view, because the copy
+		// action lives on Actions and the detail view deliberately
+		// holds no write surface.
+		if k.Kind == tui.KeyRune && k.Rune == 'y' {
+			a.copyDetail()
+			return false
+		}
 		back, quit := a.detail.HandleKey(k)
 		if quit {
 			return true
@@ -116,6 +125,23 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 		return false
 	}
 	return a.list.HandleKey(k)
+}
+
+// copyDetail puts the open ticket's stored body on the clipboard and
+// flashes the outcome on the detail footer, naming the path it took
+// and the byte count, so a copy that failed reads differently from a
+// copy that landed.
+func (a *App) copyDetail() {
+	if a.list.acts.Copy == nil {
+		a.detail.say("copying is not wired in this host")
+		return
+	}
+	via, n, err := a.list.acts.Copy(a.detail.t.ID)
+	if err != nil {
+		a.detail.say("copy failed: " + err.Error())
+		return
+	}
+	a.detail.say(fmt.Sprintf("copied %s (%d bytes) via %s", a.list.shortOr(a.detail.t.ID), n, via))
 }
 
 // saveForm performs the form's write and decides what the form does

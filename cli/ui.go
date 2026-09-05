@@ -32,11 +32,17 @@ func runUI(ctx *cmdContext, args []string) error {
 	// from the working tree. Resolved here, before the alternate screen
 	// takes stderr's usefulness away.
 	branch, worktree, commit := gitState(ctx.env.Dir)
+	env := ctx.env
 	return ctx.env.RunUI(UIParams{
 		Store:    s,
 		Actor:    ctx.actor(s),
 		Branch:   branch,
 		Worktree: worktree,
 		Commit:   commit,
+		// The same write path as `git ticket copy`, per plan 12.7:
+		// probe the tools, OSC 52 last, never a silent no-op.
+		Clipboard: func(body []byte) (string, error) {
+			return writeClipboard(env, body)
+		},
 	})
 }

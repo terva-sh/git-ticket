@@ -15,15 +15,18 @@ import (
 // from a title.
 type filter struct {
 	status   []string
+	kind     []string // the type: token; the field name Go took
+	priority []string
 	label    []string
 	assignee []string
 	words    []string
 }
 
 // parseFilter reads the filter line. Tokens are separated by spaces;
-// `status:S`, `label:L`, and `assignee:A` go to their fields, and
-// anything else is a title word. A token with an empty value, like a
-// bare `status:`, is dropped rather than matching nothing.
+// `status:S`, `type:T`, `priority:P`, `label:L`, and `assignee:A` go
+// to their fields, and anything else is a title word. A token with an
+// empty value, like a bare `status:`, is dropped rather than matching
+// nothing.
 func parseFilter(line string) filter {
 	var f filter
 	for _, tok := range strings.Fields(line) {
@@ -36,6 +39,14 @@ func parseFilter(line string) filter {
 		case "status":
 			if val != "" {
 				f.status = append(f.status, val)
+			}
+		case "type":
+			if val != "" {
+				f.kind = append(f.kind, val)
+			}
+		case "priority":
+			if val != "" {
+				f.priority = append(f.priority, val)
 			}
 		case "label":
 			if val != "" {
@@ -60,12 +71,19 @@ func parseFilter(line string) filter {
 }
 
 func (f filter) empty() bool {
-	return len(f.status) == 0 && len(f.label) == 0 && len(f.assignee) == 0 && len(f.words) == 0
+	return len(f.status) == 0 && len(f.kind) == 0 && len(f.priority) == 0 &&
+		len(f.label) == 0 && len(f.assignee) == 0 && len(f.words) == 0
 }
 
 // match reports whether t passes every clause.
 func (f filter) match(t *ticket.Ticket) bool {
 	if len(f.status) > 0 && !oneOf(t.Status, f.status) {
+		return false
+	}
+	if len(f.kind) > 0 && !oneOf(t.Type, f.kind) {
+		return false
+	}
+	if len(f.priority) > 0 && !oneOf(t.Priority, f.priority) {
 		return false
 	}
 	if len(f.label) > 0 && !anyIn(t.Labels, f.label) {

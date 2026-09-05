@@ -11,12 +11,15 @@ import (
 // filterFixtures is a store shape the filter clauses can bite on.
 func filterFixtures() []*ticket.Ticket {
 	a := mk("TKT-01ARZ3NDEKTSV4RRFFQ69G5FAV", "ready", "high", "Fix the flux capacitor")
+	a.Type = "bug"
 	a.Labels = []string{"power"}
 	a.Assignees = []string{"human:sothr"}
 	b := mk("TKT-01BX5ZZKBKACTAV9WEVGEMMVRZ", "in-progress", "normal", "Paint the shed")
+	b.Type = "task"
 	b.Labels = []string{"cosmetics"}
 	b.Assignees = []string{"agent:terva/mieli"}
 	c := mk("TKT-01CY5ZZKBKACTAV9WEVGEMMVS0", "ready", "low", "Paint the fence")
+	c.Type = "epic"
 	c.Labels = []string{"cosmetics", "power"}
 	return []*ticket.Ticket{a, b, c}
 }
@@ -60,6 +63,30 @@ func TestFilterByLabelAndAssignee(t *testing.T) {
 	typeFilter(v, "assignee:agent:terva/mieli")
 	if got := shownTitles(v); got != "Paint the shed" {
 		t.Fatalf("assignee filter shown = %q", got)
+	}
+}
+
+// TestFilterByTypeAndPriority covers the two tokens TKT-01M1RVH8 added.
+// They follow the grammar the other fields set: alternatives within a
+// field, conjunction across fields, and the same key:value spelling.
+func TestFilterByTypeAndPriority(t *testing.T) {
+	v := newTestList(fixed(filterFixtures()...))
+	typeFilter(v, "type:epic")
+	if got := shownTitles(v); got != "Paint the fence" {
+		t.Fatalf("type filter shown = %q", got)
+	}
+
+	v = newTestList(fixed(filterFixtures()...))
+	typeFilter(v, "priority:high")
+	if got := shownTitles(v); got != "Fix the flux capacitor" {
+		t.Fatalf("priority filter shown = %q", got)
+	}
+
+	// Two priorities are alternatives; the type must hold as well.
+	v = newTestList(fixed(filterFixtures()...))
+	typeFilter(v, "priority:high priority:low type:epic")
+	if got := shownTitles(v); got != "Paint the fence" {
+		t.Fatalf("combined filter shown = %q", got)
 	}
 }
 

@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1RVH857KM4SPQ3SNAQ4CE2P
 title: Filter the TUI list by type and priority tokens
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -14,10 +14,16 @@ parent: null
 dependencies: []
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: feat/tui-filter-tokens
+  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
+  commit: 4661b8ce0ee908a8da6bcf4d717ca4d91ae31fc6
+  claimed_at: 2026-09-05T13:24:05Z
+  expires_at: null
 archive: null
 created_at: 2026-09-05T13:18:40Z
-updated_at: 2026-09-05T13:18:40Z
+updated_at: 2026-09-05T13:25:01Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -66,6 +72,38 @@ enough to ride along with any other TUI slice.
 
 ## Acceptance criteria
 
-- [ ] type:T and priority:P filter the list with the same alternatives-within, AND-across semantics as status:
-- [ ] the ? help page documents the filter grammar, all five tokens and bare words
-- [ ] tests cover both new tokens
+- [x] type:T and priority:P filter the list with the same alternatives-within, AND-across semantics as status:
+- [x] the ? help page documents the filter grammar, all five tokens and bare words
+- [x] tests cover both new tokens
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-05T13:25:00Z
+
+Built and all three criteria are ticked.
+
+The change is as small as the draft predicted: two cases in
+parseFilter, two clauses in match, and the help page. The struct field
+for the type token is named kind, because Go took the word, with a
+comment saying so. Both tokens use oneOf, the scalar match status
+uses, not the set-intersection match of labels and assignees, because
+type and priority are one value per ticket.
+
+The help page's Filter section already existed, so the second
+criterion was one example line, now showing all five tokens across two
+lines. TestFilterByTypeAndPriority covers each token alone and the
+combination, with two priorities as alternatives and the type ANDed
+across, the same grammar sentence the other filter tests assert.
+
+The leading-colon spelling from the original ask was not added. The
+draft's reasoning held: :type:epic falls through to a title word today
+and matches nothing, which is honest, and one documented grammar beats
+two accepted ones.
+
+## Summary
+
+Shipped. The TUI filter line takes type:T and priority:P beside the
+existing status:, label:, and assignee: tokens, same spelling, same
+semantics: alternatives within a field, conjunction across fields. The
+? help page shows all five in its example. TestFilterByTypeAndPriority
+holds each token and the combination.

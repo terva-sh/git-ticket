@@ -3,8 +3,8 @@ schema: 1
 id: TKT-01M1S022Q9SM9DGJR1AJHTN0BC
 title: Color the TUI list rows, palette decided live with the user
 type: task
-status: draft
-status_reason: null
+status: blocked
+status_reason: awaiting the decide-and-test session with the user at their terminal
 priority: normal
 due_on: null
 labels: []
@@ -17,7 +17,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T14:37:46Z
-updated_at: 2026-09-05T14:37:46Z
+updated_at: 2026-09-05T15:31:49Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -79,3 +79,53 @@ which is the first step of the work rather than a precondition for it.
 - [ ] the chosen palette ships as Theme fields in tui/theme.go, not escape codes in list.go
 - [ ] the selected row stays legible, NO_COLOR keeps a readable baseline, and no meaning rides on red-green alone
 - [ ] the decision and the rejected candidates are recorded on this ticket
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-05T15:31:49Z
+
+The session scaffolding is built and the decide-and-test session is
+now the only thing between this ticket and its palette. Everything
+here is per the plan section of the description: switchable
+candidates, no decision made.
+
+To run the session, launch the TUI once per candidate against this
+store and look at the same working set each time:
+
+    GIT_TICKET_UI_PALETTE=status   git ticket ui
+    GIT_TICKET_UI_PALETTE=priority git ticket ui
+    GIT_TICKET_UI_PALETTE=type     git ticket ui
+    GIT_TICKET_UI_PALETTE=dim      git ticket ui
+    git ticket ui                  # the off baseline
+
+What each candidate says. status: in-progress cyan, review magenta,
+blocked yellow, draft and done dim, ready plain. priority: urgent bold
+yellow, high blue, low dim, normal plain. type: epic magenta, bug
+yellow, spike cyan, chore dim, task plain. dim is the control
+candidate, weight and no hue at all: in-progress bold, draft and done
+dim. Every candidate colors the exceptional and leaves the ordinary
+alone, because a palette that colors everything makes color mean
+nothing, and TestEveryPaletteLeavesTheOrdinaryAlone holds that.
+
+The constraints are enforced already, not promised: the selected row
+takes no palette color, so the cursor stays legible over every
+candidate; NO_COLOR wins over any selection, presence alone, per
+no-color.org; an unknown name is off rather than an error; and the
+hues in use are cyan, magenta, yellow, and blue plus weight, so no
+meaning rides on red-green alone. Six tests in palette_test.go pin all
+of it.
+
+After the session: the winner's mapping moves into Theme fields in
+tui/theme.go, the losers and the reasoning land here as the fourth
+criterion asks, and palette.go plus the environment variable are
+deleted. The file's own header says the same, so a reader finding it
+without this ticket still knows it is scaffolding.
+
+Parked blocked until the session happens, and the claim is released,
+because a claim naming a merged branch tells the other agents a
+falsehood. Anyone picking this up starts at the command list above,
+with the user at their own terminal.
+
+**agent:terva/mieli** at 2026-09-05T15:31:49Z
+
+in-progress to blocked: awaiting the decide-and-test session with the user at their terminal

@@ -48,6 +48,11 @@ type ListView struct {
 	// order indexes listOrders. The o key cycles it, and the header
 	// names it, because an invisible sort mode reads as a broken list.
 	order int
+
+	// palette is the row-color candidate for the TKT-01M1S022
+	// decide-and-test session, resolved once at construction from
+	// GIT_TICKET_UI_PALETTE. Off unless asked for.
+	palette rowPalette
 }
 
 // listOrders is the sort vocabulary of plan 8, in the order o cycles
@@ -70,7 +75,7 @@ var listOrders = []struct {
 // through acts; a zero Actions makes the view read-only, and each
 // action key says so instead of doing nothing.
 func NewListView(relist Lister, acts Actions) *ListView {
-	v := &ListView{relist: relist, acts: acts}
+	v := &ListView{relist: relist, acts: acts, palette: activePalette()}
 	v.Reload()
 	return v
 }
@@ -373,8 +378,13 @@ func (v *ListView) row(i int, selected bool) string {
 	t := v.shown[i]
 	idW, stW, tyW, prW := v.widths()
 	text := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %s", idW, v.short[t.ID], stW, t.Status, tyW, t.Type, prW, t.Priority, t.Title)
+	// The selected row takes no palette color, per the TKT-01M1S022
+	// constraint: plain reverse-video stays legible over any candidate.
 	if selected {
 		return "\x1b[7m▸ " + text + "\x1b[27m"
+	}
+	if c := v.palette.color(t); c != "" {
+		return "  " + c + text + "\x1b[0m"
 	}
 	return "  " + text
 }

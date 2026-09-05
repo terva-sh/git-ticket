@@ -8,7 +8,6 @@ package view
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/terva-sh/git-ticket/ticket"
@@ -96,7 +95,7 @@ func (v *ListView) Reload() {
 		return
 	}
 	v.tickets = tickets
-	v.short = shortestUnique(tickets)
+	v.short = abbreviateIDs(tickets)
 	v.applyFilter(selected)
 }
 
@@ -426,48 +425,16 @@ func (v *ListView) footer() string {
 
 func dim(s string) string { return "\x1b[2m" + s + "\x1b[22m" }
 
-// shortestUnique maps each ID to the fewest characters that still
-// resolve to it, never fewer than eight. It mirrors the CLI's rule in
-// cli/commands.go, which is git's rule for object hashes: a ULID opens
-// with ten characters of timestamp, so tickets created in the same
-// millisecond are identical that far in, and a fixed width would print
-// one abbreviation on two rows.
-func shortestUnique(tickets []*ticket.Ticket) map[string]string {
-	const abbrevLen = 8
-	bodies := make([]string, 0, len(tickets))
+// abbreviateIDs maps each ID to the shortest form that still resolves,
+// deferring to ticket.ShortestUnique so the TUI and the CLI cannot
+// drift. The rule needs nothing from a ticket but its ID.
+//
+// The name says IDs because cli.abbreviate is a different operation on
+// a different thing, cutting a title to a column width.
+func abbreviateIDs(tickets []*ticket.Ticket) map[string]string {
+	ids := make([]string, 0, len(tickets))
 	for _, t := range tickets {
-		bodies = append(bodies, ticket.NormalizeRef(t.ID))
+		ids = append(ids, t.ID)
 	}
-	sorted := append([]string{}, bodies...)
-	sort.Strings(sorted)
-
-	// In sorted order the longest prefix an ID shares with any other is
-	// shared with one of its two neighbours, so the pairs are enough.
-	need := make(map[string]int, len(sorted))
-	for i, b := range sorted {
-		n := abbrevLen
-		if i > 0 {
-			n = max(n, commonPrefixLen(b, sorted[i-1])+1)
-		}
-		if i+1 < len(sorted) {
-			n = max(n, commonPrefixLen(b, sorted[i+1])+1)
-		}
-		need[b] = n
-	}
-
-	out := make(map[string]string, len(tickets))
-	for i, t := range tickets {
-		b := bodies[i]
-		n := min(need[b], len(b))
-		out[t.ID] = ticket.IDPrefix + b[:n]
-	}
-	return out
-}
-
-func commonPrefixLen(a, b string) int {
-	n := 0
-	for n < len(a) && n < len(b) && a[n] == b[n] {
-		n++
-	}
-	return n
+	return ticket.ShortestUnique(ids)
 }

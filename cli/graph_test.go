@@ -5,8 +5,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/terva-sh/git-ticket/ticket"
 )
 
 // makeTicket creates a ticket with the given title and returns its full ID.
@@ -567,37 +565,9 @@ func TestCreateAcceptsAnIDPrefix(t *testing.T) {
 	}
 }
 
-// TestShortestUniqueAbbreviation is a unit test of the rule, and then the
-// property that matters: what a listing prints has to resolve.
-func TestShortestUniqueAbbreviation(t *testing.T) {
-	// Two IDs that agree for the first twelve characters, which is what
-	// tickets created in the same millisecond look like.
-	ids := []string{
-		"TKT-01M1F5JY1MCPGAQPMCWK23HASQ",
-		"TKT-01M1F5JY345C084Q3KP4RRY4EJ",
-		"TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ",
-	}
-	short := shortestUnique(ids)
-	seen := map[string]bool{}
-	for _, id := range ids {
-		s := short[id]
-		if !strings.HasPrefix(id, s) {
-			t.Errorf("%s abbreviated to %q, which is not a prefix of it", id, s)
-		}
-		if seen[s] {
-			t.Errorf("%q is the abbreviation of more than one ID", s)
-		}
-		seen[s] = true
-	}
-	// The far-apart one stays at the floor; the two close ones have to grow.
-	floor := len(ticket.IDPrefix) + abbrevLen
-	if got := short[ids[2]]; len(got) != floor {
-		t.Errorf("a distinct ID abbreviated to %q, want the floor length", got)
-	}
-	if len(short[ids[0]]) <= floor {
-		t.Errorf("two IDs sharing a long prefix must grow past the floor, got %q", short[ids[0]])
-	}
-}
+// The unit test of the abbreviation rule moved to the ticket package with
+// the rule itself, as TestShortestUnique. What stays here is the property
+// that matters at this layer: what a listing prints has to resolve.
 
 // TestListingAbbreviationsResolve is the regression test. Tickets created in
 // one run share their ULID timestamp characters, so a fixed-width abbreviation

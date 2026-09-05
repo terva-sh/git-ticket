@@ -122,3 +122,59 @@ func TestAmbiguousRefListsCandidates(t *testing.T) {
 		}
 	}
 }
+
+// TestShortestUnique is the unit test of the abbreviation rule. It moved here
+// from cli/graph_test.go when the rule did, because two copies of the rule
+// meant a change could land in one and be verified in the other.
+func TestShortestUnique(t *testing.T) {
+	// Two IDs that agree for the first twelve characters, which is what
+	// tickets created in the same millisecond look like.
+	ids := []string{
+		"TKT-01M1F5JY1MCPGAQPMCWK23HASQ",
+		"TKT-01M1F5JY345C084Q3KP4RRY4EJ",
+		"TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ",
+	}
+	short := ShortestUnique(ids)
+	seen := map[string]bool{}
+	for _, id := range ids {
+		s := short[id]
+		if !strings.HasPrefix(id, s) {
+			t.Errorf("%s abbreviated to %q, which is not a prefix of it", id, s)
+		}
+		if seen[s] {
+			t.Errorf("%q is the abbreviation of more than one ID", s)
+		}
+		seen[s] = true
+	}
+	// The far-apart one stays at the floor; the two close ones have to grow.
+	floor := len(IDPrefix) + abbrevLen
+	if got := short[ids[2]]; len(got) != floor {
+		t.Errorf("a distinct ID abbreviated to %q, want the floor length", got)
+	}
+	if len(short[ids[0]]) <= floor {
+		t.Errorf("two IDs sharing a long prefix must grow past the floor, got %q", short[ids[0]])
+	}
+}
+
+// TestShortestUniqueRoundTrips is the property that makes the rule worth
+// having: every abbreviation it prints resolves back to the ticket it came
+// from. ResolveRef is the inverse, so the two are tested against each other
+// rather than against a fixed width.
+func TestShortestUniqueRoundTrips(t *testing.T) {
+	ids := []string{
+		"TKT-01M1F5JY1MCPGAQPMCWK23HASQ",
+		"TKT-01M1F5JY345C084Q3KP4RRY4EJ",
+		"TKT-01M1F5JY3ZZZZZZZZZZZZZZZZZ",
+		"TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ",
+	}
+	for id, s := range ShortestUnique(ids) {
+		got, err := ResolveRef(s, ids)
+		if err != nil {
+			t.Errorf("the abbreviation %q of %s does not resolve: %v", s, id, err)
+			continue
+		}
+		if got != id {
+			t.Errorf("the abbreviation %q of %s resolved to %s", s, id, got)
+		}
+	}
+}

@@ -54,58 +54,6 @@ func (l *intList) Set(v string) error {
 	return nil
 }
 
-// abbrevLen is the fewest characters of a ULID a listing ever shows. Four is
-// the minimum a prefix may be, per 5.5, and eight still looks like an ID.
-const abbrevLen = 8
-
-// shortestUnique maps each ID to the fewest characters that still resolve to
-// it, never fewer than abbrevLen.
-//
-// A fixed width cannot do this. A ULID opens with ten characters of timestamp,
-// so two tickets created in the same millisecond are identical that far in, and
-// a listing printing eight shows one abbreviation on two rows. That tells the
-// reader to type something that comes back ambiguous_id. Shortening to what is
-// actually unique is git's rule for object hashes, which 5.5 already invokes
-// for prefixes.
-func shortestUnique(ids []string) map[string]string {
-	bodies := make([]string, 0, len(ids))
-	for _, id := range ids {
-		bodies = append(bodies, ticket.NormalizeRef(id))
-	}
-	sorted := append([]string{}, bodies...)
-	sort.Strings(sorted)
-
-	// In sorted order the longest prefix an ID shares with any other is shared
-	// with one of its two neighbours, so the pairs are enough.
-	need := make(map[string]int, len(sorted))
-	for i, b := range sorted {
-		n := abbrevLen
-		if i > 0 {
-			n = max(n, commonPrefixLen(b, sorted[i-1])+1)
-		}
-		if i+1 < len(sorted) {
-			n = max(n, commonPrefixLen(b, sorted[i+1])+1)
-		}
-		need[b] = n
-	}
-
-	out := make(map[string]string, len(ids))
-	for i, id := range ids {
-		b := bodies[i]
-		n := min(need[b], len(b))
-		out[id] = ticket.IDPrefix + b[:n]
-	}
-	return out
-}
-
-func commonPrefixLen(a, b string) int {
-	n := 0
-	for n < len(a) && n < len(b) && a[n] == b[n] {
-		n++
-	}
-	return n
-}
-
 // storeAbbreviations shortens against every ticket in the store, archived ones
 // included, because what a listing prints gets pasted into a command that
 // resolves against all of them.
@@ -138,7 +86,7 @@ func storeAbbreviations(s *ticket.Store, shown []*ticket.Ticket) map[string]stri
 			ids = append(ids, t.ID)
 		}
 	}
-	return shortestUnique(ids)
+	return ticket.ShortestUnique(ids)
 }
 
 // runInit creates a store in the repository, or wherever --store points.

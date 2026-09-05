@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 )
@@ -18,6 +19,10 @@ const ulidLen = 26
 // considered, per plan 5.5. Four characters is enough that a typo does not
 // resolve to a real ticket by accident.
 const minPrefixLen = 4
+
+// abbrevLen is the fewest characters of a ULID a listing ever shows. Four is
+// the minimum a prefix may be, per 5.5, and eight still looks like an ID.
+const abbrevLen = 8
 
 // crockford is Crockford base32: the digits and the uppercase letters, less I,
 // L, O, and U, which are the ones a person misreads.
@@ -145,4 +150,56 @@ func ResolveRef(ref string, ids []string) (string, error) {
 			Details: map[string]string{"candidates": strings.Join(matches, " ")},
 		}
 	}
+}
+
+// ShortestUnique maps each ID to the fewest characters that still resolve to
+// it, never fewer than abbrevLen. It is the inverse of ResolveRef and lives
+// beside it because the two have to agree: what a listing prints, a person
+// pastes straight back into a command.
+//
+// A fixed width cannot do this. A ULID opens with ten characters of timestamp,
+// so two tickets created in the same millisecond are identical that far in, and
+// a listing printing eight shows one abbreviation on two rows. That tells the
+// reader to type something that comes back ambiguous_id. Shortening to what is
+// actually unique is git's rule for object hashes, which 5.5 already invokes
+// for prefixes.
+//
+// It takes IDs rather than tickets because it needs nothing else from one.
+func ShortestUnique(ids []string) map[string]string {
+	bodies := make([]string, 0, len(ids))
+	for _, id := range ids {
+		bodies = append(bodies, NormalizeRef(id))
+	}
+	sorted := append([]string{}, bodies...)
+	sort.Strings(sorted)
+
+	// In sorted order the longest prefix an ID shares with any other is shared
+	// with one of its two neighbours, so the pairs are enough.
+	need := make(map[string]int, len(sorted))
+	for i, b := range sorted {
+		n := abbrevLen
+		if i > 0 {
+			n = max(n, commonPrefixLen(b, sorted[i-1])+1)
+		}
+		if i+1 < len(sorted) {
+			n = max(n, commonPrefixLen(b, sorted[i+1])+1)
+		}
+		need[b] = n
+	}
+
+	out := make(map[string]string, len(ids))
+	for i, id := range ids {
+		b := bodies[i]
+		n := min(need[b], len(b))
+		out[id] = IDPrefix + b[:n]
+	}
+	return out
+}
+
+func commonPrefixLen(a, b string) int {
+	n := 0
+	for n < len(a) && n < len(b) && a[n] == b[n] {
+		n++
+	}
+	return n
 }

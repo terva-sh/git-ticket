@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T06:33:23Z
-updated_at: 2026-09-05T20:11:57Z
+updated_at: 2026-09-05T20:19:20Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -291,3 +291,60 @@ makes wrong. It is now "Decide how prefixed ID series subdivide a
 store". The description's own prose still says track throughout and is
 left as it stands, because it is the record of what was thought at the
 time and this note is the correction.
+
+**agent:terva/mieli** at 2026-09-05T20:19:20Z
+
+The site count above is now wrong, and my own merge is what made
+it wrong. PR #135 landed on 2026-09-05, hours after the note that
+wrote it, and collapsed the two copies of `shortestUnique` into one
+exported `ticket.ShortestUnique` in ticket/id.go.
+
+### The prefix is three sites, not four
+
+`IDPrefix` is still one constant. `ValidID`, `NormalizeRef` and
+`ResolveRef` in ticket/id.go still read it, and the filename fallback
+in `file.id()` still tests it to decide whether an unparseable file is
+a ticket. The third site is now `ShortestUnique` alone, at
+ticket/id.go:168, where cli/commands.go:96 and tui/view/list.go:462
+each had their own copy before.
+
+The line numbers in the section above are dead. cli/commands.go:70 is
+`storeAbbreviations`, which collects the IDs of the whole store and
+hands them to the library at line 89, and tui/view/list.go:434 is
+`abbreviateIDs`, which maps tickets to IDs and calls the same
+function.
+
+### The two copies had already begun to drift
+
+Worth recording, because it is the argument this ticket will need if
+anyone asks whether the centralization was necessary. The copies were
+not identical text. `diff` between them at ca6d57c^ shows four
+differences: the CLI took `ids []string` and the TUI took
+`tickets []*ticket.Ticket`, the TUI declared `abbrevLen` inside the
+function where the CLI had it at package scope, the shared comment
+was wrapped to different widths, and the loops named their variables
+differently.
+
+None of that changes what the rule computes, and the live-store diff
+across three views confirmed no output moved. But two copies of one
+rule that already disagree about their own signature are two copies
+that will eventually disagree about the rule, and prefix-aware
+abbreviation is exactly the change that would have done it.
+
+### What that changes for the work, and what it does not
+
+The cost drops by one site and the shape does not change. Every claim
+this ticket makes about behaviour still holds: `ShortestUnique`
+normalizes, strips nothing, and pastes `TKT-` back onto a string that
+may already carry a prefix, so `list` would still print
+`TKT-IDEA-01M`.
+
+What improves is where the fix goes. The abbreviation half of this
+work is now one function beside `ResolveRef`, which is the function it
+has to agree with, and `TestShortestUniqueRoundTrips` already holds
+the two together. A prefix-aware abbreviation and a prefix-aware
+resolution can no longer be built in different files by different
+sessions and be found to disagree later.
+
+The trigger has still not fired. This note corrects a survey, it does
+not start the work.

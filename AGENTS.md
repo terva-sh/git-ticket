@@ -406,7 +406,11 @@ description: half the filter-token ask (`status:` in the TUI filter) was
 already built, and a draft that records that is what stops a double build.
 Then check again at build time, because the draft is not the tree: the sort
 draft predicted the vocabulary needed sharing, and SortByDueOn and
-SortByPriority already lived in the ticket package when the build arrived.
+SortByPriority already lived in the ticket package when the build arrived. A
+merge of your own can be what stales one, and that one is yours to repair: PR
+#135 collapsed two copies of `shortestUnique` into one, which made the survey
+in TKT-01M1R4B5 wrong about its own subject the same day it was written. When
+a change touches code a draft surveyed, note it on the draft in that PR.
 When grooming a draft, begin the note "Groomed.", record what changed and
 whether the trigger fired, verify each claim against the tree rather than
 recall, and skip a ticket groomed the same day, because a nothing-changed
@@ -518,6 +522,15 @@ section 15 records both.
 Names are singular: `git ticket`, the `ticket_*` tools, the `ticket` package.
 Directories stay plural: `.tickets/`, `draft/`, `tickets/`, `done/`, `archive/`.
 
+Settle a new vocabulary word by grepping it whole word across `*.go` and `*.md`
+first, and read what the hits mean rather than counting them. `track` looked
+obvious for a prefixed ID series and turned out to have zero noun uses and
+seventeen verb ones, the worst being line 1 of `docs/plan.md`,
+"repository-native work tracking for agents". `stream` was taken eleven times
+over, every one of them for I/O. A word the tree already spends elsewhere costs
+every later reader a disambiguation. Take the counts to the user with the
+options, because the counts are what decide it.
+
 Fixtures are static files a person reviewed. Never generate one at test time.
 Every fixture carries an `.expected.json` sidecar even when it is clean,
 because a missing expectation cannot be told apart from a forgotten one.
@@ -530,7 +543,11 @@ that would falsify it. `docs/plan.md`, this file, and a tag message all outlive
 the session that wrote them, so a wrong explanation costs a later reader more
 than no explanation would. PR #88 shipped a guess about `Origin.URL` that read
 like a finding, and #89 withdrew it. Write what you observed, or run the test
-that settles it.
+that settles it. Your own work from an hour ago is not exempt, and it is the
+likelier trap, because you feel no need to check: a note here nearly recorded
+that the two `shortestUnique` copies were byte-identical, and one `diff`
+against `ca6d57c^` showed they differed in signature, in comment wrapping, and
+in where they declared `abbrevLen`.
 
 ## Policy
 
@@ -586,6 +603,13 @@ which commit built it. A review of this repository's own store once opened with
 looked unbuilt. `just ready` and `just check` depend on `build`, and `just
 build` prints the short SHA it built from.
 
+That staleness is a free before-image when a refactor must change nothing a
+person sees. The installed binary predates your branch, so
+`diff <(git ticket list --all) <(./git-ticket list --all)` runs the old code
+against the new over this repository's real store. That is what proved PR #135
+changed no output, on three views, and it costs one command. Run it before
+`just install`, which destroys the comparison.
+
 `go:embed` silently skips any path whose name starts with `.` or `_`. That is
 why store fixtures live under `store/` and not `.tickets/`. The realistic name
 would embed nothing and leave a suite of tests passing against an empty corpus.
@@ -616,9 +640,16 @@ repair, so resolving through the store would make it unrepairable.
 A listing never abbreviates an ID to a fixed width. A ULID opens with ten
 characters of timestamp, so tickets created in the same millisecond are
 identical that far in and a fixed eight printed the same prefix on several
-rows. `shortestUnique` shortens to what actually resolves across the store.
-For the same reason, a test must not assume ID sort order matches creation
-order within a millisecond: compare as a set.
+rows. `ticket.ShortestUnique` shortens to what actually resolves across the
+store. For the same reason, a test must not assume ID sort order matches
+creation order within a millisecond: compare as a set.
+
+That rule lives in `ticket/id.go` beside `ResolveRef`, because abbreviating and
+resolving are inverses and two copies of it drift apart. It had two copies
+until PR #135. The CLI reaches it through `storeAbbreviations` and the TUI
+through `abbreviateIDs`, which is named that way because `cli.abbreviate`
+already cuts a title to a column width, and the two sit in different packages
+so the collision would have compiled.
 
 A flag whose zero value is a legal instruction needs `fs.Visit`, not a check
 for emptiness. `update --milestone ""` clears the field and no `--milestone` at

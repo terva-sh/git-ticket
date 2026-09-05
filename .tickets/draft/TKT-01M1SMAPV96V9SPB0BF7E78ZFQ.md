@@ -17,7 +17,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T20:32:00Z
-updated_at: 2026-09-05T20:32:04Z
+updated_at: 2026-09-05T23:12:03Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -80,3 +80,73 @@ than the problem deserves.
 - [ ] AGENTS.md names both install destinations, GOBIN for just install and the first writable of ~/.local/bin and ~/bin for install.sh, and says PATH order decides which one git ticket means.
 - [ ] The before-image entry beside the stale-binary gotcha tells the reader to confirm with which -a git-ticket before trusting an empty diff.
 - [ ] A decision is recorded either way on whether just install should warn when another git-ticket shadows GOBIN on PATH.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-05T23:12:03Z
+
+Groomed on 2026-09-05, the same day it was filed, because the tree
+moved under it twice in the hours since. There is no trigger clause on
+this ticket: it was startable when filed and still is.
+
+### All three criteria are still unmet, checked against the tree
+
+AGENTS.md names GOBIN once, at line 295, inside the comment on the
+`just install` line of the Commands block. It does not name
+install.sh's destination anywhere and never says PATH order decides.
+Criterion 1 stands.
+
+The before-image entry is at AGENTS.md line 616 and now ends "Run it
+before `just install`, which destroys the comparison." It still says
+nothing about `which -a`. Criterion 2 stands, and the entry got more
+specific since filing, which makes the missing caveat sharper rather
+than softer.
+
+No decision is recorded either way about `just install` warning on a
+shadow. Criterion 3 stands.
+
+### The description says two ways. There are three now
+
+`just install-release` shipped in PR #139 after this ticket was filed,
+and it resolves its destination with the same loop install.sh uses,
+the first writable of ~/.local/bin and ~/bin. So the tree now has
+`just install` at justfile:50 writing to GOBIN, `just install-release`
+at justfile:106 and install.sh at install.sh:121 both writing to
+~/.local/bin.
+
+That cuts two ways. Two of the three paths now agree, so the hazard is
+narrower than when this was filed: only the developer path diverges.
+But the description's "two ways" is stale, and anything written for
+criterion 1 has to name three destinations across three entry points.
+
+### Criterion 3's open question is half answered by precedent
+
+The description worried that a shadow warning "may be more machinery
+than the problem deserves". `install-release` already implements one,
+at justfile:160 to 164. It is five lines, it uses `command -v`, and it
+was exercised against a decoy git-ticket placed earlier on PATH, which
+named the decoy and printed the version it reported.
+
+So the cost side of that question is settled: five lines, working, with
+a copyable precedent. What is still a decision is whether `just
+install` should adopt it, and one argument has appeared since filing.
+`install-release` warns because it installs a release, where being
+shadowed defeats the point. `just install` installs a working-tree
+build for dogfooding, and a warning there fires on every install for a
+developer who deliberately keeps two binaries.
+
+### It recurred again, in a new shape
+
+After tagging v0.11.1 the two copies disagree while being built from
+the same commit. ~/.local/bin/git-ticket reports `v0.11.1
+(c15770135cea)` and ~/go/bin/git-ticket reports
+`v0.11.1-0.20260905224845-c15770135cea (c15770135cea)`, because
+`just install` ran before the tag existed and `install-release` ran
+after.
+
+That is worth recording because it is not the staleness this ticket
+was filed about. Both are current, both are the same commit, and they
+still disagree about what to call themselves. A reader comparing
+versions to decide which binary is newer would get no useful answer
+here. The shadowing copy currently on PATH is the correct one, so
+nothing is broken today.

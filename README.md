@@ -167,6 +167,24 @@ curl -fsSL https://raw.githubusercontent.com/terva-sh/git-ticket/main/install.sh
 
 Later upgrades come from the binary itself, with `git ticket self-update`.
 
+A release also publishes a container image, so a pipeline or a one-off can run
+the tool without installing anything:
+
+```sh
+docker run --rm -v "$PWD:/w" -w /w ghcr.io/terva-sh/git-ticket:latest git ticket ready
+```
+
+It is Alpine carrying `git-ticket`, `git`, `just`, and an SSH client, with no
+entrypoint and a shell as its command, so it also serves as a base image for a
+pipeline that runs several steps. A release tags the full version, the minor,
+and `latest`, so you can pin exactly or float; a prerelease publishes its own
+version alone and never moves `latest`.
+
+It runs as root, and git refuses to operate on a mounted repository owned by a
+different user with `detected dubious ownership`. Add
+`-e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/w`
+when that happens, or run the container as the owning uid.
+
 A release carries archives for Linux, macOS and Windows, on amd64 and arm64.
 Download one, unpack it, and put `git-ticket` on your `PATH`. The binary sits at
 the root of the archive, and `checksums.txt` beside it verifies what you

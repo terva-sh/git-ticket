@@ -86,3 +86,113 @@ jobs:
               exit 1
               ;;
           esac
+
+  image:
+    name: Build and Publish Image
+    # After the release, not beside it. The image is built from the archive the
+    # release published, so there has to be a release to download from.
+    needs: goreleaser
+    # The same guard, for the same reason, and it is not optional here either.
+    # Forgejo Actions runs .github/workflows too and reports the same owner and
+    # name, so only the server URL separates them. Per TKT-01M1SZ1X only the
+    # mirror publishes images, and .forgejo/workflows has no image job at all.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    # Job-level, which replaces the contents: write above for this job alone.
+    # Pushing to ghcr needs packages: write, and reading a release asset needs
+    # contents: read. Nothing here writes to the repository.
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout Code
+        # Only the Dockerfile is wanted, so no history is needed. The version
+        # comes from the archive rather than from `go build` here.
+        uses: actions/checkout@v4
+
+      - name: Work out the image tags
+        id: tags
+        # v0.11.2 publishes 0.11.2, 0.11 and latest, so a consumer can pin
+        # exactly or float on a minor.
+        #
+        # A prerelease publishes its own version and nothing else. goreleaser
+        # sets prerelease: auto, so v1.0.0-rc1 is already a prerelease on the
+        # releases page, and moving latest onto it would hand every floating
+        # consumer a release candidate. A hyphen is what marks one, per semver.
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          repo="ghcr.io/${GITHUB_REPOSITORY}"
+          tags="${repo}:${version}"
+          case "${version}" in
+            *-*)
+              echo "${GITHUB_REF_NAME} is a prerelease: publishing ${version} alone"
+              ;;
+            *)
+              tags="${tags},${repo}:${version%.*},${repo}:latest"
+              ;;
+          esac
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
+          echo "tags: ${tags}"
+
+      - name: Take the binary from the published release
+        # Not a second build. What ships in the image is the artifact the
+        # release shipped, and `--version` below proves it carries the tag.
+        # LICENSE rides along because MIT wants the notice with every copy and
+        # an image redistributes the binary exactly as an archive does.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          mkdir -p image-context
+          gh release download "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'git-ticket_*_linux_amd64.tar.gz' \
+            --dir image-context
+          tar -xzf image-context/git-ticket_*_linux_amd64.tar.gz -C image-context
+          rm -f image-context/*.tar.gz
+          ls -1 image-context
+          ./image-context/git-ticket --version
+
+      - name: Log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # The context is the unpacked archive, not this repository. The
+          # Dockerfile says why: building it against the root would pick up the
+          # gitignored `just build` artifact.
+          context: ./image-context
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          # image.source is what makes ghcr show the package against this
+          # repository and inherit its visibility.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.tags.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Verify the published image reports the tag
+        # The same reasoning as the binary check above. A green build is not
+        # evidence that what landed in the registry is what the tag names, so
+        # this pulls the pushed image back and asks it.
+        run: |
+          set -eu
+          image="ghcr.io/${GITHUB_REPOSITORY}:${{ steps.tags.outputs.version }}"
+          got=$(docker run --rm "${image}" git ticket --version)
+          echo "image reports: ${got}"
+          case "${got}" in
+            *"${GITHUB_REF_NAME}"*) echo "carries ${GITHUB_REF_NAME}" ;;
+            *)
+              echo "::error::the image reports '${got}', which does not carry ${GITHUB_REF_NAME}"
+              exit 1
+              ;;
+          esac

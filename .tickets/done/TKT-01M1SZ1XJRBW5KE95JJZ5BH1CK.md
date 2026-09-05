@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T23:39:26Z
-updated_at: 2026-09-05T23:44:05Z
+updated_at: 2026-09-05T23:53:09Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -85,7 +85,7 @@ floating consumer a release candidate.
 
 ## Acceptance criteria
 
-- [ ] A v* tag pushed to the mirror publishes ghcr.io/terva-sh/git-ticket tagged with the full version, the minor, and latest, and the image reports that tag from git ticket --version.
+- [x] A v* tag pushed to the mirror publishes ghcr.io/terva-sh/git-ticket tagged with the full version, the minor, and latest, and the image reports that tag from git ticket --version.
 - [x] The image is Alpine-based and carries git, ca-certificates, openssh-client, tzdata and just, with no ENTRYPOINT, a shell as CMD, and running as root.
 - [x] The git-ticket inside the image is the binary unpacked from the published release archive, not a second build from source.
 - [x] Only the GitHub mirror builds and publishes: the image job carries the same github.server_url guard as the goreleaser job, and .forgejo/workflows is unchanged.
@@ -158,11 +158,76 @@ written: the same failing command succeeds with
 `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory
 GIT_CONFIG_VALUE_0=/w`.
 
+**agent:terva/mieli** at 2026-09-05T23:53:09Z
+
+Criterion 1 is now proven and ticked. It shipped unticked because it
+asked for something no branch can show: that a real `v*` tag reaches
+ghcr. v0.11.2 was that tag, and this note records the evidence run.
+
+### The run
+
+v0.11.2 is `c8e13b5beeaccbc95014d4482781cf5cd520a796`, pushed to both
+remotes. GitHub run 33999609163 finished with both jobs
+`completed success`, `Build and Publish Release` and `Build and
+Publish Image`. Forgejo run 331 succeeded with its release job alone
+and no image job, which is criterion 4 holding on a real tag rather
+than in a workflow file.
+
+All three tags pulled with `podman pull` and no credentials, so the
+package is public:
+
+```text
+0.11.2   sha256:832abeb47e4a944a78cbfd66e7be20fbf65b8acfaf99e8a6da345098dd2dfc4b
+0.11     sha256:832abeb47e4a944a78cbfd66e7be20fbf65b8acfaf99e8a6da345098dd2dfc4b
+latest   sha256:832abeb47e4a944a78cbfd66e7be20fbf65b8acfaf99e8a6da345098dd2dfc4b
+```
+
+One digest behind all three, which is the tagging scheme working
+rather than three separate builds that happen to agree. Each reports
+the tag:
+
+```text
+git-ticket v0.11.2 (c8e13b5beeac, go1.25.0)
+{"version":"v0.11.2","commit":"c8e13b5...","go":"go1.25.0","modified":false}
+```
+
+The image also carries git 2.49.1, just 1.40.0, OpenSSH 10.0p2,
+tzdata and the CA bundle, and runs as root, which re-proves criterion
+2 against the published artifact instead of the local build.
+
+### The Go version is the provenance
+
+`go1.25.0` is worth more than it looks. The Forgejo archive of the
+same tag reports `go1.25.12`, because alpine builds with a different
+Go patch release, and this machine builds with `go1.26.2`. So the
+version string alone distinguishes three possible origins, and the
+image matches the GitHub archive exactly. That is criterion 3, that
+the binary is the published artifact and not a second build, checked
+against the shipped image rather than against the workflow's
+intention.
+
+### What could not be read, and why it does not matter
+
+`gh api users/terva-sh/packages/container/git-ticket` and the `orgs/`
+form both returned 403, `You need at least read:packages scope to get
+a package`. So package visibility was never read through the API.
+That is a missing scope on the local `gh` token, not a fact about the
+package, and the anonymous pull is the stronger evidence anyway: an
+unauthenticated client fetched all three tags, which is what public
+means operationally.
+
+The rest of the v0.11.2 verification passed alongside: six assets on
+each forge, `sha256sum -c` OK on all five archives on both, the
+unpacked linux_amd64 binary reporting the tag with `modified: false`,
+and the proxy's `@v/v0.11.2.info` naming
+`c8e13b5beeaccbc95014d4482781cf5cd520a796`, equal to
+`git rev-parse v0.11.2^{commit}`.
+
 ## Summary
 
-Shipped. A `v*` tag pushed to the mirror now builds and publishes
-`ghcr.io/terva-sh/git-ticket`, from a new `image` job in
-`.github/workflows/release.yml` that runs after goreleaser.
+Shipped and proven on a real tag. A `v*` tag pushed to the mirror
+builds and publishes `ghcr.io/terva-sh/git-ticket`, from an `image`
+job in `.github/workflows/release.yml` that runs after goreleaser.
 
 The image is `alpine:3.22` carrying `git-ticket`, `git`,
 `ca-certificates`, `openssh-client`, `tzdata` and `just`, with no
@@ -189,9 +254,14 @@ and name. `.forgejo/workflows` is unchanged. The job takes job-level
 `contents: read` and `packages: write`, the second of which the
 workflow did not have.
 
-Five criteria are proven. The sixth, that a real tag publishes to
-ghcr, cannot be shown before a tag exists and ships unticked with the
-evidence run assigned to the next release's verification.
+All six criteria are proven. Five were shown on the branch. The
+first needed a tag to exist, and v0.11.2 supplied it: all three tags
+pull anonymously and resolve to one digest, each reporting
+`v0.11.2 (c8e13b5beeac, go1.25.0)` with `modified: false`. That Go
+patch release is also the provenance, since the Forgejo archive of
+the same tag reads `go1.25.12` and a local build reads `go1.26.2`,
+so the image demonstrably carries the GitHub-published artifact. The
+note above records the run.
 
 The image does not set `safe.directory`, so git refuses a mounted
 repository owned by another uid. That is a decision left to the user

@@ -350,7 +350,7 @@ func (v *ListView) footer() string {
 		return "  " + v.msg
 	}
 	if v.filterText != "" {
-		return fmt.Sprintf("  %d/%d match · filter: %s · / edit · Esc clear",
+		return fmt.Sprintf("  %d/%d match · filter: %s · / edit · Esc clear · ? help",
 			len(v.shown), len(v.tickets), v.filterText)
 	}
 	n := len(v.tickets)
@@ -358,7 +358,11 @@ func (v *ListView) footer() string {
 	if n == 1 {
 		word = "ticket"
 	}
-	return fmt.Sprintf("  %d open %s · Enter open · / filter · s status · c claim · u release · r reload · q quit", n, word)
+	// This line must fit 80 columns with a two-digit count, because the
+	// Frame clips it and a clipped hint is an invisible control. The
+	// keys that do not fit live on the ? help view, and
+	// TestEveryListKeyIsHintedSomewhere holds the union complete.
+	return fmt.Sprintf("  %d open %s · Enter open · n new · e edit · / filter · ? help · q quit", n, word)
 }
 
 func dim(s string) string { return "\x1b[2m" + s + "\x1b[22m" }

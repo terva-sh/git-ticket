@@ -14,6 +14,7 @@ type App struct {
 	detail *DetailView
 	picker *StatusPicker
 	form   *FormView
+	help   *HelpView
 }
 
 // NewApp opens the list over relist, writing through acts.
@@ -30,6 +31,16 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 		}
 		if back {
 			a.detail = nil
+		}
+		return false
+	}
+	if a.help != nil {
+		back, quit := a.help.HandleKey(k)
+		if quit {
+			return true
+		}
+		if back {
+			a.help = nil
 		}
 		return false
 	}
@@ -100,6 +111,9 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 			a.form = NewEditForm(t)
 		}
 		return false
+	case k.Kind == tui.KeyRune && k.Rune == '?':
+		a.help = &HelpView{}
+		return false
 	}
 	return a.list.HandleKey(k)
 }
@@ -143,6 +157,9 @@ func (a *App) saveForm() {
 
 // Render draws whichever view is on top.
 func (a *App) Render(cols, rows int) []string {
+	if a.help != nil {
+		return a.help.Render(cols, rows)
+	}
 	if a.detail != nil {
 		return a.detail.Render(cols, rows)
 	}

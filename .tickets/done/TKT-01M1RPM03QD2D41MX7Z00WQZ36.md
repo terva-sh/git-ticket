@@ -23,7 +23,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-05T11:52:47Z
-updated_at: 2026-09-05T12:28:40Z
+updated_at: 2026-09-05T13:16:13Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -119,6 +119,36 @@ binary is not a literal "git". The exemption went into plan 7.4 first,
 scoped to that one function name, and then into the test, so an
 exec.Command anywhere else still fails all three assertions. That is
 the policy test doing exactly what it was built for.
+
+**agent:terva/mieli** at 2026-09-05T13:16:13Z
+
+A field bug, found minutes after the merge by running the command on a
+real desktop, and fixed in the follow-up branch.
+
+`copy` hung for the full two-minute timeout on the first real run. The
+probe worked exactly as designed, found wl-copy, and wl-copy did its
+job, but wl-copy forks a child that keeps serving the selection until
+something replaces it, and that child holds the inherited stdout and
+stderr open. runClipboardTool used CombinedOutput, which waits for EOF
+on its pipes, not for the process, so the command sat there until the
+next copy would have arrived. xclip and xsel fork the same shape, so
+every Linux path except wl-copy-under-test had the same bug waiting.
+
+The httptest-shaped tests could not have caught it: the RunTool seam
+replaces exactly the function that was wrong. This is the same lesson
+self-update recorded, that the apply path is only proven by a real
+run, and it is why the smoke test ran at all.
+
+The fix is files instead of pipes on all three descriptors. A temp
+file holds nothing open, so Run returns when the tool's own process
+exits, which wl-copy does promptly after forking, verified with a
+bare `printf x | wl-copy` before writing the fix. The tool's error
+words still ride in the failure, read from the file afterward.
+TestRunClipboardToolOutlivesNoForkedChild reproduces the fork shape
+with `sh -c "sleep 30 & exit 0"` and holds the return to the parent.
+
+Proof after the fix: `copy TKT-01M1RPM0` returned in 0.13 seconds,
+reported 4811 bytes via wl-copy, and wl-paste read the body back.
 
 ## Summary
 

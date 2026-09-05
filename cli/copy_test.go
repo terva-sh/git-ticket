@@ -237,6 +237,40 @@ func TestCopyRefusesNativeWindows(t *testing.T) {
 	}
 }
 
+// TestRunClipboardToolOutlivesNoForkedChild reproduces the hang the first
+// real-world run hit. wl-copy forks a child that serves the selection until
+// something replaces it, and the child holds the inherited descriptors open.
+// With pipes on stdout and stderr, Wait blocks until that child dies, which
+// read as a two-minute timeout. The stand-in tool here does the same fork
+// shape: it backgrounds a sleep and exits at once. The assertion is that
+// runClipboardTool comes back with the parent rather than the child.
+func TestRunClipboardToolOutlivesNoForkedChild(t *testing.T) {
+	done := make(chan error, 1)
+	go func() {
+		done <- runClipboardTool("/bin/sh", []string{"-c", "sleep 30 & exit 0"}, []byte("body"))
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runClipboardTool: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("runClipboardTool waited for the forked child instead of the tool itself")
+	}
+}
+
+// TestRunClipboardToolReportsTheToolsWords: "exit status 3" alone tells the
+// user nothing, so the tool's own stderr rides in the error.
+func TestRunClipboardToolReportsTheToolsWords(t *testing.T) {
+	err := runClipboardTool("/bin/sh", []string{"-c", "echo boom >&2; exit 3"}, nil)
+	if err == nil {
+		t.Fatal("a failing tool did not fail the call")
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("the tool's words are missing: %v", err)
+	}
+}
+
 // TestCopyRefusesJSON: a clipboard write has nothing to say in JSON, and
 // show --json is the JSON path to the body.
 func TestCopyRefusesJSON(t *testing.T) {

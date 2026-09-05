@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -112,17 +111,56 @@ func writeClipboard(env Env, body []byte) (string, error) {
 // runClipboardTool is the real exec behind the RunTool seam: the body on
 // stdin, nothing read back, and the tool's own words in the error when it
 // fails, because "exit status 1" alone tells the user nothing.
+//
+// Every descriptor is a real file rather than a pipe, and that is the whole
+// fix for a hang the first real-world run hit. wl-copy, xclip, and xsel fork
+// a child that serves the selection until something replaces it, and the
+// child holds the inherited descriptors open. A pipe there means waiting for
+// EOF that only arrives at the next copy, which read as a two-minute timeout
+// against wl-copy. A file holds nothing open, so Run returns when the tool's
+// own process exits, which wl-copy does promptly after forking.
 func runClipboardTool(path string, args []string, stdin []byte) error {
-	cmd := exec.Command(path, args...)
-	cmd.Stdin = bytes.NewReader(stdin)
-	out, err := cmd.CombinedOutput()
+	in, err := clipTemp("git-ticket-clip-in-*")
 	if err != nil {
-		if msg := strings.TrimSpace(string(out)); msg != "" {
-			return fmt.Errorf("%w: %s", err, msg)
-		}
 		return err
 	}
+	defer os.Remove(in.Name())
+	defer in.Close()
+	if _, err := in.Write(stdin); err != nil {
+		return err
+	}
+	if _, err := in.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	out, err := clipTemp("git-ticket-clip-out-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(out.Name())
+	defer out.Close()
+
+	cmd := exec.Command(path, args...)
+	cmd.Stdin = in
+	cmd.Stdout = out
+	cmd.Stderr = out
+	if runErr := cmd.Run(); runErr != nil {
+		data, _ := os.ReadFile(out.Name())
+		if msg := strings.TrimSpace(string(data)); msg != "" {
+			return fmt.Errorf("%w: %s", runErr, msg)
+		}
+		return runErr
+	}
 	return nil
+}
+
+// clipTemp is os.CreateTemp with the one intent of this file: a scratch file
+// that stands in for a pipe.
+func clipTemp(pattern string) (*os.File, error) {
+	f, err := os.CreateTemp("", pattern)
+	if err != nil {
+		return nil, fmt.Errorf("clipboard scratch file: %w", err)
+	}
+	return f, nil
 }
 
 // writeOSC52 puts the body on the clipboard through the controlling

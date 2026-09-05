@@ -756,12 +756,22 @@ which is the check worth repeating if the ignore rule ever moves.
 for a `.git` directory and a worktree has a `.git` file instead, so building the
 main package stops with `error obtaining VCS status: exit status 128` before it
 compiles anything. This is not a corner case here, because sub-agents work in
-worktrees: `just build`, `check`, `fix`, `ready` and `ci` all fail there at the
-build step, while `go vet` and `go test` pass, since only linking a binary
-stamps a version. `GOFLAGS=-buildvcs=false just ci` goes green. The cost is a
-binary reporting `devel (unknown)`, which is fine for checking a store and never
-fine for a release or for answering what version something is.
-`just install-release` clones instead of adding a worktree for this reason.
+worktrees. `go vet` and `go test` pass there, since only linking a binary stamps
+a version, so the suite goes green while the build does not.
+
+The justfile handles it, per TKT-01M1SPR2. One `buildvcs` variable compares
+`git rev-parse --git-dir` with `--git-common-dir`, which agree in the main tree
+and differ in a linked worktree, and `build` and `install` pass
+`-buildvcs=false` when they differ. So `just build`, `check`, `fix`, `ready`,
+`ci` and `install` all work in a worktree with nothing set by the caller. Both
+recipes say when they did it, because the binary then reports `devel (unknown)`,
+which is fine for checking a store and never fine for a release or for answering
+what version something is.
+
+A bare `go build ./cmd/git-ticket` in a worktree still fails, because nothing
+intercepts it. Go through `just`, or pass the flag yourself.
+`just install-release` needs neither, because it builds in a clone with a real
+`.git` directory, which is why it clones.
 
 GitHub does not fire a workflow for a tag pushed in the same operation that
 first adds the workflow file. `git push github main --follow-tags` carried

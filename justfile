@@ -8,6 +8,28 @@
 
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
+# `-buildvcs=false` inside a linked git worktree, and empty everywhere else.
+#
+# Go finds the VCS root by looking for a `.git` directory, and a linked worktree
+# has a `.git` file pointing into the main repository instead, so linking the
+# main package there stops with "error obtaining VCS status: exit status 128"
+# before it compiles anything. That hits `build` and `install`, and through
+# `build` it hits `check`, `fix`, `ready` and `ci`. `go vet` and `go test` are
+# fine, because only linking a binary stamps a version, which is what makes the
+# failure confusing: the suite is green and the build is not.
+#
+# Sub-agents work in worktrees, so without this every one of them meets that
+# error before it touches anything of its own.
+#
+# The comparison is the detection: the two agree in the main tree and differ in
+# a linked worktree. Both are silenced so that a directory which is no git
+# repository at all yields two empty strings, compares equal, and adds no flag.
+#
+# `.forgejo/workflows/ci.yml` needs no equivalent, because the runner does an
+# ordinary checkout rather than a worktree. That is the one place this file and
+# the workflow are allowed to differ.
+buildvcs := `if [ "$(git rev-parse --git-dir 2>/dev/null)" != "$(git rev-parse --git-common-dir 2>/dev/null)" ]; then echo "-buildvcs=false"; fi`
+
 # List the recipes.
 default:
     @just --list
@@ -16,18 +38,20 @@ default:
 # find it. It is gitignored, so it can land there on any ordinary day of work.
 # Build git-ticket into the repository root.
 build:
-    go build -o git-ticket ./cmd/git-ticket
+    go build {{buildvcs}} -o git-ticket ./cmd/git-ticket
     @echo "built ./git-ticket ($(git rev-parse --short HEAD))"
+    @[ -z "{{buildvcs}}" ] || echo "note: linked worktree, so this was built with {{buildvcs}} and ./git-ticket reports devel rather than a version" >&2
 
 # Git spells a binary named git-ticket on PATH as `git ticket`, so this is what
 # makes the subcommand work outside this tree, which is what dogfooding it in
 # another repository needs.
 # Install git-ticket into GOBIN, else GOPATH/bin.
 install:
-    go install ./cmd/git-ticket
+    go install {{buildvcs}} ./cmd/git-ticket
     @dest="$(go env GOBIN)"; [ -n "$dest" ] || dest="$(go env GOPATH)/bin"; \
       echo "installed git-ticket -> $dest/git-ticket"; \
       case ":$PATH:" in *":$dest:"*) ;; *) echo "warning: $dest is not on PATH, so \`git ticket\` will not resolve" ;; esac
+    @[ -z "{{buildvcs}}" ] || echo "note: linked worktree, so this was built with {{buildvcs}} and the installed binary reports devel rather than a version" >&2
 
 # `just install` builds whatever is in your tree and puts it in GOBIN, which is
 # what dogfooding wants. This is the other half. It builds a released tag and

@@ -48,12 +48,20 @@ the `?` help page, and `TestEveryListKeyIsHintedSomewhere` enforces it: a
 control the UI never prints might as well not exist. The detail footer must
 fit a 60-column pane, and a width test holds it: adding "y copy" overflowed
 by one column and the arrow glyphs paid for it, since j/k needs no teaching.
+That budget is now spent, so v0.9.5's `t` sent the `g` and `G` hints to the
+`?` page instead of buying another column. Assume the next binding pays the
+same way.
+
+The detail view is a stack rather than a field. `App.details` is a slice and
+`a.top()` is its only reader, because `t` opens a linked ticket over the one
+you arrived from and Esc has to walk back. A test that asserts a detail view
+is open reads `a.top()`; there is no `a.detail` left to check.
 
 `cli.UIParams` and `view.StoreParams` convert by a cast in
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.9.1, and `self-update` (plan 12.6, with the graded
+Releases run through v0.10.0, and `self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release
 binary applied v0.8.1 over the live GitHub API, check exit 10, apply exit 0,
 and the result was byte-identical (`cmp`) to the released binary. v0.9.0
@@ -66,13 +74,21 @@ sort vocabulary: `o` cycles it in the TUI and `list --sort` gains
 the repository root, and the README's curl one-liner is live and proven
 against the mirror. v0.9.4 colors the list rows: priority is the default the
 decide-and-test session picked, `p` cycles the five palettes, and NO_COLOR
-pins them off and locks the key.
+pins them off and locks the key. v0.9.5 gives the detail view `t`, a picker
+over the ticket's parent, children, dependencies and dependents. v0.10.0 is
+templates on three surfaces: `create --template`, the `templates` key in
+`config`, and the picker behind the TUI's `n`.
 
 The list has one pattern for a display mode, set twice now by sort and
 color: a cycling key, the header naming the active mode, the `?` page
 carrying the hint, and the mode composing with the filter. The next mode
 takes the same shape, because three surfaces teaching three patterns is how
 a TUI rots.
+
+A picker placed in front of an existing key opens on the no-op row. The
+template picker's first row is "a blank ticket", so `n` still files an empty
+ticket in one Enter and only the person who wants a template pays for the
+chooser. A new chooser must not make the old behaviour cost more keystrokes.
 
 `schema` and `config` split the vocabulary and the split is load-bearing.
 `schema` is what the binary enforces, identical in every store, and plan 10.4
@@ -87,6 +103,16 @@ bare list. Per plan 4.1 an empty allowlist permits everything, so a consumer
 handed `[]` reads it backwards and fails silently. `enforced` is derived from
 the length, so the two cannot drift. Both allowlists are advisory: an unlisted
 label still writes and `check` warns, which is where `check --strict` bites.
+
+`templates` is a bare sorted list and does not contradict that rule. No
+enforcement regime stands behind it, so an `enforced` field would state
+nothing, and `create --template` refuses an unknown name outright rather than
+warning. It publishes `[]` and never `null`. The template loader is lenient
+by design, per plan 4.2: it seeds the fields on `ticket.Template` and ignores
+every other key in the file, which is what lets a template be made by copying
+a real ticket. It seeds nothing lifecycle-shaped, no status and no created
+instant, because 6.2.1 is where a backport says those explicitly. Do not
+tighten it into a validator.
 
 The agent workflow block lives at `cli/instructions.md`, embedded with
 `go:embed`. Edit the Markdown, not a Go string.
@@ -318,6 +344,13 @@ edges worth knowing before you lean on it. `?limit=N` is ignored, so a request
 for 3 rows came back with 185. `conclusion` is `null` on every row, including
 the failures, which makes `status` the field carrying the verdict there. And
 nothing scopes the answer to your commit, so match `head_sha` yourself.
+
+Poll by calling again, not by looping inside one command. Twice in the
+v0.10.0 verification a `for` loop wrapping `sleep 25` and `gh api` died after
+ten seconds with exit -1, while the same single `gh api` call answered in
+under a second. What killed the loop was never established, and that is the
+argument for the rule rather than against it: one call per turn costs little
+and fails legibly.
 
 Without tea, the same call needs a token: `$TERVA_FORGE_TOKEN`, or the login
 block matching the host in tea's `config.yml`, which is
@@ -715,7 +748,10 @@ A release is not proven by a green job. Read the assets back, verify
 a build that succeeds while shipping a binary that disagrees with its own tag.
 And exercise whatever the release makes live beyond the assets: v0.9.3's
 verification ran the README's curl one-liner against the freshly pushed
-mirror, because that URL was the thing the release actually shipped.
+mirror, because that URL was the thing the release actually shipped. For a
+feature release that means the feature. v0.10.0's ran `config` and `create
+--template` against the installed binary in a scratch store, which is the
+only check that the shipped artifact carries what the tag message claims.
 
 `go list -m` answers from the local module cache before it asks the proxy, so it
 can report a hash that was never published. Verifying v0.6.0 returned
@@ -754,7 +790,10 @@ the two-step precedent from both sides at once: `copy` is a new command and
 draft-to-done loosened the 6.2 table, either alone enough for the minor. A
 release can also carry no binary change at all: v0.9.3's binary is identical
 to v0.9.2's, and the tag's job was pushing `main` to the mirror, which is
-what made the install one-liner live. Read
+what made the install one-liner live. v0.10.0 extends the new-surface half to
+a published JSON envelope: nothing broke and no command appeared, but
+`config` grew a `templates` key that a consumer can now depend on, and 10.6
+is a surface 12.4 covers. Read
 what an earlier release decided with `git tag -l v0.7.0 -n99` before picking
 one.
 

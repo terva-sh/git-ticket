@@ -64,7 +64,15 @@ tokens, and arrive-done (plan 6.2.1: `create --status done|archived`,
 sort vocabulary: `o` cycles it in the TUI and `list --sort` gains
 `updated_at` and `status`, working set first. v0.9.3 ships `install.sh` at
 the repository root, and the README's curl one-liner is live and proven
-against the mirror.
+against the mirror. v0.9.4 colors the list rows: priority is the default the
+decide-and-test session picked, `p` cycles the five palettes, and NO_COLOR
+pins them off and locks the key.
+
+The list has one pattern for a display mode, set twice now by sort and
+color: a cycling key, the header naming the active mode, the `?` page
+carrying the hint, and the mode composing with the filter. The next mode
+takes the same shape, because three surfaces teaching three patterns is how
+a TUI rots.
 
 `schema` and `config` split the vocabulary and the split is load-bearing.
 `schema` is what the binary enforces, identical in every store, and plan 10.4
@@ -375,6 +383,15 @@ An ask that arrives mid-build gets queued as a task and filed after the
 current branch lands. A ticket write is a store write, and a store write on
 an unrelated feature branch rides into that PR's diff.
 
+A ticket that spans sessions parks `blocked` with a reason naming what it
+waits for, and its claim is released, because a claim naming a merged branch
+tells the other agents a falsehood. TKT-01M1S022 is the worked example: prep
+landed, the ticket blocked on the decide-and-test session, and the next
+session re-claimed it on a fresh branch. A session that shows the user real
+candidates can also redirect the design, not only answer it, and the verdict
+is then the new ask: screenshots from the user's terminal are readable
+evidence, and a bigger store makes a better test set than this one.
+
 Name a ticket with its title the first time you mention it, in a summary, a
 commit message, a PR body, or a ticket note:
 
@@ -403,7 +420,11 @@ until a later event. TKT-01M1S02QA's curl-from-the-mirror criterion could not
 be proven before a release pushed `main` to the mirror, so it shipped
 unticked with the note assigning the evidence run to the next release's
 verification, and the tick landed afterward by PR, with the summary rewritten
-in the same change so it stopped describing the wait. Closing a ticket that way is
+in the same change so it stopped describing the wait. And when the user
+changes the ask mid-ticket, the criterion is reworded by the three-edit rule
+rather than left arguing with the ship: TKT-01M1S022's session kept all five
+palettes as a runtime feature instead of one winner as Theme fields, and the
+criterion followed the verdict, original verbatim in the note. Closing a ticket that way is
 fine: no check reports an unticked criterion, so an honest `[ ]` costs nothing
 and a false `[x]` costs the next reader their trust in every other box.
 

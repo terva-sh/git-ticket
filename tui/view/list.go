@@ -112,6 +112,28 @@ func (v *ListView) SelectedTicket() *ticket.Ticket {
 // the letter keys itself.
 func (v *ListView) FilterEditing() bool { return v.filterEditing }
 
+// TicketByID finds a ticket in the full listing, filter or no filter.
+// The form's conflict loop uses it to re-arm a revision after a
+// reload.
+func (v *ListView) TicketByID(id string) *ticket.Ticket {
+	for _, t := range v.tickets {
+		if t.ID == id {
+			return t
+		}
+	}
+	return nil
+}
+
+// shortOr is the shortest-unique form of id when the listing knows
+// it, and the full id when it does not, which happens when a filter
+// hides the ticket a message is about.
+func (v *ListView) shortOr(id string) string {
+	if s, ok := v.short[id]; ok {
+		return s
+	}
+	return id
+}
+
 // SelectedID is the ID under the cursor, or empty for an empty list.
 func (v *ListView) SelectedID() string {
 	if t := v.SelectedTicket(); t != nil {

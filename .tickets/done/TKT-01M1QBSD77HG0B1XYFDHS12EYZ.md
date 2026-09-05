@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1QBSD77HG0B1XYFDHS12EYZ
 title: Build the Phase 4 TUI view for browsing and editing tickets
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: low
 due_on: null
@@ -15,16 +15,10 @@ dependencies:
   - TKT-01M1QBS9F4Y1YY0J90EBW2FTZS
 blocks_on: none
 references: []
-claim:
-  actor: agent:terva/mieli
-  branch: feat/tui-frame-renderer
-  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
-  commit: 758edcf068ad768d968a3b02af03c8104df4b3ff
-  claimed_at: 2026-09-04T23:47:58Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-04T23:24:15Z
-updated_at: 2026-09-05T01:05:42Z
+updated_at: 2026-09-05T01:17:45Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -73,7 +67,7 @@ overwrites.
 
 - [x] a list view shows open work, filterable by status, label, and assignee
 - [x] the detail view renders the ticket Markdown with its sections
-- [ ] create and edit write through the library, and a stale revision re-presents instead of overwriting
+- [x] create and edit write through the library, and a stale revision re-presents instead of overwriting
 - [x] status transitions, claim, and release are reachable from the list
 - [x] tests drive a fake terminal and assert the emulated cell grid
 
@@ -245,3 +239,65 @@ new tests cover the tokens, the conjunction rule, live narrowing, the Esc
 ladder, reload survival, and the App routing.
 
 Criterion 3, create and edit through the library, is the one left.
+
+**agent:terva/mieli** at 2026-09-05T01:17:45Z
+
+The create and edit flows are in, and the third acceptance criterion, the
+last one, is ticked.
+
+`n` on the list opens the create form, `e` opens the edit form prefilled
+with the title and the description. Both fields sit on terva's editor,
+lifted whole into `tui/editor.go`: grapheme-aware cursor movement, word
+motion, paste handling, and the Enter rules it shipped with. A bare Enter
+on the title moves to the description; in the description it inserts a
+newline, because a form is not a chat composer and the save chord is
+Ctrl+S. Tab switches fields, Esc cancels without writing, and a save with
+no title is refused in the form rather than bounced off the store.
+
+Create goes through Store.Create with the actor; the store fills type,
+priority, and status from its own defaults, the same shape as `git ticket
+create --title`. Edit replaces the title and the description as one
+`ticket.Mutations` write, so a half-applied edit cannot exist, and the
+revision precondition rides on it.
+
+The conflict loop is the criterion's second clause, and it works the way
+the TKT-01M1QBS9 spike designed: a stale_revision answer keeps the form
+open with the typed text, reloads, re-arms the precondition with the
+revision now on disk, and says "changed by another writer; your text is
+kept, Ctrl+S again to replace their version". The write did not happen,
+and the second Ctrl+S is a deliberate decision. The editor lift pulled in
+`github.com/rivo/uniseg` and three small helpers (hyperlinkClose, reset,
+linkStateAfter) that its wrap path expected from its home package.
+
+Seven new tests drive the flows end to end through the App: create with
+multiline prose, the prefill, the conflict loop losing then winning, the
+Esc cancel, the Tab semantics, and the unwired degradation. All five
+criteria now stand ticked, and this ticket moves to review.
+
+## Summary
+
+Shipped. `git ticket ui` is the Phase 4 TUI view: an alt-screen application
+over the ticket library, with all five acceptance criteria met.
+
+The `tui` package is the rendering foundation, lifted from terva's
+packages/tui under its MIT notice (Terminal, escape vocabulary, key Reader,
+width helpers, Viewport, editor, tuitest) plus one deliberately new piece,
+the Frame renderer, because a list-detail-form application owns its whole
+screen where terva paints a chat into scrollback. The `tui/view` package is
+the application: list with live filtering (status, label, assignee, title
+words), detail view rendering the ticket's own Markdown by section, status
+picker fed by PermittedTransitions with the blocked-reason prompt, claim
+and release, and create/edit forms on the lifted editor.
+
+Every write goes through the library with the revision the view last read,
+recorded as the --actor the command was given. A lost race never
+overwrites: actions reload and re-present, and the edit form keeps the
+typed text, re-arms with the revision now on disk, and asks again. The
+entrypoint is the `ui` subcommand; Env.RunUI keeps the terminal stack out
+of every host that embeds cli per plan 12.2. Tests throughout drive a fake
+terminal and assert the vt10x-emulated cell grid.
+
+Landed across PRs #95, #97, #98, #99, #100, and the direct-push lapse
+632cf0d recorded in the notes. Styled Markdown rendering (terva's
+markdown.go with chroma) remains future polish with a named slot in
+DetailView.build.

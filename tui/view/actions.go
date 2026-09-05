@@ -20,6 +20,14 @@ type Actions struct {
 	SetStatus func(ref, revision, status, reason string) error
 	Claim     func(ref, revision string) error
 	Release   func(ref, revision string) error
+	// Create files a new ticket and returns its ID. The store fills
+	// every field the form does not ask for from its own defaults,
+	// which is the same shape `git ticket create --title` has.
+	Create func(title, description string) (id string, err error)
+	// Edit replaces the title and the description as one write, so a
+	// half-applied edit cannot exist. The revision precondition rides
+	// on it like every other write.
+	Edit func(ref, revision, title, description string) error
 }
 
 // StoreParams is everything a store-backed TUI needs that the view
@@ -63,6 +71,23 @@ func StoreActions(p StoreParams) Actions {
 	return Actions{
 		SetStatus: func(ref, revision, status, reason string) error {
 			return apply(ref, revision, ticket.SetStatus{Status: status, Reason: reason})
+		},
+		Create: func(title, description string) (string, error) {
+			res, err := p.Store.Create(context.Background(), ticket.CreateOptions{
+				Title:       title,
+				Description: description,
+				Actor:       p.Actor,
+			})
+			if err != nil {
+				return "", err
+			}
+			return res.Ticket.ID, nil
+		},
+		Edit: func(ref, revision, title, description string) error {
+			return apply(ref, revision, ticket.Mutations{
+				ticket.SetTitle{Title: title},
+				ticket.SetDescription{Text: description},
+			})
 		},
 		Claim: func(ref, revision string) error {
 			return apply(ref, revision, ticket.ClaimTicket{

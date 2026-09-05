@@ -203,3 +203,35 @@ func isHyperlinkClose(seq string) bool {
 	_, uri, ok := strings.Cut(body, ";")
 	return ok && uri == ""
 }
+
+// hyperlinkClose is the OSC 8 terminator, and reset drops every SGR
+// attribute. Both lifted with the editor's wrap path, which re-opens
+// on each wrapped row what the previous row left open.
+const (
+	hyperlinkClose = "\x1b]8;;\x1b\\"
+	reset          = "\x1b[0m"
+)
+
+// linkStateAfter scans piece from a starting OSC 8 state and returns
+// the opening sequence in effect at the end of piece, or "" when no
+// link is open. A wrapped row has to re-open what the previous row
+// left open.
+func linkStateAfter(state, piece string) string {
+	for i := 0; i < len(piece); {
+		n := escSeqLen(piece, i)
+		if n == 0 {
+			i++
+			continue
+		}
+		seq := piece[i : i+n]
+		if strings.HasPrefix(seq, "\x1b]8;") {
+			if isHyperlinkClose(seq) {
+				state = ""
+			} else {
+				state = seq
+			}
+		}
+		i += n
+	}
+	return state
+}

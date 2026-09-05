@@ -10,4 +10,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
+require (
+	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
+)

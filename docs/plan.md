@@ -632,7 +632,7 @@ orthogonal, and the `ready` query filters on it.
 
 | From | Permitted to |
 |---|---|
-| `draft` | `ready`, `archived` |
+| `draft` | `ready`, `done`, `archived` |
 | `ready` | `draft`, `in-progress`, `blocked`, `archived` |
 | `in-progress` | `ready`, `blocked`, `review`, `done`, `archived` |
 | `blocked` | `ready`, `in-progress`, `archived` |
@@ -642,10 +642,13 @@ orthogonal, and the `ready` query filters on it.
 
 Anything else returns `invalid_transition` naming the permitted targets.
 
-A `--reason` is required for a transition into `blocked` and for reopening from
-`done` to `in-progress`. Both are cases where a later reader needs to know why,
-and neither has a dedicated command to make the intent obvious. It is accepted,
-but not required, on every other transition.
+A `--reason` is required for a transition into `blocked`, for reopening from
+`done` to `in-progress`, and for closing a draft straight to `done`. All three
+are cases where a later reader needs to know why, and none has a dedicated
+command to make the intent obvious. A draft that jumps to done skipped the
+whole working lifecycle, so the reason is where the reader learns the work
+already existed and where it actually happened. It is accepted, but not
+required, on every other transition.
 
 The reason lands in two places. It is written to `status_reason`, where a query
 can read it back, and appended to `Notes` with the actor and the timestamp,
@@ -658,6 +661,36 @@ reading prose.
 moves the file. `status ID archived` is refused with a pointer to `git ticket
 archive`. The reverse pair is `git ticket unarchive`, which restores the file to
 `tickets/` and sets the status to `ready`.
+
+### 6.2.1 Arriving done
+
+Work sometimes reaches a store already finished, and the lifecycle above is
+for work that happens here. Backporting from another system would otherwise
+mean walking every imported ticket through draft, ready, in-progress, and
+done, five writes of fiction each. So `create --status` files a ticket
+directly as `done` or as `archived`, and accepts no other status: everything
+else lands in `draft`, because promotion out of draft is a human call and
+`create --status ready` would quietly bypass that gate.
+
+A ticket created as `done` is finished work and satisfies dependencies like
+any other done ticket. A ticket created as `archived` is work that was
+abandoned in the old system: it carries an archive block whose `from_status`
+is `draft`, because it never lived in this store's working set, and per 6.3 it
+therefore satisfies no dependency. Work that was finished and then archived in
+the old system is created as `done`, or created as done and archived after,
+because satisfying dependencies is exactly the property that distinguishes it.
+`create --reason` is accepted with `--status archived` and lands in the
+archive block and Notes, the same two places `archive --reason` writes; with
+any other status it is refused, because there is nothing for it to mean.
+
+`create --created` backdates the ticket to an instant in the past: the ULID
+takes its time part from it, so backported history sorts chronologically,
+which is the property ULIDs exist for, and `created_at` and `updated_at` agree
+with it. It accepts an RFC 3339 instant or a bare `YYYY-MM-DD` date read as
+midnight UTC, and refuses an instant in the future, because a backport is by
+definition about the past and a future ULID would sort after tickets that do
+not exist yet. `--created` combines with any create, not only a backported
+status, because the import of an old system carries its open work too.
 
 ### 6.3 Archive and dependency resolution
 
@@ -1955,7 +1988,7 @@ git ticket ui       # browse the store interactively; no --json form
 git ticket show   ID [--body]
 git ticket copy   ID     # put the body on the system clipboard, per 12.7
 git ticket search QUERY [--regex]
-git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod]
+git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --status, --created, --reason per 6.2.1
 git ticket update ID [--title --type --priority --description --description-file --milestone --parent --blocks-on --due-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]

@@ -61,7 +61,11 @@ func (p *StatusPicker) HandleKey(k tui.Key) PickerAction {
 			return PickerAction{Cancel: true}
 		}
 		chosen := p.options[p.list.Cursor()]
-		if chosen == ticket.StatusBlocked {
+		// The library's own list of reason-requiring transitions, so the
+		// picker can never offer a move the apply would bounce for a
+		// missing reason. It used to hardcode blocked, which left
+		// reopening from done to fail after the fact instead of asking.
+		if ticket.ReasonRequired(p.t.Status, chosen) {
 			p.asking, p.chosen = true, chosen
 			return PickerAction{}
 		}

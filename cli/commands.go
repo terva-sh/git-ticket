@@ -235,6 +235,9 @@ func runCreate(ctx *cmdContext, args []string) error {
 		parent    string
 		blocksOn  string
 		dueOn     string
+		status    string
+		created   string
+		reason    string
 		labels    stringList
 		assignees stringList
 		dependsOn stringList
@@ -263,6 +266,9 @@ func runCreate(ctx *cmdContext, args []string) error {
 		f.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
 		f.Var(&ac, "ac", "an acceptance criterion, repeatable")
 		f.Var(&dod, "dod", "a definition of done item, repeatable")
+		f.StringVar(&status, "status", "", "file directly as done or archived, for a backport, per plan 6.2.1")
+		f.StringVar(&created, "created", "", "backdate the ticket: RFC 3339, or YYYY-MM-DD read as midnight UTC")
+		f.StringVar(&reason, "reason", "", "why, with --status archived only; lands in the archive block and Notes")
 	})
 	if err != nil {
 		return err
@@ -291,6 +297,18 @@ func runCreate(ctx *cmdContext, args []string) error {
 	if dueOn != "" && !ticket.ValidDueOn(dueOn) {
 		return usageErr("%q is not a YYYY-MM-DD date", dueOn)
 	}
+	// Parsed here so a bad instant costs no store open and no lock. The two
+	// accepted forms are plan 6.2.1's: a full RFC 3339 instant, or a bare
+	// date read as midnight UTC, because a backport usually knows the day and
+	// rarely the second.
+	var createdAt time.Time
+	if created != "" {
+		var perr error
+		createdAt, perr = parseCreated(created)
+		if perr != nil {
+			return usageErr("%v", perr)
+		}
+	}
 
 	s, err := ctx.openStore()
 	if err != nil {
@@ -318,6 +336,9 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Assignees:          assignees,
 		Dependencies:       deps,
 		BlocksOn:           blocksOn,
+		Status:             status,
+		Created:            createdAt,
+		Reason:             reason,
 		Actor:              ctx.actor(s),
 	}
 	if dueOn != "" {
@@ -343,6 +364,20 @@ func runCreate(ctx *cmdContext, args []string) error {
 	warnSectionHeadings(ctx.env.Stderr, description.source(), description.text)
 	warnSectionHeadings(ctx.env.Stderr, plan.source(), plan.text)
 	return ctx.writeMutation(s, res, fmt.Sprintf("Created %s  %s", res.Ticket.ID, res.Ticket.Title))
+}
+
+// parseCreated reads the two forms plan 6.2.1 accepts for --created: a full
+// RFC 3339 instant, or a bare YYYY-MM-DD read as midnight UTC, because a
+// backport usually knows the day and rarely the second. The library refuses
+// a future instant; this only settles the spelling.
+func parseCreated(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t.UTC(), nil
+	}
+	return time.Time{}, fmt.Errorf("%q is neither an RFC 3339 instant nor a YYYY-MM-DD date", s)
 }
 
 // runShow prints one ticket, found by ID or by a unique prefix.

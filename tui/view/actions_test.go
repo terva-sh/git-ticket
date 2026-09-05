@@ -119,6 +119,42 @@ func TestStatusPickerAppliesOnEnter(t *testing.T) {
 	}
 }
 
+// TestStatusPickerReasonRequiredTransitionsAsk holds the picker to
+// ticket.ReasonRequired for every reason-requiring pair, not only
+// blocked. Draft to done is the plan 6.2.1 addition, and done to
+// in-progress is the reopening case the hardcoded check used to miss:
+// the picker applied it bare and the write bounced after the fact.
+func TestStatusPickerReasonRequiredTransitionsAsk(t *testing.T) {
+	cases := []struct {
+		name string
+		from string
+		to   string
+	}{
+		{"draft to done", "draft", "done"},
+		{"done to in-progress", "done", "in-progress"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := NewStatusPicker(mk("TKT-01ARZ3NDEKTSV4RRFFQ69G5FAV", tc.from, "normal", "Arrived finished"))
+			moveTo(t, p, tc.to)
+			act := p.HandleKey(tui.Key{Kind: tui.KeyEnter})
+			if act.Apply {
+				t.Fatalf("%s applied without a reason", tc.name)
+			}
+			if body := strings.Join(renderPicker(p, 80, 12), "\n"); !strings.Contains(body, "reason is required") {
+				t.Fatalf("no reason prompt:\n%s", body)
+			}
+			for _, r := range "shipped elsewhere" {
+				p.HandleKey(tui.Key{Kind: tui.KeyRune, Rune: r})
+			}
+			act = p.HandleKey(tui.Key{Kind: tui.KeyEnter})
+			if !act.Apply || act.Status != tc.to || act.Reason != "shipped elsewhere" {
+				t.Fatalf("action = %+v", act)
+			}
+		})
+	}
+}
+
 func TestStatusPickerBlockedAsksForAReason(t *testing.T) {
 	p := NewStatusPicker(revved())
 	moveTo(t, p, ticket.StatusBlocked)

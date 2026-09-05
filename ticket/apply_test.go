@@ -243,8 +243,16 @@ func TestStatusTransitions(t *testing.T) {
 	s := newTestStore(t)
 	tk := mustCreate(t, s, "Ship the token refresh work")
 
-	// draft cannot jump to done, and the refusal names where it may go.
+	// draft to done is legal since plan 6.2.1, but only with a reason, so a
+	// bare jump still refuses, as invalid_field rather than
+	// invalid_transition.
 	_, err := s.Apply(context.Background(), tk.ID, SetStatus{Status: StatusDone}, ApplyOptions{Actor: testActor})
+	if CodeOf(err) != CodeInvalidField {
+		t.Fatalf("draft to done with no reason = %v, want %s", err, CodeInvalidField)
+	}
+
+	// draft cannot jump to in-progress, and the refusal names where it may go.
+	_, err = s.Apply(context.Background(), tk.ID, SetStatus{Status: StatusInProgress}, ApplyOptions{Actor: testActor})
 	var e *Error
 	if !asTicketError(err, &e) || e.Code != CodeInvalidTransition {
 		t.Fatalf("err = %v, want %s", err, CodeInvalidTransition)

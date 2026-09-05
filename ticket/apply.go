@@ -152,6 +152,21 @@ type CreateOptions struct {
 	Actor              Actor
 	// Entropy is the source for the ID's random half. Nil means crypto/rand.
 	Entropy io.Reader
+	// Status files the ticket directly as done or archived, per plan 6.2.1,
+	// which is how a backport records finished or abandoned work without
+	// walking the lifecycle. Empty means draft. Every other value is refused,
+	// because promotion out of draft is a human call and a create that lands
+	// in ready would quietly bypass that gate.
+	Status string
+	// Created backdates the ticket, per plan 6.2.1: the ULID takes its time
+	// part from it, so backported history sorts chronologically, and
+	// created_at and updated_at agree with it. The zero value means now. An
+	// instant after now is refused.
+	Created time.Time
+	// Reason is accepted with Status archived only and lands in the archive
+	// block and Notes, the same two places ArchiveTicket writes. With any
+	// other status it is refused, because there is nothing for it to mean.
+	Reason string
 }
 
 // Create writes a new ticket and returns it.
@@ -199,6 +214,26 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	if dueOn != nil && !ValidDueOn(*dueOn) {
 		return nil, &Error{Code: CodeInvalidField, Message: fmt.Sprintf("%q is not a YYYY-MM-DD date", *dueOn), Field: "due_on"}
 	}
+	status := o.Status
+	if status == "" {
+		status = StatusDraft
+	}
+	switch status {
+	case StatusDraft, StatusDone, StatusArchived:
+	default:
+		return nil, &Error{
+			Code:    CodeInvalidField,
+			Message: fmt.Sprintf("create files a draft; --status accepts done and archived only, per plan 6.2.1, not %q", status),
+			Field:   "status",
+		}
+	}
+	if o.Reason != "" && status != StatusArchived {
+		return nil, &Error{
+			Code:    CodeInvalidField,
+			Message: "a create reason belongs to --status archived; nothing else has a place for it",
+			Field:   "status_reason",
+		}
+	}
 
 	lock, err := s.lock()
 	if err != nil {
@@ -226,6 +261,16 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	}
 
 	now := s.now()
+	if !o.Created.IsZero() {
+		if o.Created.After(now) {
+			return nil, &Error{
+				Code:    CodeInvalidField,
+				Message: fmt.Sprintf("--created %s is in the future; a backport is about the past", o.Created.UTC().Format(time.RFC3339)),
+				Field:   "created_at",
+			}
+		}
+		now = o.Created
+	}
 	id, err := NewID(now, o.Entropy)
 	if err != nil {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
@@ -262,7 +307,7 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		ID:           id,
 		Title:        o.Title,
 		Type:         kind,
-		Status:       StatusDraft,
+		Status:       status,
 		Priority:     priority,
 		DueOn:        dueOn,
 		Labels:       append([]string{}, o.Labels...),
@@ -284,6 +329,22 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 			DefinitionOfDone:   dod,
 			ImplementationPlan: o.ImplementationPlan,
 		},
+	}
+	// A ticket created as archived carries the block ArchiveTicket would have
+	// written, per plan 6.2.1. from_status is draft, because the ticket never
+	// lived in this store's working set, and per 6.3 that is what keeps an
+	// abandoned backport from satisfying a dependency.
+	if status == StatusArchived {
+		archivedAt := Now(now)
+		from := StatusDraft
+		t.Archive = &Archive{
+			ArchivedAt: &archivedAt,
+			FromStatus: &from,
+			Reason:     optional(o.Reason),
+		}
+		if o.Reason != "" {
+			appendNote(&t.Body, mutEnv{now: now, actor: actor}, "created archived: "+o.Reason)
+		}
 	}
 	return s.writeTicket(t, "")
 }

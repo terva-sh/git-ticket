@@ -32,7 +32,7 @@ func (ms Mutations) apply(t *Ticket, env mutEnv) error {
 // transitions is the table in plan 6.2. Anything not listed returns
 // invalid_transition naming the permitted targets.
 var transitions = map[string][]string{
-	StatusDraft:      {StatusReady, StatusArchived},
+	StatusDraft:      {StatusReady, StatusDone, StatusArchived},
 	StatusReady:      {StatusDraft, StatusInProgress, StatusBlocked, StatusArchived},
 	StatusInProgress: {StatusReady, StatusBlocked, StatusReview, StatusDone, StatusArchived},
 	StatusBlocked:    {StatusReady, StatusInProgress, StatusArchived},
@@ -95,11 +95,10 @@ func (m SetStatus) apply(t *Ticket, env mutEnv) error {
 		}
 	}
 
-	reopening := t.Status == StatusDone && m.Status == StatusInProgress
-	if m.Reason == "" && (m.Status == StatusBlocked || reopening) {
+	if m.Reason == "" && ReasonRequired(t.Status, m.Status) {
 		return &Error{
 			Code:    CodeInvalidField,
-			Message: reasonRequiredMessage(m.Status, reopening),
+			Message: reasonRequiredMessage(t.Status, m.Status),
 			Ticket:  t.ID, Field: "status_reason",
 		}
 	}
@@ -130,9 +129,28 @@ func permittedThroughStatus(from string) []string {
 	return out
 }
 
-func reasonRequiredMessage(to string, reopening bool) string {
-	if reopening {
+// ReasonRequired reports whether the transition needs a --reason, per plan
+// 6.2: into blocked, reopening from done, and closing a draft straight to
+// done. One function, because the status picker asks the same question
+// before it applies, and two copies of this list would drift.
+func ReasonRequired(from, to string) bool {
+	switch {
+	case to == StatusBlocked:
+		return true
+	case from == StatusDone && to == StatusInProgress:
+		return true
+	case from == StatusDraft && to == StatusDone:
+		return true
+	}
+	return false
+}
+
+func reasonRequiredMessage(from, to string) string {
+	switch {
+	case from == StatusDone && to == StatusInProgress:
 		return "reopening from done needs a reason"
+	case from == StatusDraft && to == StatusDone:
+		return "closing a draft as done needs a reason saying where the work happened"
 	}
 	return "moving to " + to + " needs a reason"
 }

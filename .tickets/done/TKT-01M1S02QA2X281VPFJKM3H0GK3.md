@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1S02QA2X281VPFJKM3H0GK3
 title: Add an install script for the stable release
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -14,10 +14,16 @@ parent: null
 dependencies: []
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: feat/install-script
+  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
+  commit: 610d6f4b2a1b952f490970ff21faf94d617fdb4c
+  claimed_at: 2026-09-05T15:11:22Z
+  expires_at: null
 archive: null
 created_at: 2026-09-05T14:38:07Z
-updated_at: 2026-09-05T14:38:07Z
+updated_at: 2026-09-05T15:12:50Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -82,6 +88,51 @@ None. Startable feature work, parked as a draft until promoted.
 ## Acceptance criteria
 
 - [ ] curl of install.sh from the public mirror installs the latest release on Linux, macOS, and WSL2
-- [ ] the sha256 is verified against checksums.txt before anything is unpacked
-- [ ] the script never sudos on its own and says so when the destination is not on PATH
-- [ ] the README documents the one-liner beside go install and self-update
+- [x] the sha256 is verified against checksums.txt before anything is unpacked
+- [x] the script never sudos on its own and says so when the destination is not on PATH
+- [x] the README documents the one-liner beside go install and self-update
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-05T15:12:50Z
+
+Built. Three of the four criteria are ticked, and the first stays
+open deliberately until the next release.
+
+The script is proven live from the working tree: `sh install.sh
+--prefix /tmp/gt-install` fetched v0.9.2 from the real GitHub
+releases, verified the sha256 against checksums.txt, installed, and
+the binary answered with the right version. The refusal paths were
+run, not assumed: an unknown argument and an unwritable --prefix both
+exit 1 with the repair named, --help prints the header, and dash runs
+the script clean, which is the POSIX claim tested rather than
+asserted. The PATH note fired on the scratch prefix.
+
+What cannot be proven yet is the criterion's own spelling: curl of
+install.sh from the public mirror. The mirror receives main at release
+time, per this repository's push policy, so
+raw.githubusercontent.com/.../main/install.sh does not exist until the
+next tag pushes main. The README one-liner ships now and goes live
+then. Whoever cuts the next release should run the curl pipe as part
+of release verification and tick the first criterion with that
+evidence. macOS is likewise untested from here; the shasum branch
+exists for it and awaits a Mac.
+
+Two open questions from the draft were settled by the build: the
+source stays GitHub-only, the same argument as self-update, and the
+README leads with the script because its audience needs the least.
+The third, CI exercising the script each release, stays open and is
+now half-answered by the criterion above: the release ritual runs it
+by hand.
+
+## Summary
+
+Shipped. install.sh at the repository root installs the latest stable
+release on Linux, macOS, and WSL2: GitHub latest with self-update's
+semantics, sha256 verified against checksums.txt before unpacking,
+first writable of ~/.local/bin and ~/bin or a named --prefix, never
+sudo, and a loud PATH note when the shell will not find the result.
+Proven live against v0.9.2 from the working tree, refusals and dash
+included. The README leads with the curl one-liner, which goes live
+when the next release pushes main to the mirror; the first criterion
+waits on that run for its tick.

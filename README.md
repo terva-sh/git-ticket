@@ -157,10 +157,21 @@ come from it. It puts the title in the filename, which this format does not.
 
 ## Using it
 
+On Linux, macOS, or WSL2, the install script fetches the latest release,
+verifies its sha256 against `checksums.txt`, and puts the binary in
+`~/.local/bin` (or a `--prefix` you name). It never sudos:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/terva-sh/git-ticket/main/install.sh | sh
+```
+
+Later upgrades come from the binary itself, with `git ticket self-update`.
+
 A release carries archives for Linux, macOS and Windows, on amd64 and arm64.
 Download one, unpack it, and put `git-ticket` on your `PATH`. The binary sits at
 the root of the archive, and `checksums.txt` beside it verifies what you
-downloaded. Nothing else is needed: no Go toolchain, no runtime.
+downloaded. Nothing else is needed: no Go toolchain, no runtime. Native Windows
+takes this path, with the zip.
 
 With a Go toolchain, this gets you the same command:
 

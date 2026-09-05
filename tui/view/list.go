@@ -9,6 +9,7 @@ package view
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/terva-sh/git-ticket/ticket"
 	"github.com/terva-sh/git-ticket/tui"
@@ -25,7 +26,8 @@ type Lister func() ([]*ticket.Ticket, error)
 // rendering; the generic cursor and scroll live in tui.List.
 type ListView struct {
 	list    tui.List
-	tickets []*ticket.Ticket
+	tickets []*ticket.Ticket // everything the lister returned
+	shown   []*ticket.Ticket // what the filter lets through
 	short   map[string]string
 	err     error
 	relist  Lister
@@ -35,6 +37,13 @@ type ListView struct {
 	// next action replaces it, because a message that clears on the
 	// next keypress is a message nobody finished reading.
 	msg string
+
+	// filterText is the filter line as typed; filterEditing is whether
+	// the prompt has the keyboard. The parsed form is derived on every
+	// change rather than stored, because two representations of one
+	// filter is how they drift.
+	filterText    string
+	filterEditing bool
 }
 
 // NewListView returns a view over relist and loads it once. Writes go
@@ -61,10 +70,27 @@ func (v *ListView) Reload() {
 	}
 	v.tickets = tickets
 	v.short = shortestUnique(tickets)
-	v.list.SetTotal(len(tickets))
-	if selected != "" {
-		for i, t := range tickets {
-			if t.ID == selected {
+	v.applyFilter(selected)
+}
+
+// applyFilter rebuilds the shown slice from the full one and moves the
+// selection to keep, when the filter still lets it through.
+func (v *ListView) applyFilter(keep string) {
+	f := parseFilter(v.filterText)
+	if f.empty() {
+		v.shown = v.tickets
+	} else {
+		v.shown = v.shown[:0:0]
+		for _, t := range v.tickets {
+			if f.match(t) {
+				v.shown = append(v.shown, t)
+			}
+		}
+	}
+	v.list.SetTotal(len(v.shown))
+	if keep != "" {
+		for i, t := range v.shown {
+			if t.ID == keep {
 				v.list.SetCursor(i)
 				break
 			}
@@ -75,11 +101,16 @@ func (v *ListView) Reload() {
 // SelectedTicket is the ticket under the cursor, or nil for an empty
 // list. The detail view takes it as-is; the list keeps ownership.
 func (v *ListView) SelectedTicket() *ticket.Ticket {
-	if v.list.Total() == 0 || v.list.Cursor() >= len(v.tickets) {
+	if v.list.Total() == 0 || v.list.Cursor() >= len(v.shown) {
 		return nil
 	}
-	return v.tickets[v.list.Cursor()]
+	return v.shown[v.list.Cursor()]
 }
+
+// FilterEditing reports whether the filter prompt has the keyboard,
+// so the App routes every key here instead of interpreting Enter and
+// the letter keys itself.
+func (v *ListView) FilterEditing() bool { return v.filterEditing }
 
 // SelectedID is the ID under the cursor, or empty for an empty list.
 func (v *ListView) SelectedID() string {
@@ -90,12 +121,28 @@ func (v *ListView) SelectedID() string {
 }
 
 // HandleKey routes one key. It reports quit when the key ends the
-// view: q, Esc, or ctrl+c.
+// view: q or ctrl+c, and Esc only when there is no filter to clear
+// first, because Esc means "back out one level" and an active filter
+// is a level.
 func (v *ListView) HandleKey(k tui.Key) (quit bool) {
+	if v.filterEditing {
+		v.handleFilterKey(k)
+		return false
+	}
 	switch {
-	case k.Kind == tui.KeyCtrlC, k.Kind == tui.KeyEsc,
-		k.Kind == tui.KeyRune && k.Rune == 'q':
+	case k.Kind == tui.KeyCtrlC, k.Kind == tui.KeyRune && k.Rune == 'q':
 		return true
+	case k.Kind == tui.KeyEsc:
+		if v.filterText != "" {
+			v.filterText = ""
+			v.applyFilter(v.SelectedID())
+			return false
+		}
+		return true
+	case k.Kind == tui.KeyRune && k.Rune == '/':
+		v.filterEditing = true
+		v.msg = ""
+		return false
 	case k.Kind == tui.KeyRune && k.Rune == 'r':
 		v.Reload()
 		v.msg = ""
@@ -109,6 +156,34 @@ func (v *ListView) HandleKey(k tui.Key) (quit bool) {
 	}
 	v.list.HandleKey(k)
 	return false
+}
+
+// handleFilterKey is the filter prompt: runes append and narrow the
+// list on every keystroke, because seeing the rows shrink is how you
+// know the token you are typing is the right one. Enter keeps the
+// filter and returns the keyboard to the list; Esc drops the filter
+// entirely.
+func (v *ListView) handleFilterKey(k tui.Key) {
+	switch k.Kind {
+	case tui.KeyEnter:
+		v.filterEditing = false
+	case tui.KeyEsc:
+		v.filterEditing = false
+		v.filterText = ""
+		v.applyFilter(v.SelectedID())
+	case tui.KeyBackspace:
+		if v.filterText != "" {
+			r := []rune(v.filterText)
+			v.filterText = string(r[:len(r)-1])
+			v.applyFilter(v.SelectedID())
+		}
+	case tui.KeyPaste:
+		v.filterText += strings.ReplaceAll(k.Paste, "\n", " ")
+		v.applyFilter(v.SelectedID())
+	case tui.KeyRune:
+		v.filterText += string(k.Rune)
+		v.applyFilter(v.SelectedID())
+	}
 }
 
 // say puts a line in the footer until the next action replaces it.
@@ -184,12 +259,16 @@ func (v *ListView) Render(cols, rows int) []string {
 	out := make([]string, 0, rows)
 	out = append(out, dim(v.header()))
 
-	if len(v.tickets) == 0 {
-		out = append(out, "", "  No open work.")
+	if len(v.shown) == 0 {
+		msg := "  No open work."
+		if len(v.tickets) > 0 {
+			msg = "  Nothing matches the filter."
+		}
+		out = append(out, "", msg)
 		for len(out) < rows-1 {
 			out = append(out, "")
 		}
-		out = append(out, dim(v.footer()))
+		out = append(out, v.footerRow())
 		return out
 	}
 
@@ -200,8 +279,17 @@ func (v *ListView) Render(cols, rows int) []string {
 	for len(out) < rows-1 {
 		out = append(out, "")
 	}
-	out = append(out, dim(v.footer()))
+	out = append(out, v.footerRow())
 	return out
+}
+
+// footerRow styles the footer: the filter prompt is live input and
+// stays bright, everything else is chrome and dims.
+func (v *ListView) footerRow() string {
+	if v.filterEditing {
+		return "  filter: " + v.filterText + "\x1b[7m \x1b[27m"
+	}
+	return dim(v.footer())
 }
 
 // widths returns the ID, status, and priority column widths for the
@@ -209,7 +297,7 @@ func (v *ListView) Render(cols, rows int) []string {
 // the abbreviation mistake the store's own CLI refuses to make.
 func (v *ListView) widths() (id, status, prio int) {
 	id, status, prio = 2, 6, 8 // header widths: ID, STATUS, PRIORITY
-	for _, t := range v.tickets {
+	for _, t := range v.shown {
 		id = max(id, len(v.short[t.ID]))
 		status = max(status, len(t.Status))
 		prio = max(prio, len(t.Priority))
@@ -223,7 +311,7 @@ func (v *ListView) header() string {
 }
 
 func (v *ListView) row(i int, selected bool) string {
-	t := v.tickets[i]
+	t := v.shown[i]
 	idW, stW, prW := v.widths()
 	text := fmt.Sprintf("%-*s  %-*s  %-*s  %s", idW, v.short[t.ID], stW, t.Status, prW, t.Priority, t.Title)
 	if selected {
@@ -239,12 +327,16 @@ func (v *ListView) footer() string {
 	if v.msg != "" {
 		return "  " + v.msg
 	}
+	if v.filterText != "" {
+		return fmt.Sprintf("  %d/%d match · filter: %s · / edit · Esc clear",
+			len(v.shown), len(v.tickets), v.filterText)
+	}
 	n := len(v.tickets)
 	word := "tickets"
 	if n == 1 {
 		word = "ticket"
 	}
-	return fmt.Sprintf("  %d open %s · Enter open · s status · c claim · u release · r reload · q quit", n, word)
+	return fmt.Sprintf("  %d open %s · Enter open · / filter · s status · c claim · u release · r reload · q quit", n, word)
 }
 
 func dim(s string) string { return "\x1b[2m" + s + "\x1b[22m" }

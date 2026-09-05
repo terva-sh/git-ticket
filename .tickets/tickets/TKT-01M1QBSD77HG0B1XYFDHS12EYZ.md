@@ -24,7 +24,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-04T23:24:15Z
-updated_at: 2026-09-05T00:51:17Z
+updated_at: 2026-09-05T01:05:42Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -71,7 +71,7 @@ overwrites.
 
 ## Acceptance criteria
 
-- [ ] a list view shows open work, filterable by status, label, and assignee
+- [x] a list view shows open work, filterable by status, label, and assignee
 - [x] the detail view renders the ticket Markdown with its sections
 - [ ] create and edit write through the library, and a stale revision re-presents instead of overwriting
 - [x] status transitions, claim, and release are reachable from the list
@@ -215,3 +215,33 @@ App, the blocked reason, the conflict path, and the unwired degradation.
 
 Remaining: the filter line for criterion 1, and create/edit flows for
 criterion 3.
+
+**agent:terva/mieli** at 2026-09-05T01:05:42Z
+
+The filter line is in, and the first acceptance criterion is ticked: the
+list shows open work, filterable by status, label, and assignee.
+
+`/` opens a one-line prompt on the footer. Tokens `status:S`, `label:L`,
+and `assignee:A` filter their fields with the ticket.Filter semantics, so
+the rule learned from `git ticket list` holds here: within one field the
+values are alternatives, across fields they all have to hold. Bare words
+match the title case-insensitively, because the first thing anybody types
+is a word they remember from a title. An assignee keeps its own colon, so
+`assignee:human:sothr` works as written, and an unknown key falls through
+to a title word rather than being dropped.
+
+The list narrows live on every keystroke, backspace widens it again,
+Enter keeps the filter and returns the keyboard to the list, and Esc
+backs out one level at a time: prompt, then filter, then quit. The footer
+shows `N/M match` with the filter text while one is active, the selection
+follows the selected ticket into the filtered set per keystroke, and a
+filter survives a reload. While the prompt has the keyboard every
+shortcut is text, which the App enforces by routing all keys to the list
+when FilterEditing reports true.
+
+Filtering is client-side over the already-listed open work, which the
+TKT-01M1QBS9 spike's arithmetic makes free at this store's scale. Twelve
+new tests cover the tokens, the conjunction rule, live narrowing, the Esc
+ladder, reload survival, and the App routing.
+
+Criterion 3, create and edit through the library, is the one left.

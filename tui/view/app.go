@@ -44,6 +44,12 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 		}
 		return false
 	}
+	// While the filter prompt has the keyboard every key is text, so
+	// the shortcuts below must not fire. Enter and Esc are the prompt's
+	// own, and the list handles them.
+	if a.list.FilterEditing() {
+		return a.list.HandleKey(k)
+	}
 	switch {
 	case k.Kind == tui.KeyEnter,
 		k.Kind == tui.KeyRune && k.Rune == 'l':

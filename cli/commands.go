@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -346,12 +347,18 @@ func runCreate(ctx *cmdContext, args []string) error {
 
 // runShow prints one ticket, found by ID or by a unique prefix.
 func runShow(ctx *cmdContext, args []string) error {
-	rest, err := ctx.parseFlags("show", args, nil)
+	var bodyOnly bool
+	rest, err := ctx.parseFlags("show", args, func(fs *flag.FlagSet) {
+		fs.BoolVar(&bodyOnly, "body", false, "print the stored Markdown body alone, for a pipe")
+	})
 	if err != nil {
 		return err
 	}
 	if len(rest) != 1 {
 		return usageErr("show takes one ticket ID")
+	}
+	if bodyOnly && ctx.g.json {
+		return usageErr("show --body has no --json form; show --json already carries every section")
 	}
 	s, err := ctx.openStore()
 	if err != nil {
@@ -359,6 +366,22 @@ func runShow(ctx *cmdContext, args []string) error {
 	}
 	t, err := s.Get(context.Background(), rest[0])
 	if err != nil {
+		return err
+	}
+
+	// The body comes from the file rather than from a re-rendering, per plan
+	// 12.7, so a pipe carries exactly what a reader of the file sees. This
+	// path also skips the Readiness read below: a body has no use for it.
+	if bodyOnly {
+		data, err := os.ReadFile(t.Path)
+		if err != nil {
+			return err
+		}
+		body, err := ticket.RawBody(data)
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(ctx.out, body)
 		return err
 	}
 

@@ -25,6 +25,13 @@ import (
 // saying why in plan 7.4, which is the review this test exists to force.
 var gitHelpers = map[string]bool{"runGit": true, "readGit": true, "writeGit": true}
 
+// nonGitExec are the functions plan 7.4 exempts from the git-only rule: the
+// clipboard tools of plan 12.7 run from runClipboardTool and from nowhere
+// else. The binary there comes from a PATH probe, so it cannot be a string
+// literal, and pinning the function name is what keeps the exemption from
+// leaking to a call site added tomorrow.
+var nonGitExec = map[string]bool{"runClipboardTool": true}
+
 // planGitCommandPattern reads the command column of the table in plan 7.4.
 // The character class allows the hyphen because `symbolic-ref` has one.
 var planGitCommandPattern = regexp.MustCompile("(?m)^\\| `([a-z-]+)` \\|")
@@ -219,6 +226,10 @@ func TestGitCommandsAreReadOnly(t *testing.T) {
 				switch {
 				case name == "exec.Command" || name == "exec.CommandContext":
 					execCalls++
+					// The one sanctioned non-git exec, per plan 7.4 and 12.7.
+					if nonGitExec[fn.Name.Name] {
+						return true
+					}
 					// One: the binary is git and nothing else.
 					bin := 0
 					if name == "exec.CommandContext" {

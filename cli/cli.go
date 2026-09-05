@@ -55,6 +55,18 @@ type Env struct {
 	// running binary, resolved through os.Executable. Tests point it at a
 	// file they own.
 	Executable string
+	// LookPath reports where a clipboard tool resolves, per plan 12.7. Nil
+	// means exec.LookPath. Tests inject one, which is how the probe order is
+	// held without owning PATH.
+	LookPath func(name string) (string, error)
+	// RunTool runs a clipboard tool with the body on its stdin, per plan
+	// 12.7. Nil means exec.Command. The tools are write-only: nothing is
+	// read back from them.
+	RunTool func(path string, args []string, stdin []byte) error
+	// ClipboardTTY opens where the OSC 52 fallback writes when no clipboard
+	// tool is on PATH. Nil means /dev/tty, opened only when the fallback is
+	// actually taken. A test injects a buffer.
+	ClipboardTTY func() (io.WriteCloser, error)
 }
 
 // UIParams is what the ui command resolves before handing off: the
@@ -124,7 +136,8 @@ func commands() []command {
 		{"init", "create a ticket store in this repository", "", runInit},
 		{"create", "write a new ticket", "--title T [flags]", runCreate},
 		{"update", "change a ticket's fields", "ID [flags]", runUpdate},
-		{"show", "print one ticket", "ID", runShow},
+		{"show", "print one ticket", "ID [--body]", runShow},
+		{"copy", "put the ticket's body on the system clipboard", "ID", runCopy},
 		{"list", "print the tickets that match", "[filters]", runList},
 		{"ready", "print what could be picked up now", "", runReady},
 		{"search", "search titles, body sections, and references", "QUERY [--regex]", runSearch},

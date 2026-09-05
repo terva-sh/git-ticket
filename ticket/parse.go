@@ -398,6 +398,18 @@ func decodeArchive(n *yaml.Node) (*Archive, error) {
 	return a, nil
 }
 
+// RawBody returns everything below the frontmatter, byte for byte. It is what
+// `show --body` prints and `copy` puts on the clipboard, per plan 12.7: the
+// file's own bytes rather than a re-rendering, so a paste carries exactly what
+// a reader of the file sees.
+func RawBody(data []byte) (string, error) {
+	_, body, err := splitFrontmatter(string(data))
+	if err != nil {
+		return "", err
+	}
+	return body, nil
+}
+
 // splitFrontmatter separates the YAML frontmatter from the Markdown body. The
 // file must open with a --- line and close the block with another.
 func splitFrontmatter(text string) (front, body string, err error) {

@@ -810,6 +810,13 @@ every one of those calls sits in one of the helpers, and every helper call names
 a command from this table. A fourth call site added tomorrow has to pass all
 three, and a new helper fails the second rather than slipping past the third.
 
+The clipboard tools of 12.7 are the one exec outside this table. They are not
+git, they are write-only, and they run from `runClipboardTool` in the cli
+package and from nowhere else. The binary there comes from a PATH probe, so it
+cannot be a string literal. The test pins the exemption to that one function
+name rather than loosening the rule: an `exec.Command` in `runClipboardTool`
+skips the git-only checks, and one anywhere else still fails all three.
+
 No command that moves history or the working tree joins this table. Section 15
 records that decision under sync helpers, so a change that needs `fetch` or
 `push` is a change to the plan first.
@@ -1945,7 +1952,8 @@ git ticket merge-driver BASE OURS THEIRS
 git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority]
 git ticket ready
 git ticket ui       # browse the store interactively; no --json form
-git ticket show   ID
+git ticket show   ID [--body]
+git ticket copy   ID     # put the body on the system clipboard, per 12.7
 git ticket search QUERY [--regex]
 git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod]
 git ticket update ID [--title --type --priority --description --description-file --milestone --parent --blocks-on --due-on --add-label --remove-label --assign --unassign]
@@ -2461,6 +2469,40 @@ no lock, and works outside a repository, per 10.7.
 A binary that is already at the latest, or ahead of it, reports up to date and
 exits 0. Ahead happens between a tag push and the mirror's release job
 finishing, and treating it as an update would downgrade.
+
+### 12.7 Copy
+
+`git ticket copy ID` puts a ticket's body on the system clipboard, and
+`git ticket show ID --body` prints the same bytes to stdout for a pipe. The
+body is everything below the frontmatter in the stored file, taken from the
+file itself: no summary lines, no styling, and no re-rendering, so what
+arrives in a paste is what a reader of the file sees. `--body` with `--json`
+is refused, because `show --json` already carries every section in the
+envelope and two spellings for one thing means drift.
+
+`copy` finds the platform tool by probing PATH in a fixed order: `pbcopy`,
+`wl-copy`, `xclip`, `xsel`, `clip.exe`. The first tool found runs with the
+body on stdin, and a tool that exits nonzero fails the command loudly rather
+than pretending the clipboard changed. The order is load-bearing at the end:
+WSL2 is Linux with `clip.exe` on PATH, so the Linux tools must win when a
+display server is present, and `clip.exe` is the answer only when nothing
+else is. When no tool is found, the fallback is OSC 52 written to the
+controlling terminal, which is also the only path that works over SSH; when
+there is no controlling terminal either, the command fails and names the
+tools it looked for.
+
+On native Windows `copy` refuses, naming the supported platforms: WSL2,
+Linux, and macOS. `show --body` still works there, because stdout owes
+nothing to a clipboard.
+
+On success `copy` prints one line to stderr naming the ticket and the byte
+count, and nothing to stdout: quiet pipes, loud humans. There is no `--json`
+form, like `ui`, because a clipboard write has nothing to say in JSON and
+`show --json` is the JSON path to the body.
+
+The clipboard tools are the only external processes the CLI runs besides
+git. They are write-only: the body goes to their stdin and nothing is read
+back. `copy` mutates no ticket and takes no lock, the same as `show`.
 
 ## 13. Phases
 

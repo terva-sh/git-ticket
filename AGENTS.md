@@ -33,7 +33,7 @@ and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 and `instructions`, each in a human form and behind `--json`. Six more landed
 after Phase 2, taking the binary to 30: `plan`, `refs`, `remove`, `config`,
 `install-merge-driver`, and `merge-driver`. Phase 4's view work added `ui` and
-`self-update`, taking it to 32. Every JSON kind of section 10 has a test,
+`self-update`, and `copy` (plan 12.7) makes it 33. Every JSON kind of section 10 has a test,
 ten with `self-update` per 10.7, and every write honours `--if-revision`.
 
 The TUI is Phase 4's view: `tui/` is the rendering stack, `tui/view` the

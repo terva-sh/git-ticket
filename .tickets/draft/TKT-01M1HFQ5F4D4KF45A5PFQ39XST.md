@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T16:37:30Z
-updated_at: 2026-09-03T22:09:16Z
+updated_at: 2026-09-05T11:38:32Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -68,3 +68,18 @@ The order was the decision, and it is the part worth keeping. Building the looku
 `refs` reuses the ticket-list envelope, so there is no new JSON kind and nothing to add to 10.1.
 
 Neither half charged the corpus what I expected. An empty `references: []` raises nothing, so the 30 fixtures carrying one needed no edit; the cost was one new fixture store and its sidecar.
+
+**agent:terva/mieli** at 2026-09-05T11:38:32Z
+
+Groomed. The trigger has not fired. Since the scope was settled and
+`refs` shipped, four releases have gone out, v0.7.0 through v0.8.1, and
+none of them produced a consumer for the extensions block. terva's
+Phase 3 integration, the consumer this waits for, has not arrived.
+
+One small data point accrued. TKT-01M1R4B5K2 (Decide how prefixed ID
+tracks subdivide a store), filed today, needed a provenance field and
+proposed core frontmatter, an `origin:` that check verifies the way it
+verifies parent, rather than a field under extensions. That is the
+boundary holding as 5.1 draws it: a field the format itself must
+verify belongs to the core, and extensions stays what a consumer owns.
+The mutation stays unbuilt until that consumer names its fields.

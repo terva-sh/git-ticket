@@ -20,7 +20,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T16:37:04Z
-updated_at: 2026-09-03T17:00:32Z
+updated_at: 2026-09-05T11:38:32Z
 created_by:
   id: agent:terva/dev-loop
   name: ""
@@ -62,3 +62,21 @@ Two of those three predate today. `files` and `search` have always spanned the a
 That changes the first bullet rather than adding a fourth. An index carrying ID and from_status leaves `refs`, `files`, and `search` unpacking every month, or answering wrong, and answering wrong is worse: each one reports that nothing matches, which reads exactly like an item nobody ever tracked. To keep them working the index has to carry every reference, every path, and enough text to substring-match a title, description, notes, comments and summary, which section 8 lists as the search surface.
 
 At that point the index holds most of what the tickets hold, and the sixth bullet gets sharper rather than weaker. If the index has to be nearly a copy of the archive to keep three commands honest, compression is buying bytes against a duplicate somebody still has to store, and the separable half stops looking like most of the value for a fraction of the cost. Whoever settles this should price the index against the archive before assuming a tarball wins.
+
+**agent:terva/mieli** at 2026-09-05T11:38:32Z
+
+Groomed. The trigger has not fired, and the numbers moved in an
+instructive direction. archive/ still holds 7 files, unchanged since
+the first note, but the store grew from 312K to 496K and done/ now
+holds 59 files. The pressure this ticket predicted is arriving one
+directory upstream: nothing sweeps done/ into archive/ except a person
+running `archive`, so the first real capacity decision this store
+faces is a sweep policy, not compression. Whoever runs that first big
+sweep should record the sizes, which is the number the description
+asks for.
+
+One boundary got cleaner. The TUI shipped in v0.7.0 and is not a new
+archive reader: tui/view/actions.go lists with Filter{}, which is open
+work, so the view never opens archive/. The content readers an index
+has to keep honest remain the five from the last note: check, deps,
+refs, files, and search. That note's sizing argument stands unchanged.

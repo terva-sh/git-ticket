@@ -6,24 +6,26 @@ type: spike
 status: draft
 status_reason: null
 priority: low
+due_on: null
 labels:
   - question
 assignees: []
 milestone: null
 parent: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-01T19:43:32Z
-updated_at: 2026-09-02T18:06:04Z
+updated_at: 2026-09-05T11:38:31Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: agent:terva/dev-loop
+  id: agent:terva/mieli
   name: ""
 extensions: {}
 ---
@@ -37,3 +39,22 @@ A deferred question in plan section 15. The set in 6.1 is fixed and the transiti
 **agent:terva/mieli** at 2026-09-02T16:56:19Z
 
 Still parked, but the trigger in plan section 15 is now precise. It fires only when a workflow needs a state the seven statuses cannot express and that a label plus status_reason cannot express either. The second half is the real test, because labels are open and status_reason already answers why a ticket is blocked.
+
+**agent:terva/mieli** at 2026-09-05T11:38:31Z
+
+Groomed. The trigger has not fired, and two things moved since the last
+note, one on each side of the ledger.
+
+The cost went up. The TUI shipped in v0.7.0, and its status picker is
+built on ticket.PermittedTransitions in tui/view/statuspicker.go, so the
+picker cannot offer a move the lifecycle forbids. A custom status now
+costs the 6.2 table, every fixture, and a UI that enumerates transitions,
+where at the last grooming it cost the first two alone.
+
+The trigger's second half got a fresh data point. TKT-01M1R4B5K2 (Decide
+how prefixed ID tracks subdivide a store) parks an idea-store design,
+filed today, and "not actual work yet, might become work" is exactly the
+shape a custom status would bid for. The design expresses it with draft,
+a ticket type, and links instead, and never reaches for an eighth
+status. That is the test in plan section 15 doing its job: a workflow
+that a label and status_reason can express does not fire this.

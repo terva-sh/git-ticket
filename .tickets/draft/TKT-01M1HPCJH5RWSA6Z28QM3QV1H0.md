@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-02T18:34:03Z
-updated_at: 2026-09-03T06:01:18Z
+updated_at: 2026-09-05T11:38:32Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -54,3 +54,18 @@ The display half is settled and shipped. `list --sort priority` and `ready` rank
 The merge-driver question this defers to is answered. Plan 7.5 is the design and TKT-01M1JPW1 built it, so read 7.5 rather than the spike. That changes the cost paragraph above. An ordinal is still the first field whose value means nothing on its own, but concurrent inserts now have somewhere to be resolved: a 7.5 field rule, per field, rather than a line merge. Whoever settles this owes 7.5 a row for the ordinal, and the honest answer for that row may well be conflict, because two agents inserting at the same position genuinely disagree.
 
 The trigger has not fired. No board, and nobody has asked for an order inside one priority level.
+
+**agent:terva/mieli** at 2026-09-05T11:38:32Z
+
+Groomed. The trigger has not fired, but it is the closest to firing of
+any draft in the store. The trigger names a board with reorderable
+columns, and the TUI shipped in v0.7.0 as `git ticket ui`, a filterable
+list over the open working set, not a board. A board view is the
+natural next TUI slice, and building one either fires this or forces
+the fifth-priority dodge the trigger rules out.
+
+The order of operations from the last note stands and is now the
+actionable part: whoever builds the board owes plan 7.5 a row for the
+ordinal first, and the honest answer for that row may well be conflict,
+because two agents inserting at the same position genuinely disagree.
+Read this ticket before starting a board, not after.

@@ -47,11 +47,10 @@ suite fails. Every key the list view accepts must appear in the footer or on
 the `?` help page, and `TestEveryListKeyIsHintedSomewhere` enforces it: a
 control the UI never prints might as well not exist.
 
-Releases run through v0.8.0, which shipped `self-update` per plan 12.6 with
-the graded exit bucket of 10.2. Its `--check` is proven against the live
-GitHub API, but the apply path is proven against httptest only, because
-v0.8.0 is the first binary that carries the command. The first release after
-it is the first real-world apply, and worth watching land.
+Releases run through v0.8.1, and `self-update` (plan 12.6, with the graded
+exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release
+binary applied v0.8.1 over the live GitHub API, check exit 10, apply exit 0,
+and the result was byte-identical (`cmp`) to the released binary.
 
 `schema` and `config` split the vocabulary and the split is load-bearing.
 `schema` is what the binary enforces, identical in every store, and plan 10.4

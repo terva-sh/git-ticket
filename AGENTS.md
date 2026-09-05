@@ -293,11 +293,14 @@ git branch -f main origin/main     # main is where the remote has it
 just ci        # lint, test-race, check: the same steps CI runs, in the same order
 just test      # the whole suite, without the race detector
 just install   # git-ticket into GOBIN, so `git ticket` resolves outside this tree
+just install-release TAG   # build that tag and install it where install.sh does
 ```
 
-The recipes wrap plain `go` invocations and hold no logic of their own, so
-`go test ./...` still works when you want one. `just ci` is the gate to run
-before you push.
+Most recipes wrap plain `go` invocations and hold no logic of their own, so
+`go test ./...` still works when you want one. `install-release` is the
+exception and is a real script: it resolves a tag, builds it in a throwaway
+clone, and refuses to install a binary that does not report that tag. `just ci`
+is the gate to run before you push.
 
 To read a CI result rather than guess at one, ask for the commit's combined
 status. `tea api` carries the login, so there is no token to resolve and no host
@@ -464,6 +467,13 @@ palettes as a runtime feature instead of one winner as Theme fields, and the
 criterion followed the verdict, original verbatim in the note. Closing a ticket that way is
 fine: no check reports an unticked criterion, so an honest `[ ]` costs nothing
 and a false `[x]` costs the next reader their trust in every other box.
+
+Tick a criterion after the run that proves it, not after the code that should.
+When the proof needs a setup you do not have, build the setup. `TKT-01M1SMR8`
+asked that the no-argument form of `install-release` work with HEAD at a tag,
+which no working branch ever is, so it was proven in a scratch clone checked out
+at v0.11.0 rather than inferred from the explicit-tag run that had already
+passed.
 
 `TKT-01M1PCY3` (schema does not publish the label and milestone allowlists) is
 the worked example. Its third criterion asked that a store with no allowlist be
@@ -742,6 +752,17 @@ before it builds, so without that line every published binary would report
 `modified: true`. A tagged run in a scratch clone reports `modified: false`,
 which is the check worth repeating if the ignore rule ever moves.
 
+`go build` fails inside a linked git worktree. Go finds the VCS root by looking
+for a `.git` directory and a worktree has a `.git` file instead, so building the
+main package stops with `error obtaining VCS status: exit status 128` before it
+compiles anything. This is not a corner case here, because sub-agents work in
+worktrees: `just build`, `check`, `fix`, `ready` and `ci` all fail there at the
+build step, while `go vet` and `go test` pass, since only linking a binary
+stamps a version. `GOFLAGS=-buildvcs=false just ci` goes green. The cost is a
+binary reporting `devel (unknown)`, which is fine for checking a store and never
+fine for a release or for answering what version something is.
+`just install-release` clones instead of adding a worktree for this reason.
+
 GitHub does not fire a workflow for a tag pushed in the same operation that
 first adds the workflow file. `git push github main --follow-tags` carried
 `.github/workflows/release.yml` and `v0.5.1` together, and GitHub registered the
@@ -783,6 +804,11 @@ mirror, because that URL was the thing the release actually shipped. For a
 feature release that means the feature. v0.10.0's ran `config` and `create
 --template` against the installed binary in a scratch store, which is the
 only check that the shipped artifact carries what the tag message claims.
+
+Pointing HOME at a scratch directory for one of those runs leaves a Go module
+cache behind it, and Go makes those directories read-only, so the cleanup fails
+with "Permission denied" on every file under them. Run `chmod -R u+w` first, or
+point GOMODCACHE at the real one.
 
 `go list -m` answers from the local module cache before it asks the proxy, so it
 can report a hash that was never published. Verifying v0.6.0 returned
@@ -836,3 +862,10 @@ A draft's open questions get the same treatment: ask before the branch, in
 one interruption, the way the copy spelling and all three arrive-done
 questions were settled, because an answer changes the plan text and the plan
 moves first.
+
+A settled decision can still be mechanically impossible, so test the mechanism
+before building on it. `install-release` was to build in a temporary worktree by
+the user's choice, and `go build` cannot stamp a version in one at all. When
+that happens, keep the outcome the decision was about, which here was that the
+checkout must not be touched, substitute the mechanism, and say so in the note,
+the PR, and the summary rather than quietly shipping something else.

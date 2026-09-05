@@ -64,12 +64,21 @@ func (v *ListView) Reload() {
 	}
 }
 
+// SelectedTicket is the ticket under the cursor, or nil for an empty
+// list. The detail view takes it as-is; the list keeps ownership.
+func (v *ListView) SelectedTicket() *ticket.Ticket {
+	if v.list.Total() == 0 || v.list.Cursor() >= len(v.tickets) {
+		return nil
+	}
+	return v.tickets[v.list.Cursor()]
+}
+
 // SelectedID is the ID under the cursor, or empty for an empty list.
 func (v *ListView) SelectedID() string {
-	if v.list.Total() == 0 || v.list.Cursor() >= len(v.tickets) {
-		return ""
+	if t := v.SelectedTicket(); t != nil {
+		return t.ID
 	}
-	return v.tickets[v.list.Cursor()].ID
+	return ""
 }
 
 // HandleKey routes one key. It reports quit when the key ends the
@@ -156,7 +165,7 @@ func (v *ListView) footer() string {
 	if n == 1 {
 		word = "ticket"
 	}
-	return fmt.Sprintf("  %d open %s · ↑/↓ j/k move · g/G jump · r reload · q quit", n, word)
+	return fmt.Sprintf("  %d open %s · ↑/↓ j/k move · Enter open · r reload · q quit", n, word)
 }
 
 func dim(s string) string { return "\x1b[2m" + s + "\x1b[22m" }

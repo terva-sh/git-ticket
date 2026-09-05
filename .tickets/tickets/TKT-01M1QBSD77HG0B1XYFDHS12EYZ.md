@@ -24,7 +24,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-04T23:24:15Z
-updated_at: 2026-09-05T00:08:25Z
+updated_at: 2026-09-05T00:21:24Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -72,7 +72,7 @@ overwrites.
 ## Acceptance criteria
 
 - [ ] a list view shows open work, filterable by status, label, and assignee
-- [ ] the detail view renders the ticket Markdown with its sections
+- [x] the detail view renders the ticket Markdown with its sections
 - [ ] create and edit write through the library, and a stale revision re-presents instead of overwriting
 - [ ] status transitions, claim, and release are reachable from the list
 - [x] tests drive a fake terminal and assert the emulated cell grid
@@ -158,3 +158,28 @@ Plan 12.1 lists the command with its no-JSON note. `ui` refuses `--json`,
 arguments, and a missing store, each covered by a test in `cli/ui_test.go`.
 Verified on the built binary: `--help` lists ui, and `./git-ticket ui
 </dev/null` exits 1 with "the TUI needs a terminal on stdin and stdout".
+
+**agent:terva/mieli** at 2026-09-05T00:21:24Z
+
+The detail view is in, and the second acceptance criterion is ticked.
+
+Enter (or l) on the list opens the selected ticket; Esc, q, h, or backspace
+return to the list, and Ctrl+C quits from anywhere. `tui/view/app.go` is the
+state machine over the two views, one field deep until a third view earns a
+stack. `tui/view/detail.go` renders a fixed header (full ID, bold title, a
+meta line with status, type, priority, labels, assignees, milestone, due,
+and a blocked reason when one exists), then every non-empty body section
+under a bold heading, in the plan 5.3 render order with Extra sections
+last, scrollable through the lifted Viewport.
+
+The section text is the ticket's own Markdown, wrapped to the pane by the
+new `tui.WrapPlain` (space breaks, hard breaks for wide words, indent
+preserved on continuation lines, rune-width aware) and otherwise untouched.
+Plan 14 promises a ticket reads correctly in an ordinary Markdown viewer,
+and this view leans on exactly that property. Styled rendering, terva's
+markdown.go with chroma highlighting, remains a later lift and would slot
+into DetailView.build.
+
+Twelve view tests now cover the detail and app paths: section order, empty
+sections skipped, wrapping, scrolling, the back and quit keys, Enter on an
+empty list, and the return path to the list.

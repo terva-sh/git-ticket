@@ -33,7 +33,7 @@ func RunProc(relist Lister) error {
 // rather than waiting for the next keypress, and the two writers
 // cannot interleave inside a frame.
 func Run(term tui.Terminal, relist Lister) error {
-	v := NewListView(relist)
+	v := NewApp(relist)
 	f := tui.NewFrame(term)
 	if err := f.Start(); err != nil {
 		return err

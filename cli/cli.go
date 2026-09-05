@@ -41,12 +41,26 @@ type Env struct {
 	// Now overrides the clock the store writes with. Nil means the real one.
 	Now func() time.Time
 	// RunUI opens the interactive TUI over a resolved store. The composition
-	// root wires it: cmd/git-ticket binds tui/view.RunProc, and a test binds a
-	// fake. Nil means this entrypoint has no terminal to offer, and `ui` says
-	// so and fails. It is a field rather than an import so a host that embeds
-	// this package for its command surface, per plan 12.2, does not build the
-	// terminal stack.
-	RunUI func(*ticket.Store) error
+	// root wires it: cmd/git-ticket binds tui/view.RunProcStore, and a test
+	// binds a fake. Nil means this entrypoint has no terminal to offer, and
+	// `ui` says so and fails. It is a field rather than an import so a host
+	// that embeds this package for its command surface, per plan 12.2, does
+	// not build the terminal stack.
+	RunUI func(UIParams) error
+}
+
+// UIParams is what the ui command resolves before handing off: the
+// store, the actor every TUI write is recorded as, and the git
+// provenance a claim carries per plan 6.4. It mirrors
+// tui/view.StoreParams field for field, so the composition root
+// converts with a cast and this package still imports no terminal
+// code.
+type UIParams struct {
+	Store    *ticket.Store
+	Actor    ticket.Actor
+	Branch   string
+	Worktree string
+	Commit   string
 }
 
 func (e Env) getenv(key string) string {

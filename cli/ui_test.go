@@ -12,7 +12,7 @@ import (
 
 // runUIEnv invokes the CLI with a RunUI binding, which runCLI leaves
 // nil because only this command has one.
-func runUIEnv(t *testing.T, dir string, runUI func(*ticket.Store) error, args ...string) result {
+func runUIEnv(t *testing.T, dir string, runUI func(UIParams) error, args ...string) result {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	code := Run(args, Env{
@@ -30,8 +30,8 @@ func TestUIRunsTheWiredRunner(t *testing.T) {
 	dir := newStore(t)
 	var got *ticket.Store
 	calls := 0
-	res := runUIEnv(t, dir, func(s *ticket.Store) error {
-		got = s
+	res := runUIEnv(t, dir, func(p UIParams) error {
+		got = p.Store
 		calls++
 		return nil
 	}, "ui")
@@ -67,7 +67,7 @@ func TestUIWithoutARunnerSaysSo(t *testing.T) {
 
 func TestUIRefusesArgumentsAndJSON(t *testing.T) {
 	dir := newStore(t)
-	noRun := func(*ticket.Store) error {
+	noRun := func(UIParams) error {
 		t.Fatal("runner must not run on a refused invocation")
 		return nil
 	}
@@ -84,7 +84,7 @@ func TestUIRefusesArgumentsAndJSON(t *testing.T) {
 func TestUIOutsideAStoreFails(t *testing.T) {
 	dir := t.TempDir() // no store
 	called := false
-	res := runUIEnv(t, dir, func(*ticket.Store) error { called = true; return nil }, "ui")
+	res := runUIEnv(t, dir, func(UIParams) error { called = true; return nil }, "ui")
 	if res.code == exitOK {
 		t.Fatalf("ui outside a store succeeded")
 	}

@@ -20,7 +20,7 @@ func TestRunDrawsAndQuitsOnQ(t *testing.T) {
 	}
 
 	done := make(chan error, 1)
-	go func() { done <- view.Run(term, lister) }()
+	go func() { done <- view.Run(term, lister, view.Actions{}) }()
 
 	// The first frame is drawn before any key is read, so the title
 	// appears in the output stream without any scripted input.
@@ -56,7 +56,7 @@ func TestRunEndsWhenTheInputEnds(t *testing.T) {
 	term := tuitest.NewFakeTerm(80, 10)
 	done := make(chan error, 1)
 	go func() {
-		done <- view.Run(term, func() ([]*ticket.Ticket, error) { return nil, nil })
+		done <- view.Run(term, func() ([]*ticket.Ticket, error) { return nil, nil }, view.Actions{})
 	}()
 	term.CloseInput()
 	select {

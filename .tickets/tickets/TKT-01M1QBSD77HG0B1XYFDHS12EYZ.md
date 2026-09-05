@@ -24,7 +24,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-04T23:24:15Z
-updated_at: 2026-09-05T00:21:24Z
+updated_at: 2026-09-05T00:51:17Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -74,7 +74,7 @@ overwrites.
 - [ ] a list view shows open work, filterable by status, label, and assignee
 - [x] the detail view renders the ticket Markdown with its sections
 - [ ] create and edit write through the library, and a stale revision re-presents instead of overwriting
-- [ ] status transitions, claim, and release are reachable from the list
+- [x] status transitions, claim, and release are reachable from the list
 - [x] tests drive a fake terminal and assert the emulated cell grid
 
 ## Notes
@@ -183,3 +183,35 @@ into DetailView.build.
 Twelve view tests now cover the detail and app paths: section order, empty
 sections skipped, wrapping, scrolling, the back and quit keys, Enter on an
 empty list, and the return path to the list.
+
+**agent:terva/mieli** at 2026-09-05T00:51:17Z
+
+Status transitions, claim, and release are reachable from the list, and the
+fourth acceptance criterion is ticked.
+
+From the list: `c` claims the selected ticket, `u` releases it, and `s`
+opens a status picker whose options come from ticket.PermittedTransitions,
+so the picker cannot offer a move the lifecycle refuses. Choosing blocked
+opens a one-line reason prompt, because plan 6.2 makes the reason mandatory
+there; an empty confirm re-prompts rather than sending a write the store
+would bounce. The prompt is deliberately not the editor lift, and the full
+editor replaces it when the edit flows land.
+
+The write surface is `view.Actions`: three closures, each taking the ref
+and the revision the view last read. `view.StoreActions` binds them to
+Store.Apply with the actor and the claim provenance, and `cli.UIParams`
+(store, actor via ctx.actor with its warning, branch/worktree/commit via
+gitState) mirrors `view.StoreParams` field for field, so cmd/git-ticket
+converts with a cast and cli still imports no terminal code. A nil closure
+degrades to a footer message naming what is not wired, the same nil-ness
+rule terva's InteractiveConfig uses.
+
+Every action lands in `afterWrite`: reload first, then say what happened.
+A stale_revision answer reports "changed by another writer; reloaded, try
+again", which is the re-present loop of the TKT-01M1QBS9 spike doing its
+job on the first real write surface. Ten new tests cover the ref and
+revision travelling with each write, the picker flow end to end through
+App, the blocked reason, the conflict path, and the unwired degradation.
+
+Remaining: the filter line for criterion 1, and create/edit flows for
+criterion 3.

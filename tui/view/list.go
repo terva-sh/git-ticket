@@ -29,11 +29,19 @@ type ListView struct {
 	short   map[string]string
 	err     error
 	relist  Lister
+	acts    Actions
+	// msg is the transient footer line: the outcome of the last action,
+	// or the re-present notice after a lost race. It stands until the
+	// next action replaces it, because a message that clears on the
+	// next keypress is a message nobody finished reading.
+	msg string
 }
 
-// NewListView returns a view over relist and loads it once.
-func NewListView(relist Lister) *ListView {
-	v := &ListView{relist: relist}
+// NewListView returns a view over relist and loads it once. Writes go
+// through acts; a zero Actions makes the view read-only, and each
+// action key says so instead of doing nothing.
+func NewListView(relist Lister, acts Actions) *ListView {
+	v := &ListView{relist: relist, acts: acts}
 	v.Reload()
 	return v
 }
@@ -90,10 +98,78 @@ func (v *ListView) HandleKey(k tui.Key) (quit bool) {
 		return true
 	case k.Kind == tui.KeyRune && k.Rune == 'r':
 		v.Reload()
+		v.msg = ""
+		return false
+	case k.Kind == tui.KeyRune && k.Rune == 'c':
+		v.claim()
+		return false
+	case k.Kind == tui.KeyRune && k.Rune == 'u':
+		v.release()
 		return false
 	}
 	v.list.HandleKey(k)
 	return false
+}
+
+// say puts a line in the footer until the next action replaces it.
+func (v *ListView) say(msg string) { v.msg = msg }
+
+// claim claims the selected ticket for the wired actor.
+func (v *ListView) claim() {
+	t := v.SelectedTicket()
+	if t == nil {
+		return
+	}
+	if v.acts.Claim == nil {
+		v.say("claiming is not wired in this host")
+		return
+	}
+	v.afterWrite("claimed "+v.short[t.ID], v.acts.Claim(t.ID, t.Revision))
+}
+
+// release drops the claim on the selected ticket.
+func (v *ListView) release() {
+	t := v.SelectedTicket()
+	if t == nil {
+		return
+	}
+	if v.acts.Release == nil {
+		v.say("releasing is not wired in this host")
+		return
+	}
+	v.afterWrite("released "+v.short[t.ID], v.acts.Release(t.ID, t.Revision))
+}
+
+// ApplyStatus moves the selected ticket to status. The App calls it
+// when the status picker resolves.
+func (v *ListView) ApplyStatus(status, reason string) {
+	t := v.SelectedTicket()
+	if t == nil {
+		return
+	}
+	if v.acts.SetStatus == nil {
+		v.say("status changes are not wired in this host")
+		return
+	}
+	v.afterWrite(v.short[t.ID]+" is now "+status, v.acts.SetStatus(t.ID, t.Revision, status, reason))
+}
+
+// afterWrite is every action's landing: reload so the rows show what
+// the store now holds, then say what happened. A lost race is the case
+// this exists for, per the TKT-01M1QBS9 spike: stale_revision means
+// another writer got there first, so the reload re-presents their
+// version and the message says to look again. The write did NOT
+// happen, and pretending otherwise is how a TUI overwrites somebody.
+func (v *ListView) afterWrite(did string, err error) {
+	v.Reload()
+	switch {
+	case err == nil:
+		v.say(did)
+	case ticket.CodeOf(err) == ticket.CodeStaleRevision:
+		v.say("changed by another writer; reloaded, try again")
+	default:
+		v.say("error: " + err.Error())
+	}
 }
 
 // Render lays the view out for a cols x rows terminal: a header row,
@@ -160,12 +236,15 @@ func (v *ListView) footer() string {
 	if v.err != nil {
 		return "  error: " + v.err.Error() + " · r retry · q quit"
 	}
+	if v.msg != "" {
+		return "  " + v.msg
+	}
 	n := len(v.tickets)
 	word := "tickets"
 	if n == 1 {
 		word = "ticket"
 	}
-	return fmt.Sprintf("  %d open %s · ↑/↓ j/k move · Enter open · r reload · q quit", n, word)
+	return fmt.Sprintf("  %d open %s · Enter open · s status · c claim · u release · r reload · q quit", n, word)
 }
 
 func dim(s string) string { return "\x1b[2m" + s + "\x1b[22m" }

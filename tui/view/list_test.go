@@ -28,6 +28,10 @@ func fixed(ts ...*ticket.Ticket) Lister {
 	return func() ([]*ticket.Ticket, error) { return ts, nil }
 }
 
+// newTestList is NewListView with no write surface, which is what
+// every rendering and navigation test wants.
+func newTestList(l Lister) *ListView { return NewListView(l, Actions{}) }
+
 // plain renders the view and strips the styling, because these tests
 // assert content and the styling is not the content.
 func plain(v *ListView, cols, rows int) []string {
@@ -39,7 +43,7 @@ func plain(v *ListView, cols, rows int) []string {
 }
 
 func TestListShowsOpenWork(t *testing.T) {
-	v := NewListView(fixed(tktA, tktB, tktC))
+	v := newTestList(fixed(tktA, tktB, tktC))
 	rows := plain(v, 100, 10)
 
 	if !strings.Contains(rows[0], "ID") || !strings.Contains(rows[0], "STATUS") || !strings.Contains(rows[0], "TITLE") {
@@ -61,7 +65,7 @@ func TestListShowsOpenWork(t *testing.T) {
 }
 
 func TestShortIDsAreShortestUnique(t *testing.T) {
-	v := NewListView(fixed(tktTwinA, tktTwinB))
+	v := newTestList(fixed(tktTwinA, tktTwinB))
 	body := strings.Join(plain(v, 120, 10), "\n")
 	// The twins differ only in their last character, so nothing shorter
 	// than the full body distinguishes them.
@@ -70,7 +74,7 @@ func TestShortIDsAreShortestUnique(t *testing.T) {
 		t.Fatalf("twin IDs were abbreviated into ambiguity:\n%s", body)
 	}
 
-	v = NewListView(fixed(tktA, tktB))
+	v = newTestList(fixed(tktA, tktB))
 	body = strings.Join(plain(v, 120, 10), "\n")
 	if strings.Contains(body, tktA.ID) {
 		t.Fatalf("distinct IDs were not abbreviated:\n%s", body)
@@ -81,7 +85,7 @@ func TestShortIDsAreShortestUnique(t *testing.T) {
 }
 
 func TestNavigationMovesTheSelection(t *testing.T) {
-	v := NewListView(fixed(tktA, tktB, tktC))
+	v := newTestList(fixed(tktA, tktB, tktC))
 	if got := v.SelectedID(); got != tktA.ID {
 		t.Fatalf("initial selection = %s", got)
 	}
@@ -122,7 +126,7 @@ func TestScrollingWindowsTheList(t *testing.T) {
 		id := "TKT-01" + strings.Repeat("A", 23) + string(rune('A'+i))
 		ts = append(ts, mk(id, "ready", "normal", "Ticket number "+string(rune('A'+i))))
 	}
-	v := NewListView(fixed(ts...))
+	v := newTestList(fixed(ts...))
 	v.HandleKey(tui.Key{Kind: tui.KeyRune, Rune: 'G'})
 	rows := plain(v, 100, 6)
 	body := strings.Join(rows, "\n")
@@ -139,7 +143,7 @@ func TestReloadKeepsTheSelectedTicket(t *testing.T) {
 	first := []*ticket.Ticket{tktA, tktB, tktC}
 	second := []*ticket.Ticket{tktC, tktB, tktA}
 	call := 0
-	v := NewListView(func() ([]*ticket.Ticket, error) {
+	v := newTestList(func() ([]*ticket.Ticket, error) {
 		call++
 		if call == 1 {
 			return first, nil
@@ -155,7 +159,7 @@ func TestReloadKeepsTheSelectedTicket(t *testing.T) {
 
 func TestReloadErrorKeepsTheRowsAndNamesTheError(t *testing.T) {
 	call := 0
-	v := NewListView(func() ([]*ticket.Ticket, error) {
+	v := newTestList(func() ([]*ticket.Ticket, error) {
 		call++
 		if call == 1 {
 			return []*ticket.Ticket{tktA}, nil
@@ -174,7 +178,7 @@ func TestReloadErrorKeepsTheRowsAndNamesTheError(t *testing.T) {
 }
 
 func TestEmptyStoreSaysSo(t *testing.T) {
-	v := NewListView(fixed())
+	v := newTestList(fixed())
 	body := strings.Join(plain(v, 80, 8), "\n")
 	if !strings.Contains(body, "No open work.") {
 		t.Fatalf("empty view:\n%s", body)
@@ -187,12 +191,12 @@ func TestQuitKeys(t *testing.T) {
 		{Kind: tui.KeyEsc},
 		{Kind: tui.KeyCtrlC},
 	} {
-		v := NewListView(fixed(tktA))
+		v := newTestList(fixed(tktA))
 		if !v.HandleKey(k) {
 			t.Fatalf("key %+v did not quit", k)
 		}
 	}
-	v := NewListView(fixed(tktA))
+	v := newTestList(fixed(tktA))
 	if v.HandleKey(tui.Key{Kind: tui.KeyRune, Rune: 'j'}) {
 		t.Fatalf("j should not quit")
 	}

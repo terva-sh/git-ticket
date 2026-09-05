@@ -27,5 +27,16 @@ func runUI(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	return ctx.env.RunUI(s)
+	// The same resolution every writing command gets: --actor through
+	// ctx.actor with its default-actor warning, and the claim provenance
+	// from the working tree. Resolved here, before the alternate screen
+	// takes stderr's usefulness away.
+	branch, worktree, commit := gitState(ctx.env.Dir)
+	return ctx.env.RunUI(UIParams{
+		Store:    s,
+		Actor:    ctx.actor(s),
+		Branch:   branch,
+		Worktree: worktree,
+		Commit:   commit,
+	})
 }

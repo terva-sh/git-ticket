@@ -132,7 +132,7 @@ func TestDetailWithNoBodySaysSo(t *testing.T) {
 }
 
 func TestAppOpensDetailOnEnterAndReturnsOnEsc(t *testing.T) {
-	a := NewApp(fixed(tktA, tktB))
+	a := NewApp(fixed(tktA, tktB), Actions{})
 	if got := strings.Join(renderApp(a, 100, 12), "\n"); !strings.Contains(got, "STATUS") {
 		t.Fatalf("app did not start on the list:\n%s", got)
 	}
@@ -156,7 +156,7 @@ func TestAppOpensDetailOnEnterAndReturnsOnEsc(t *testing.T) {
 }
 
 func TestAppEnterOnAnEmptyListDoesNothing(t *testing.T) {
-	a := NewApp(fixed())
+	a := NewApp(fixed(), Actions{})
 	if a.HandleKey(tui.Key{Kind: tui.KeyEnter}) {
 		t.Fatalf("Enter on an empty list quit")
 	}

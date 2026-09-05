@@ -15,11 +15,11 @@ import (
 // pipe would block reading keys nobody can type and paint escapes
 // nobody renders. The check lives here rather than in cmd/git-ticket
 // so the composition root stays a one-line binding.
-func RunProc(relist Lister) error {
+func RunProc(relist Lister, acts Actions) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		return errors.New("the TUI needs a terminal on stdin and stdout")
 	}
-	return Run(tui.NewProcTerm(), relist)
+	return Run(tui.NewProcTerm(), relist, acts)
 }
 
 // Run drives the list view on term until the user quits or the input
@@ -32,8 +32,8 @@ func RunProc(relist Lister) error {
 // so the draw path is behind a mutex: a resize repaints immediately
 // rather than waiting for the next keypress, and the two writers
 // cannot interleave inside a frame.
-func Run(term tui.Terminal, relist Lister) error {
-	v := NewApp(relist)
+func Run(term tui.Terminal, relist Lister, acts Actions) error {
+	v := NewApp(relist, acts)
 	f := tui.NewFrame(term)
 	if err := f.Start(); err != nil {
 		return err

@@ -24,7 +24,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-04T23:24:15Z
-updated_at: 2026-09-04T23:52:20Z
+updated_at: 2026-09-05T00:00:37Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -105,3 +105,32 @@ Consumers that import only ticket or cli do not build any of them.
 The fifth acceptance criterion is met and ticked. The remaining four are the
 view itself: list, detail, forms, and transitions, all still to build on this
 foundation. The subcommand-versus-separate-binary sub-decision stays open.
+
+**agent:terva/mieli** at 2026-09-05T00:00:37Z
+
+The list view is up on the Frame, with the Viewport and picker patterns
+lifted:
+
+- `tui/input.go` lifts terva's key Reader verbatim: CSI and SS3, the kitty
+  keyboard protocol, xterm modifyOtherKeys, bracketed paste, and SGR wheel
+  events.
+- `tui/viewport.go` lifts the dialogs Viewport, with the themed more-above
+  and more-below indicator rows replaced by plain text until a Theme exists
+  here.
+- `tui/list.go` reshapes the picker pattern into a generic cursor List:
+  cursor plus viewport in one type, arrows, j/k, g/G, paging, and the wheel.
+- `tui/view` is the new application package, split so package tui stays
+  ticket-free. `ListView` renders open work with shortest-unique IDs
+  (mirroring cli/commands.go), a header, and a key-hint footer. Reload
+  follows the selected ticket by ID, not by row, and a lister error keeps
+  the previous rows and names itself in the footer. `Run` wires Frame,
+  Reader, and a Lister closure; a resize repaints immediately through a
+  mutex-guarded draw.
+- The Lister feeds from Store.List(Filter{}), open work by definition. Ten
+  view tests and two run-loop tests assert through StripANSI and the vt10x
+  grid.
+
+The first acceptance criterion is part-met: the list shows open work and
+stays unticked until it filters by status, label, and assignee. Next moves
+on this ticket: the filter line, the detail view on Enter (SelectedID is
+already there for it), and the entrypoint decision.

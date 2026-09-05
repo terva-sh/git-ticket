@@ -20,7 +20,7 @@ func openDetail(t *testing.T, acts Actions) *App {
 	a := NewApp(fixed(tktA), acts)
 	a.list.Reload()
 	a.HandleKey(tui.Key{Kind: tui.KeyEnter})
-	if a.detail == nil {
+	if a.top() == nil {
 		t.Fatal("the detail view did not open")
 	}
 	return a

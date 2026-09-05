@@ -90,10 +90,11 @@ func (d *DetailView) Render(cols, rows int) []string {
 		out = append(out, "  "+d.msg)
 		return out
 	}
-	// j/k names the scroll and the arrows go unhinted: they are the
-	// one binding nobody needs taught, and the column they freed is
-	// what lets y copy fit a 60-column pane.
-	out = append(out, dim("  j/k scroll · g/G jump · y copy · Esc back · Ctrl+C quit"))
+	// The footer budget is 60 columns and it is full: the arrows and
+	// now g/G go unhinted here and live on the ? page instead, because
+	// t links earns the room more than a jump nobody reaches for
+	// blind. The help page carries the complete detail key list.
+	out = append(out, dim("  j/k scroll · y copy · t links · Esc back · Ctrl+C quit"))
 	return out
 }
 

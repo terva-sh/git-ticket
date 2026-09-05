@@ -8,15 +8,26 @@ import (
 )
 
 // App is the state machine over the views: the list is the floor, and
-// the detail view or the status picker stacks on top of it. One level
-// of stack, held in mutually exclusive fields rather than a slice,
-// and it stays that way until a real stack earns the generalization.
+// the other views stack on top of it. The detail views are a real
+// stack since TKT-01M1RPZ0, because following links dives epic to
+// child to dependency and Esc unwinds one level at a time, with the
+// list as the floor. The pickers, the form, and the help page stay
+// single fields: nothing stacks on top of them but more detail.
 type App struct {
-	list   *ListView
-	detail *DetailView
-	picker *StatusPicker
-	form   *FormView
-	help   *HelpView
+	list    *ListView
+	details []*DetailView
+	links   *LinkPicker
+	picker  *StatusPicker
+	form    *FormView
+	help    *HelpView
+}
+
+// top is the detail view under the keyboard, nil when the list has it.
+func (a *App) top() *DetailView {
+	if len(a.details) == 0 {
+		return nil
+	}
+	return a.details[len(a.details)-1]
 }
 
 // NewApp opens the list over relist, writing through acts.
@@ -26,20 +37,41 @@ func NewApp(relist Lister, acts Actions) *App {
 
 // HandleKey routes one key to whichever view is on top.
 func (a *App) HandleKey(k tui.Key) (quit bool) {
-	if a.detail != nil {
-		// y is handled here rather than in the view, because the copy
-		// action lives on Actions and the detail view deliberately
-		// holds no write surface.
+	if a.links != nil {
+		act := a.links.HandleKey(k)
+		if act.Quit {
+			return true
+		}
+		if act.Cancel {
+			a.links = nil
+			return false
+		}
+		if act.Open != nil {
+			a.links = nil
+			a.details = append(a.details, NewDetailView(act.Open))
+		}
+		return false
+	}
+	if top := a.top(); top != nil {
+		// y and t are handled here rather than in the view, because
+		// the copy and links actions live on Actions and the detail
+		// view deliberately holds no write surface.
 		if k.Kind == tui.KeyRune && k.Rune == 'y' {
 			a.copyDetail()
 			return false
 		}
-		back, quit := a.detail.HandleKey(k)
+		if k.Kind == tui.KeyRune && k.Rune == 't' {
+			a.openLinks()
+			return false
+		}
+		back, quit := top.HandleKey(k)
 		if quit {
 			return true
 		}
 		if back {
-			a.detail = nil
+			// One level at a time: the dive unwinds the way it went
+			// down, and the list is the floor.
+			a.details = a.details[:len(a.details)-1]
 		}
 		return false
 	}
@@ -92,7 +124,7 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 	case k.Kind == tui.KeyEnter,
 		k.Kind == tui.KeyRune && k.Rune == 'l':
 		if t := a.list.SelectedTicket(); t != nil {
-			a.detail = NewDetailView(t)
+			a.details = append(a.details, NewDetailView(t))
 		}
 		return false
 	case k.Kind == tui.KeyRune && k.Rune == 's':
@@ -132,16 +164,34 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 // and the byte count, so a copy that failed reads differently from a
 // copy that landed.
 func (a *App) copyDetail() {
+	top := a.top()
 	if a.list.acts.Copy == nil {
-		a.detail.say("copying is not wired in this host")
+		top.say("copying is not wired in this host")
 		return
 	}
-	via, n, err := a.list.acts.Copy(a.detail.t.ID)
+	via, n, err := a.list.acts.Copy(top.t.ID)
 	if err != nil {
-		a.detail.say("copy failed: " + err.Error())
+		top.say("copy failed: " + err.Error())
 		return
 	}
-	a.detail.say(fmt.Sprintf("copied %s (%d bytes) via %s", a.list.shortOr(a.detail.t.ID), n, via))
+	top.say(fmt.Sprintf("copied %s (%d bytes) via %s", a.list.shortOr(top.t.ID), n, via))
+}
+
+// openLinks raises the link picker over the top detail view, or says
+// why it cannot: nil-ness is the feature detection, same as every
+// other action.
+func (a *App) openLinks() {
+	top := a.top()
+	if a.list.acts.Links == nil {
+		top.say("linked tickets are not wired in this host")
+		return
+	}
+	links, err := a.list.acts.Links(top.t.ID)
+	if err != nil {
+		top.say("links failed: " + err.Error())
+		return
+	}
+	a.links = NewLinkPicker(top.t, links)
 }
 
 // saveForm performs the form's write and decides what the form does
@@ -186,8 +236,11 @@ func (a *App) Render(cols, rows int) []string {
 	if a.help != nil {
 		return a.help.Render(cols, rows)
 	}
-	if a.detail != nil {
-		return a.detail.Render(cols, rows)
+	if a.links != nil {
+		return a.links.Render(cols, rows)
+	}
+	if top := a.top(); top != nil {
+		return top.Render(cols, rows)
 	}
 	if a.picker != nil {
 		return a.picker.Render(cols, rows)

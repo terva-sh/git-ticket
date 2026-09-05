@@ -214,7 +214,7 @@ func TestAppRoutesKeysToThePromptWhileEditing(t *testing.T) {
 	// s and l are text while the prompt has the keyboard.
 	a.HandleKey(tui.Key{Kind: tui.KeyRune, Rune: 's'})
 	a.HandleKey(tui.Key{Kind: tui.KeyRune, Rune: 'l'})
-	if a.detail != nil || a.picker != nil {
+	if a.top() != nil || a.picker != nil {
 		t.Fatalf("a shortcut fired while the prompt had the keyboard")
 	}
 	if a.list.filterText != "sl" {
@@ -222,7 +222,7 @@ func TestAppRoutesKeysToThePromptWhileEditing(t *testing.T) {
 	}
 	// Enter confirms the filter rather than opening the detail.
 	a.HandleKey(tui.Key{Kind: tui.KeyEnter})
-	if a.detail != nil {
+	if a.top() != nil {
 		t.Fatalf("Enter opened the detail from the prompt")
 	}
 	if a.list.FilterEditing() {

@@ -35,7 +35,31 @@ type Actions struct {
 	// render, per plan 12.7: a paste carries what a reader of the file
 	// sees.
 	Copy func(ref string) (via string, bytes int, err error)
+	// Links answers what a ticket is connected to, for the t picker:
+	// its parent, its children, what it needs, and what needs it. The
+	// snapshot behind it must include done and archived work, because
+	// an epic's done children are exactly what a person checks an epic
+	// for.
+	Links func(ref string) ([]Linked, error)
 }
+
+// Linked is one edge from a ticket, ready for the picker: the role the
+// other ticket plays from the viewed ticket's side, and the ticket
+// itself.
+type Linked struct {
+	Role   string
+	Ticket *ticket.Ticket
+}
+
+// The roles a Linked can carry, phrased from the viewed ticket's side
+// so the picker reads as a sentence: this ticket's parent, its child,
+// what it needs, what needs it.
+const (
+	RoleParent   = "parent"
+	RoleChild    = "child"
+	RoleNeeds    = "needs"
+	RoleNeededBy = "needed by"
+)
 
 // StoreParams is everything a store-backed TUI needs that the view
 // cannot find for itself: the store, who the writes are recorded as,
@@ -111,7 +135,57 @@ func StoreActions(p StoreParams) Actions {
 		Release: func(ref, revision string) error {
 			return apply(ref, revision, ticket.ReleaseClaim{})
 		},
-		Copy: storeCopy(p),
+		Copy:  storeCopy(p),
+		Links: storeLinks(p),
+	}
+}
+
+// storeLinks binds Actions.Links to the store. The snapshot is
+// Filter{All: true}, per the TKT-01M1RPZ0 decision: an epic's done
+// children are exactly what a person checks an epic for, and the
+// open-work default would silently hide them. A dependency that names
+// a missing ticket is skipped rather than invented, because
+// dependency_missing is check's finding to report, not the picker's.
+func storeLinks(p StoreParams) func(string) ([]Linked, error) {
+	return func(ref string) ([]Linked, error) {
+		t, err := p.Store.Get(context.Background(), ref)
+		if err != nil {
+			return nil, err
+		}
+		all, err := p.Store.List(context.Background(), ticket.Filter{All: true})
+		if err != nil {
+			return nil, err
+		}
+		byID := make(map[string]*ticket.Ticket, len(all))
+		for _, o := range all {
+			byID[o.ID] = o
+		}
+
+		var links []Linked
+		if t.Parent != nil && *t.Parent != "" {
+			if parent, ok := byID[*t.Parent]; ok {
+				links = append(links, Linked{Role: RoleParent, Ticket: parent})
+			}
+		}
+		for _, o := range all {
+			if o.Parent != nil && *o.Parent == t.ID {
+				links = append(links, Linked{Role: RoleChild, Ticket: o})
+			}
+		}
+		for _, dep := range t.Dependencies {
+			if d, ok := byID[dep]; ok {
+				links = append(links, Linked{Role: RoleNeeds, Ticket: d})
+			}
+		}
+		for _, o := range all {
+			for _, dep := range o.Dependencies {
+				if dep == t.ID {
+					links = append(links, Linked{Role: RoleNeededBy, Ticket: o})
+					break
+				}
+			}
+		}
+		return links, nil
 	}
 }
 

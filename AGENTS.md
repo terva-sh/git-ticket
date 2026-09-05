@@ -620,6 +620,24 @@ against the new over this repository's real store. That is what proved PR #135
 changed no output, on three views, and it costs one command. Run it before
 `just install`, which destroys the comparison.
 
+Confirm with `which -a git-ticket` before you trust an empty diff from that
+command. It assumes `git ticket` is the binary installed before your branch, and
+under a shadow it can be any age at all, so the diff compares the wrong pair.
+Empty is exactly the answer the technique is looking for, which is what makes
+that failure expensive.
+
+Three things install this binary and they do not agree on where. `just install`
+writes to GOBIN, and `install.sh` and `just install-release` both write to the
+first writable of `~/.local/bin` and `~/bin`. Run more than one and there are
+two binaries named git-ticket, with PATH order alone deciding which one
+`git ticket` means. Nothing reconciles them: `git ticket self-update` upgrades
+the binary that ran it and leaves the other where it was. Per TKT-01M1SMAP,
+`just install` and `just install-release` both warn when the copy they wrote is
+not the one that answers, and they name the winner and its version. Two copies
+can also disagree while being built from the same commit, since one built before
+a tag existed reports a pseudo-version and one built after reports the tag, so
+comparing version strings does not tell you which is newer.
+
 `go:embed` silently skips any path whose name starts with `.` or `_`. That is
 why store fixtures live under `store/` and not `.tickets/`. The realistic name
 would embed nothing and leave a suite of tests passing against an empty corpus.

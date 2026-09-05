@@ -3,9 +3,9 @@ schema: 1
 id: TKT-01M1SMAPV96V9SPB0BF7E78ZFQ
 title: Warn that just install and install.sh write to different directories
 type: chore
-status: draft
+status: done
 status_reason: null
-priority: low
+priority: normal
 due_on: null
 labels: []
 assignees: []
@@ -17,7 +17,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T20:32:00Z
-updated_at: 2026-09-05T23:12:03Z
+updated_at: 2026-09-05T23:29:21Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -77,9 +77,9 @@ than the problem deserves.
 
 ## Acceptance criteria
 
-- [ ] AGENTS.md names both install destinations, GOBIN for just install and the first writable of ~/.local/bin and ~/bin for install.sh, and says PATH order decides which one git ticket means.
-- [ ] The before-image entry beside the stale-binary gotcha tells the reader to confirm with which -a git-ticket before trusting an empty diff.
-- [ ] A decision is recorded either way on whether just install should warn when another git-ticket shadows GOBIN on PATH.
+- [x] AGENTS.md names both install destinations, GOBIN for just install and the first writable of ~/.local/bin and ~/bin for install.sh, and says PATH order decides which one git ticket means.
+- [x] The before-image entry beside the stale-binary gotcha tells the reader to confirm with which -a git-ticket before trusting an empty diff.
+- [x] A decision is recorded either way on whether just install should warn when another git-ticket shadows GOBIN on PATH.
 
 ## Notes
 
@@ -150,3 +150,97 @@ still disagree about what to call themselves. A reader comparing
 versions to decide which binary is newer would get no useful answer
 here. The shadowing copy currently on PATH is the correct one, so
 nothing is broken today.
+
+**agent:terva/mieli** at 2026-09-05T23:29:21Z
+
+Built. This note supersedes the argument in the grooming note above,
+which came down against warning. Read this one instead.
+
+### The decision criterion 3 asked for: warn
+
+The grooming note argued that `install-release` warns because being
+shadowed defeats the point of installing a release, while `just
+install` installs a dogfooding build where a developer may keep two
+binaries deliberately and would meet the warning on every install.
+That reasoning is wrong on its own terms, and I put it to the user
+rather than quietly reversing it.
+
+The warning does not fire on every install. It fires only when the
+copy just written is not the one that answers to `git ticket`, which
+is exactly the case where the install did not do what the person
+running it expects. A developer who deliberately keeps two binaries is
+the person most in need of being told which one won, not least.
+
+The user settled it on 2026-09-05: warn. The supporting points were
+that `install-release` already does it in five lines, and that `just
+install` already warns when GOBIN is not on PATH at all, so this is
+the same family of check rather than a new kind of noise.
+
+### The description says "It does not need code"
+
+That is now false. The answer to criterion 3 was to add the warning,
+so the change is five lines in the `install` recipe beside the
+existing PATH check, sharing the `dest` it already computes.
+
+The existing "is not on PATH" warning moved to stderr in the same
+edit. It was going to stdout, `install-release` already sends its
+equivalent to stderr, and a warning on stdout is a small bug worth
+fixing while the line was open.
+
+### What was run
+
+With a real shadow, which this machine has: `just install` wrote to
+/home/sothr/go/bin/git-ticket and warned that
+/home/sothr/.local/bin/git-ticket comes first on PATH, naming the
+version it reports, `v0.11.1 (c15770135cea, go1.26.2)`. Exit 0.
+
+With no shadow, GOBIN placed first on PATH: the install printed its
+destination and nothing else. Exit 0. No decoy was needed for either
+case.
+
+### The documentation half
+
+The before-image entry gained a paragraph telling the reader to
+confirm with `which -a git-ticket` before trusting an empty diff, and
+saying why empty is the dangerous answer rather than the reassuring
+one.
+
+A second paragraph names all three installers and where each writes,
+which is one more than the description knew about, since
+`install-release` shipped after this was filed. It also records that
+two copies built from the same commit can disagree, one reporting a
+pseudo-version and one the tag, so comparing version strings does not
+tell a reader which is newer.
+
+## Summary
+
+Shipped, on both halves it asked for.
+
+`just install` now warns when the copy it wrote is not the one that
+answers to `git ticket`, naming the winner and the version it reports.
+That was criterion 3's open decision, settled with the user as warn.
+The warning fires only when the install did not change what
+`git ticket` means, which is the case worth hearing about every time
+it is true, and it reuses the five-line shape `install-release`
+already proved. The neighbouring "is not on PATH" warning moved to
+stderr in the same edit, where it belonged.
+
+AGENTS.md gained two paragraphs beside the stale-binary gotcha. The
+first tells the reader to confirm with `which -a git-ticket` before
+trusting an empty diff from the before-image technique, because that
+technique assumes `git ticket` is the binary installed before the
+branch and an empty diff is exactly the answer it hopes for. The
+second names all three installers and their destinations, GOBIN for
+`just install` and the first writable of ~/.local/bin and ~/bin for
+`install.sh` and `install-release`, says PATH order alone decides
+between them, and notes that `self-update` upgrades only the binary
+that ran it.
+
+It also records something the ticket did not know when it was filed:
+two copies built from the same commit can disagree about their
+version, one reporting a pseudo-version and one the tag, depending on
+whether the tag existed at build time. So comparing version strings
+does not tell a reader which binary is newer.
+
+The description's claim that this "does not need code" did not
+survive the decision on criterion 3, and a note says so.

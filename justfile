@@ -45,12 +45,25 @@ build:
 # Git spells a binary named git-ticket on PATH as `git ticket`, so this is what
 # makes the subcommand work outside this tree, which is what dogfooding it in
 # another repository needs.
+#
+# This writes to GOBIN, and install.sh and `install-release` write to the first
+# writable of ~/.local/bin and ~/bin. Run both and there are two binaries named
+# git-ticket, with PATH order deciding which one `git ticket` means, so the last
+# check warns when the copy just installed is not the one that answers. Per
+# TKT-01M1SMAP it warns rather than staying quiet, because it fires only when
+# the install did not change what `git ticket` means, which is a fact worth
+# hearing every time it is true.
 # Install git-ticket into GOBIN, else GOPATH/bin.
 install:
     go install {{buildvcs}} ./cmd/git-ticket
     @dest="$(go env GOBIN)"; [ -n "$dest" ] || dest="$(go env GOPATH)/bin"; \
       echo "installed git-ticket -> $dest/git-ticket"; \
-      case ":$PATH:" in *":$dest:"*) ;; *) echo "warning: $dest is not on PATH, so \`git ticket\` will not resolve" ;; esac
+      case ":$PATH:" in *":$dest:"*) ;; *) echo "warning: $dest is not on PATH, so \`git ticket\` will not resolve" >&2 ;; esac; \
+      first="$(command -v git-ticket || true)"; \
+      if [ -n "$first" ] && [ "$first" != "$dest/git-ticket" ]; then \
+        echo "warning: $first comes first on PATH, so \`git ticket\` still means that one" >&2; \
+        echo "  it reports: $("$first" --version 2>/dev/null || echo unknown)" >&2; \
+      fi
     @[ -z "{{buildvcs}}" ] || echo "note: linked worktree, so this was built with {{buildvcs}} and the installed binary reports devel rather than a version" >&2
 
 # `just install` builds whatever is in your tree and puts it in GOBIN, which is

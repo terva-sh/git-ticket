@@ -174,6 +174,55 @@ func SortByPriority(ts []*Ticket) {
 	})
 }
 
+// SortByUpdated orders tickets by recency: the most recently written first,
+// the ID breaking a tie. "What moved last" is the question this answers, per
+// plan 8, so newest-first is the only direction that makes sense: a recency
+// list that opens with the untouched is a contradiction.
+//
+// A ticket with no updated_at carries the zero time and lands last, which is
+// where a file that never recorded a write belongs on a recency scale.
+func SortByUpdated(ts []*Ticket) {
+	sort.SliceStable(ts, func(i, j int) bool {
+		if a, b := ts[i].UpdatedAt.Time, ts[j].UpdatedAt.Time; !a.Equal(b) {
+			return a.After(b)
+		}
+		return ts[i].ID < ts[j].ID
+	})
+}
+
+// statusSortOrder ranks the statuses working set first, per plan 8: the list
+// answers "what is moving" from the top, then what could move, then what is
+// parked or finished. This is deliberately not the lifecycle order of 6.1,
+// which is a documentation order, not a triage order.
+var statusSortOrder = []string{
+	StatusInProgress, StatusReview, StatusBlocked,
+	StatusReady, StatusDraft, StatusDone, StatusArchived,
+}
+
+// statusRank orders the statuses of 6.1 for sorting. A status the plan does
+// not define ranks last, for the same reason an unrecognized priority does:
+// it must not outrank one the lifecycle defines, and check is where a
+// malformed file gets reported, not a query.
+func statusRank(s string) int {
+	if i := slices.Index(statusSortOrder, s); i >= 0 {
+		return i
+	}
+	return len(statusSortOrder)
+}
+
+// SortByStatus orders tickets working set first: in-progress, review,
+// blocked, ready, draft, done, archived, with the ID breaking ties so equal
+// statuses stay chronological. One rank list, one order, per plan 8's rule
+// that one field has one order everywhere it sorts.
+func SortByStatus(ts []*Ticket) {
+	sort.SliceStable(ts, func(i, j int) bool {
+		if a, b := statusRank(ts[i].Status), statusRank(ts[j].Status); a != b {
+			return a < b
+		}
+		return ts[i].ID < ts[j].ID
+	})
+}
+
 // deref reads an optional field. A nil pointer and an empty string mean the
 // same thing here, that the ticket does not have one, which is what lets a
 // filter ask for the tickets with no milestone or no parent.

@@ -1063,12 +1063,27 @@ of the scale. Deadline-first has to defend a never-due `urgent` sorting below a
 
 `list` reports what exists rather than recommending anything, so reordering it
 is a change to a report somebody is reading, and the caller asks. `--sort` takes
-`id`, `due_on`, or `priority`, and `id` is the default. Naming the default is
-half of why the flag takes a value rather than being a bare switch.
+`id`, `due_on`, `priority`, `updated_at`, or `status`, and `id` is the default.
+Naming the default is half of why the flag takes a value rather than being a
+bare switch.
+
+`updated_at` answers "what moved last" and so sorts newest first: a recency
+list that opens with the untouched is a contradiction. A ticket with no
+updated_at lands last, where a file that never recorded a write belongs on a
+recency scale.
+
+`status` sorts working set first: in-progress, review, blocked, ready, draft,
+done, archived. This is deliberately not the 6.1 lifecycle order, which is a
+documentation order: a person sorting by status is triaging, and the list
+should answer "what is moving" from the top, then what could move, then what
+is parked or finished. A status the plan does not define ranks last, for the
+same reason an unrecognized priority does.
 
 One field has one order. Both commands sort a field the same way, because two
 orderings of one field is a rule a reader has to hold in mind at the moment they
-are comparing two outputs.
+are comparing two outputs. The TUI's sort cycles this same list with the `o`
+key, showing the active order in its header line, so the third surface teaches
+the same rule rather than a variant of it.
 
 Every ticket carries `readiness`, which is derived from the whole store at read
 time and never stored, like `revision` and `path` in 7.1. It holds the verdict
@@ -1982,7 +1997,7 @@ That is the smaller price.
 git ticket init   [--instructions]
 git ticket install-merge-driver
 git ticket merge-driver BASE OURS THEIRS
-git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority]
+git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority|updated_at|status]
 git ticket ready
 git ticket ui       # browse the store interactively; no --json form
 git ticket show   ID [--body]

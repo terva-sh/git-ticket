@@ -44,6 +44,26 @@ type ListView struct {
 	// filter is how they drift.
 	filterText    string
 	filterEditing bool
+
+	// order indexes listOrders. The o key cycles it, and the header
+	// names it, because an invisible sort mode reads as a broken list.
+	order int
+}
+
+// listOrders is the sort vocabulary of plan 8, in the order o cycles
+// through it. The names are the exact `list --sort` tokens and the
+// apply functions are the ticket package's own, so the third surface
+// teaches the same rule as the other two rather than a variant. A nil
+// apply is the store's ID order, which needs no re-sort.
+var listOrders = []struct {
+	name  string
+	apply func([]*ticket.Ticket)
+}{
+	{"id", nil},
+	{"due_on", ticket.SortByDueOn},
+	{"priority", ticket.SortByPriority},
+	{"updated_at", ticket.SortByUpdated},
+	{"status", ticket.SortByStatus},
 }
 
 // NewListView returns a view over relist and loads it once. Writes go
@@ -77,14 +97,21 @@ func (v *ListView) Reload() {
 // selection to keep, when the filter still lets it through.
 func (v *ListView) applyFilter(keep string) {
 	f := parseFilter(v.filterText)
-	if f.empty() {
+	order := listOrders[v.order]
+	if f.empty() && order.apply == nil {
 		v.shown = v.tickets
 	} else {
+		// Always a fresh slice when filtering or sorting: shown must
+		// never share a backing array with tickets, or the sort would
+		// quietly reorder the unfiltered view underneath it.
 		v.shown = v.shown[:0:0]
 		for _, t := range v.tickets {
 			if f.match(t) {
 				v.shown = append(v.shown, t)
 			}
+		}
+		if order.apply != nil {
+			order.apply(v.shown)
 		}
 	}
 	v.list.SetTotal(len(v.shown))
@@ -167,6 +194,11 @@ func (v *ListView) HandleKey(k tui.Key) (quit bool) {
 		return false
 	case k.Kind == tui.KeyRune && k.Rune == 'r':
 		v.Reload()
+		v.msg = ""
+		return false
+	case k.Kind == tui.KeyRune && k.Rune == 'o':
+		v.order = (v.order + 1) % len(listOrders)
+		v.applyFilter(v.SelectedID())
 		v.msg = ""
 		return false
 	case k.Kind == tui.KeyRune && k.Rune == 'c':
@@ -334,7 +366,7 @@ func (v *ListView) widths() (id, status, typ, prio int) {
 // the view one keystroke deeper.
 func (v *ListView) header() string {
 	idW, stW, tyW, prW := v.widths()
-	return fmt.Sprintf("  %-*s  %-*s  %-*s  %-*s  %s", idW, "ID", stW, "STATUS", tyW, "TYPE", prW, "PRIORITY", "TITLE")
+	return fmt.Sprintf("  %-*s  %-*s  %-*s  %-*s  %-5s  · sort: %s", idW, "ID", stW, "STATUS", tyW, "TYPE", prW, "PRIORITY", "TITLE", listOrders[v.order].name)
 }
 
 func (v *ListView) row(i int, selected bool) string {

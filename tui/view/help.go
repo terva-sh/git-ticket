@@ -39,6 +39,7 @@ var helpLines = []string{
 	"  c            claim the selected ticket",
 	"  u            release your claim",
 	"  /            filter the list",
+	"  o            cycle the sort order: id, due_on, priority, updated_at, status",
 	"  r            reload from the store",
 	"  ?            this page",
 	"  Esc          clear the filter, then quit",

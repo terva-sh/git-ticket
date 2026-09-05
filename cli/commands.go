@@ -454,12 +454,15 @@ const (
 	sortByID       = "id"
 	sortByDueOn    = "due_on"
 	sortByPriority = "priority"
+	sortByUpdated  = "updated_at"
+	sortByStatus   = "status"
 )
 
 // sortOrders is every value --sort accepts, per plan 12.1. One list, so the
 // help text, the validation, and the message naming the alternatives cannot
-// come to disagree about which orders exist.
-var sortOrders = []string{sortByID, sortByDueOn, sortByPriority}
+// come to disagree about which orders exist. The TUI cycles the same list,
+// per plan 8's rule that one field has one order everywhere it sorts.
+var sortOrders = []string{sortByID, sortByDueOn, sortByPriority, sortByUpdated, sortByStatus}
 
 // runList prints the tickets that match the filters.
 func runList(ctx *cmdContext, args []string) error {
@@ -555,6 +558,10 @@ func runList(ctx *cmdContext, args []string) error {
 		ticket.SortByDueOn(tickets)
 	case sortByPriority:
 		ticket.SortByPriority(tickets)
+	case sortByUpdated:
+		ticket.SortByUpdated(tickets)
+	case sortByStatus:
+		ticket.SortByStatus(tickets)
 	}
 
 	return ctx.writeTicketListWith(s, tickets, "No tickets match.", listView{CrossBranch: cross})

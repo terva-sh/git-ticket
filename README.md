@@ -185,6 +185,13 @@ install` does the same thing and `just build` puts the binary in the repository
 root instead. That root copy is gitignored and nothing rebuilds it for you, so
 prefer `just ready` and `just check`, which depend on `build`.
 
+`just install-release` builds a release rather than your working tree. It
+compiles a tag in a throwaway clone and puts the binary where the install script
+above would, so compiling from source and running the one-liner cannot leave two
+binaries of different ages on your `PATH` for `git ticket` to choose between. It
+refuses anything that is not a tag, and refuses to install a build that does not
+report the tag it was asked for.
+
 `git ticket --version` reports the tag and the commit the binary was built from,
 and says so honestly: a build from a tree with no tag reachable answers `devel`
 rather than inventing a version.

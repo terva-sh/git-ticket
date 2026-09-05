@@ -29,6 +29,116 @@ install:
       echo "installed git-ticket -> $dest/git-ticket"; \
       case ":$PATH:" in *":$dest:"*) ;; *) echo "warning: $dest is not on PATH, so \`git ticket\` will not resolve" ;; esac
 
+# `just install` builds whatever is in your tree and puts it in GOBIN, which is
+# what dogfooding wants. This is the other half. It builds a released tag and
+# puts it where install.sh puts a downloaded one, so compiling from source and
+# running the README's curl one-liner cannot leave two binaries of different
+# ages on PATH with `git ticket` quietly picking between them.
+#
+# The tag is checked before anything is built. `go build` takes the version from
+# what the VCS reports, per plan 12.1, so an untagged commit stamps a
+# pseudo-version and a shallow checkout stamps `devel`. Neither is a release,
+# and neither should reach a directory on PATH.
+#
+# The build runs in a throwaway local clone at the tag, so your checkout is
+# never touched and its state cannot reach the binary. A temporary worktree was
+# the obvious way to do that and does not work: Go looks for a `.git` directory
+# to find the VCS root, a linked worktree has a `.git` file instead, and
+# `go build` there fails with "error obtaining VCS status: exit status 128"
+# rather than stamping anything. A clone has a real `.git` directory, and it
+# writes nothing into this repository, where `git worktree add` would.
+#
+# What proves the result is the artifact and not the tree: the built binary has
+# to report the tag that was asked for, with modified false. That is read from
+# `--version --json`, because plan 12.4 does not cover the human line and a
+# recipe grepping it would be parsing an interface this project does not offer.
+# Build a release tag from source and install it where install.sh would.
+install-release TAG="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    tag="{{TAG}}"
+    if [ -z "$tag" ]; then
+        tag="$(git describe --exact-match --tags HEAD 2>/dev/null || true)"
+        if [ -z "$tag" ]; then
+            echo "install-release: HEAD is not at a tag, so there is no release here to build." >&2
+            echo "  name one instead:  just install-release v0.11.0" >&2
+            recent="$(git tag -l 'v*' --sort=-v:refname | head -3 | tr '\n' ' ')"
+            [ -z "$recent" ] || echo "  recent tags:       $recent" >&2
+            exit 1
+        fi
+    fi
+
+    if ! git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null; then
+        echo "install-release: \"$tag\" is not a tag in this repository." >&2
+        echo "  a branch or a commit will not do, because the version comes from the tag." >&2
+        echo "  if the tag is new here, fetch it first: git fetch --tags" >&2
+        exit 1
+    fi
+
+    # install.sh's own resolution, and its no-sudo rule with it. A recipe that
+    # escalates on its own is how a machine rots.
+    dest=""
+    for d in "$HOME/.local/bin" "$HOME/bin"; do
+        if mkdir -p "$d" 2>/dev/null && [ -w "$d" ]; then
+            dest="$d"
+            break
+        fi
+    done
+    if [ -z "$dest" ]; then
+        echo "install-release: neither ~/.local/bin nor ~/bin is writable." >&2
+        echo "  nothing here sudos. Make one of them writable, or use install.sh --prefix." >&2
+        exit 1
+    fi
+
+    root="$(git rev-parse --show-toplevel)"
+    work="$(mktemp -d)"
+    src="$work/src"
+    trap 'rm -rf "$work"' EXIT
+
+    echo "building $tag in a temporary clone"
+    # Not shallow. A shallow clone has no tag to derive a version from, so the
+    # binary would answer `devel` and the check below would refuse it.
+    git -c advice.detachedHead=false clone --local --quiet --branch "$tag" "$root" "$src"
+    ( cd "$src" && go build -o "$work/git-ticket" ./cmd/git-ticket )
+
+    # The version envelope is a covered surface, per plan 10, so these key names
+    # are stable in a way the pretty line is not.
+    json="$("$work/git-ticket" --version --json)"
+    got_version="$(printf '%s\n' "$json" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+    got_modified="$(printf '%s\n' "$json" | sed -n 's/.*"modified": *\(true\|false\).*/\1/p')"
+
+    if [ "$got_version" != "$tag" ]; then
+        echo "install-release: the build reports version \"$got_version\", not $tag." >&2
+        echo "  nothing was installed." >&2
+        exit 1
+    fi
+    if [ "$got_modified" != "false" ]; then
+        echo "install-release: the build reports modified: $got_modified, so it is not $tag as released." >&2
+        echo "  nothing was installed." >&2
+        exit 1
+    fi
+
+    # Replace through a temporary name in the destination, so the swap is atomic
+    # and a running git-ticket cannot make this fail with ETXTBSY.
+    cp "$work/git-ticket" "$dest/.git-ticket.new"
+    chmod 0755 "$dest/.git-ticket.new"
+    mv "$dest/.git-ticket.new" "$dest/git-ticket"
+
+    echo "installed $dest/git-ticket"
+    echo "  $("$dest/git-ticket" --version)"
+
+    case ":$PATH:" in
+        *":$dest:"*) ;;
+        *) echo "warning: $dest is not on PATH, so \`git ticket\` will not resolve" >&2 ;;
+    esac
+
+    first="$(command -v git-ticket || true)"
+    if [ -n "$first" ] && [ "$first" != "$dest/git-ticket" ]; then
+        echo "warning: $first comes first on PATH, so \`git ticket\` still means that one" >&2
+        echo "  it reports: $("$first" --version 2>/dev/null || echo unknown)" >&2
+    fi
+
 # The fast suite. Seconds, so there is little reason not to run it.
 test *ARGS:
     go test ./... {{ARGS}}

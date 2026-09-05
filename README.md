@@ -474,7 +474,7 @@ repository and before `init`.
 | 1 | Core library: parse, render, validate, query, `Apply` | Done |
 | 2 | Standalone CLI with `--json` | Done, tagged `v0.1.0`. All 24 commands it scoped, and both exit criteria met |
 | 3 | Terva integration | Started. `v0.2.0` exports the `cli` package terva embeds, `v0.3.0` adds the `--parent` filter its board needs, `v0.4.1` reports the files a query could not read, `v0.5.0` gives every unready ticket a reason and merges concurrent edits per field. Tracked in terva |
-| 4 | MCP adapter, Backlog.md import, a local view | Deferred |
+| 4 | MCP adapter, Backlog.md import, a local view | Started. The local view shipped as `git ticket ui` in `v0.7.0` and renders styled Markdown since `v0.8.0`. The adapter and the import stay parked on their triggers in plan section 15 |
 
 The two questions that blocked Phase 1 are settled. A `blocked` reason lives in
 the `status_reason` field and in `Notes`, per plan 5.1 and 6.2. A `references`

@@ -45,12 +45,22 @@ terva's full MIT text and the file list, and `TestNoticeAgreesWithTheHeaders`
 holds the two to each other in both directions. A new lift joins both or the
 suite fails. Every key the list view accepts must appear in the footer or on
 the `?` help page, and `TestEveryListKeyIsHintedSomewhere` enforces it: a
-control the UI never prints might as well not exist.
+control the UI never prints might as well not exist. The detail footer must
+fit a 60-column pane, and a width test holds it: adding "y copy" overflowed
+by one column and the arrow glyphs paid for it, since j/k needs no teaching.
 
-Releases run through v0.8.1, and `self-update` (plan 12.6, with the graded
+`cli.UIParams` and `view.StoreParams` convert by a cast in
+`cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
+field goes last in both structs, and the compiler is the test.
+
+Releases run through v0.9.1, and `self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release
 binary applied v0.8.1 over the live GitHub API, check exit 10, apply exit 0,
-and the result was byte-identical (`cmp`) to the released binary.
+and the result was byte-identical (`cmp`) to the released binary. v0.9.0
+carries `copy` and `show --body` (plan 12.7), the TUI type column and filter
+tokens, and arrive-done (plan 6.2.1: `create --status done|archived`,
+`--created` backdating, draft to done with a reason). v0.9.1 adds the TUI's
+`y` binding over the same clipboard helper.
 
 `schema` and `config` split the vocabulary and the split is load-bearing.
 `schema` is what the binary enforces, identical in every store, and plan 10.4
@@ -340,6 +350,18 @@ usually the larger one. Read it before reporting that there is nothing to pick
 up. Promoting a draft is the user's call: name what looks startable and let them
 choose.
 
+Before filing a feature draft, check what already exists and say so in the
+description: half the filter-token ask (`status:` in the TUI filter) was
+already built, and a draft that records that is what stops a double build.
+When grooming a draft, begin the note "Groomed.", record what changed and
+whether the trigger fired, verify each claim against the tree rather than
+recall, and skip a ticket groomed the same day, because a nothing-changed
+note is noise a permanent file keeps forever.
+
+An ask that arrives mid-build gets queued as a task and filed after the
+current branch lands. A ticket write is a store write, and a store write on
+an unrelated feature branch rides into that PR's diff.
+
 Name a ticket with its title the first time you mention it, in a summary, a
 commit message, a PR body, or a ticket note:
 
@@ -360,7 +382,10 @@ from memory.
 An acceptance criterion is evidence of what was asked for, so do not reword one
 to match what shipped. The single exception is a criterion that was
 unsatisfiable as written, which is not the same as one that turned out to be
-hard. A hard one stays as it is and goes unticked. Closing a ticket that way is
+hard. A hard one stays as it is and goes unticked, and so does one the build
+deliberately deviated from: TKT-01M1RPM3 asked for OSC 52 first, the build
+inverted the order because OSC 52 cannot report failure, and the box stayed
+empty with the reasoning in a note. Closing a ticket that way is
 fine: no check reports an unticked criterion, so an honest `[ ]` costs nothing
 and a false `[x]` costs the next reader their trust in every other box.
 
@@ -635,6 +660,17 @@ gh api repos/terva-sh/git-ticket/actions/permissions   # enabled, allowed_action
 gh api repos/terva-sh/git-ticket/actions/workflows --jq '.workflows[].state'
 ```
 
+A test seam proves everything except the function it replaces. The nine copy
+tests injected RunTool and so could never catch that the real one hung:
+wl-copy, xclip, and xsel fork a child that serves the selection and holds the
+inherited descriptors open, so `CombinedOutput` waits for a pipe EOF that
+only the next copy delivers. `runClipboardTool` uses temp files on all three
+descriptors for that reason, and a regression test drives the real helper
+against `sh -c "sleep 30 & exit 0"`. The wider rule is the one self-update
+taught and copy re-taught within the hour: run the replaced function once for
+real, on the desk, before calling the feature shipped. The hang surfaced
+minutes after merge in a smoke test the suite could not perform.
+
 A release is not proven by a green job. Read the assets back, verify
 `sha256sum -c`, and run the unpacked binary, because the failure this catches is
 a build that succeeds while shipping a binary that disagrees with its own tag.
@@ -669,10 +705,18 @@ is why v0.6.0 is a minor: `title_too_long` refuses a write that used to work,
 not because 19 commits landed. A new surface also moves the minor, by the
 user's ruling on v0.7.0 and repeated on v0.8.0: a new command or package is a
 larger promise than a patch carries, even with nothing broken. Flags beside
-old ones and fixes stay patches, which is v0.5.1 and v0.7.1. Read what an
-earlier release decided with `git tag -l v0.7.0 -n99` before picking one.
+old ones and fixes stay patches, which is v0.5.1 and v0.7.1, and so does a
+new TUI binding beside existing surfaces, which is v0.9.1. v0.9.0 repeated
+the two-step precedent from both sides at once: `copy` is a new command and
+draft-to-done loosened the 6.2 table, either alone enough for the minor. Read
+what an earlier release decided with `git tag -l v0.7.0 -n99` before picking
+one.
 
 An interface contract that 12.4 will cover, an exit status, a flag spelling, a
 JSON kind, is settled with the user before it ships, because re-shipping a
 covered surface costs a break. The `self-update` exit bucket came out of
 exactly that question, and the plan records the decision with its precedent.
+A draft's open questions get the same treatment: ask before the branch, in
+one interruption, the way the copy spelling and all three arrive-done
+questions were settled, because an answer changes the plan text and the plan
+moves first.

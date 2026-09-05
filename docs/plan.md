@@ -1526,6 +1526,18 @@ needs to tell those apart reads the code from the error envelope.
 `check --strict` promotes warnings to errors, so a store carrying only warnings
 exits zero without it and one with it.
 
+One graded bucket is reserved on top of that rule: 10 through 12 mean "an
+update is available", and only the no-op modes of `self-update` use them, per
+12.6. 10 is a patch-sized gap, 11 minor, 12 major, so
+`self-update --check || notify` works in a cron job with no parsing, and a
+script that applies patches automatically but waits on anything larger
+compares against one number. The precedent is the reserved informational
+bucket of zypper and terraform's `-detailed-exitcode`, not fsck's bitmask: a
+version gap is one category, the highest component that moved, so a grade
+carries everything a mask would and stays readable in a shell comparison.
+Under v0.x this composes with 12.4: a minor is where breaks land, so tooling
+that waits on 11 gets exactly the caution that numbering promises.
+
 ### 10.3 A check report
 
 The `check-report` kind carries the findings of section 11:
@@ -1752,6 +1764,34 @@ was reachable except by reading `config.yml`. `defaults` says what `create` uses
 when the caller names no type or priority, and `claimExpiry` is null when a
 claim does not expire on its own.
 
+### 10.7 The self-update kind
+
+`self-update` answers with what it found and what it did:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "self-update",
+  "current": "v0.7.1",
+  "latest": "v0.8.0",
+  "gap": "minor",
+  "asset": "git-ticket_0.8.0_linux_amd64.tar.gz",
+  "target": "/home/user/go/bin/git-ticket",
+  "applied": false
+}
+```
+
+`gap` is `none`, `patch`, `minor`, or `major`: the highest version component
+that differs between `current` and `latest`. `asset` and `target` are null
+under `--check`, which stops before resolving either; `--dry-run` fills them.
+`applied` is true only when the binary on disk was actually replaced, so a
+no-op mode can never answer true. The exit status carries the same verdict as
+`gap`, per the graded bucket in 10.2, and the envelope exists so a program
+that wants more than one number does not parse prose.
+
+Like `schema`, this command reads no store and answers outside a repository,
+because the binary being out of date is not a property of any store.
+
 ## 11. Validation
 
 `check` runs offline, is safe in CI, and separates errors from warnings. It
@@ -1931,6 +1971,7 @@ git ticket migrate [--to N] [--dry-run]
 git ticket instructions [--write]
 git ticket schema
 git ticket config   # what this store configured, including the allowlists
+git ticket self-update [--check | --dry-run]   # replace this binary with the latest release, per 12.6
 ```
 
 Global flags: `--json`, `--store PATH`, `--if-revision R`, `--actor ID`,
@@ -2378,6 +2419,48 @@ that cannot occur. A ticket declaring more than the reader supports does not
 parse, so no fixture can hold a store whose files merely disagree with its
 config. The `create` rule ships now because it is load-bearing whether or not a
 second schema ever arrives.
+
+### 12.6 Self-update
+
+`git ticket self-update` replaces the running binary with the latest release,
+and its no-op modes answer whether it would. The source is the GitHub releases
+of the public mirror, resolved from the module path, because that is the one
+host every installed binary can reach and the release pipeline of 12.1 already
+publishes there. The internal forge is not consulted: a binary in the wild has
+never heard of it.
+
+The name is `self-update` and not `update`, because `update` has meant "change
+a ticket's fields" since Phase 2 and a command that means two things means
+neither.
+
+Three modes. `--check` asks the releases API for the latest tag, compares it
+with the running version, reports, and exits by the graded bucket of 10.2. It
+downloads nothing. `--dry-run` additionally resolves the asset name for this
+OS and architecture and the path it would replace, and exits by the same
+bucket, so the two no-op modes differ only in how much they name. The bare
+command downloads the asset and `checksums.txt`, verifies the sha256 before
+anything moves, unpacks the binary, and replaces the executable atomically:
+write beside the target, then rename. On Windows the running binary is renamed
+aside first, because a running executable cannot be overwritten there.
+
+Refusals, each with exit 1 and a reason: a binary reporting `devel`, because
+that is somebody's development tree and replacing it destroys a build
+silently, the repair being `just install` or `go install`; a checksum that
+does not verify; a target the process cannot write, naming the path so the
+user can decide whose permissions are wrong; and a release carrying no asset
+for this OS and architecture.
+
+A prerelease is never offered. The releases API's `latest` excludes them, and
+this command asks for nothing else.
+
+The network exception is scoped to this one command and its no-op modes. The
+library still reaches no network, per 7.4, and no other command does either:
+`check` keeps the promise of section 11. `self-update` touches no store, holds
+no lock, and works outside a repository, per 10.7.
+
+A binary that is already at the latest, or ahead of it, reports up to date and
+exits 0. Ahead happens between a tag push and the mirror's release job
+finishing, and treating it as an update would downgrade.
 
 ## 13. Phases
 

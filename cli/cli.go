@@ -47,6 +47,14 @@ type Env struct {
 	// that embeds this package for its command surface, per plan 12.2, does
 	// not build the terminal stack.
 	RunUI func(UIParams) error
+	// ReleaseAPI overrides the releases API base URL that self-update asks,
+	// per plan 12.6. Empty means the real GitHub API. Tests point it at an
+	// httptest server, which is how the suite keeps its no-network promise.
+	ReleaseAPI string
+	// Executable overrides the path self-update replaces. Empty means the
+	// running binary, resolved through os.Executable. Tests point it at a
+	// file they own.
+	Executable string
 }
 
 // UIParams is what the ui command resolves before handing off: the
@@ -142,6 +150,7 @@ func commands() []command {
 		{"schema", "print the values and codes this binary enforces", "", runSchema},
 		{"config", "print what this store configured, including the allowlists", "", runConfig},
 		{"instructions", "print the agent workflow block for an AGENTS.md", "[--write]", runInstructions},
+		{"self-update", "replace this binary with the latest release", "[--check | --dry-run]", runSelfUpdate},
 		{"install-merge-driver", "configure this binary as Git's merge driver for ticket files", "", runInstallMergeDriver},
 		{"merge-driver", "resolve a ticket file mid-merge, for git's merge.*.driver", "BASE OURS THEIRS", runMergeDriver},
 	}
@@ -224,6 +233,12 @@ func Run(args []string, env Env) int {
 			// an error envelope on top of it.
 			if errors.Is(err, errReported) {
 				return exitError
+			}
+			// The graded bucket of plan 10.2: the command answered, and the
+			// status is the answer, not a failure to produce one.
+			var es *exitStatusErr
+			if errors.As(err, &es) {
+				return es.code
 			}
 			return fail(env, g, err)
 		}

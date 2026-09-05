@@ -1,10 +1,26 @@
 package view
 
 import (
+	"errors"
+	"os"
 	"sync"
+
+	"golang.org/x/term"
 
 	"github.com/terva-sh/git-ticket/tui"
 )
+
+// RunProc runs the TUI on the process terminal. It refuses when stdin
+// or stdout is not a tty, because an alternate-screen application on a
+// pipe would block reading keys nobody can type and paint escapes
+// nobody renders. The check lives here rather than in cmd/git-ticket
+// so the composition root stays a one-line binding.
+func RunProc(relist Lister) error {
+	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+		return errors.New("the TUI needs a terminal on stdin and stdout")
+	}
+	return Run(tui.NewProcTerm(), relist)
+}
 
 // Run drives the list view on term until the user quits or the input
 // ends. It owns the whole terminal lifecycle: Frame.Start before the

@@ -40,6 +40,13 @@ type Env struct {
 	Stdin io.Reader
 	// Now overrides the clock the store writes with. Nil means the real one.
 	Now func() time.Time
+	// RunUI opens the interactive TUI over a resolved store. The composition
+	// root wires it: cmd/git-ticket binds tui/view.RunProc, and a test binds a
+	// fake. Nil means this entrypoint has no terminal to offer, and `ui` says
+	// so and fails. It is a field rather than an import so a host that embeds
+	// this package for its command surface, per plan 12.2, does not build the
+	// terminal stack.
+	RunUI func(*ticket.Store) error
 }
 
 func (e Env) getenv(key string) string {
@@ -99,6 +106,7 @@ func commands() []command {
 		{"list", "print the tickets that match", "[filters]", runList},
 		{"ready", "print what could be picked up now", "", runReady},
 		{"search", "search titles, body sections, and references", "QUERY [--regex]", runSearch},
+		{"ui", "browse the store interactively in the terminal", "", runUI},
 		{"status", "move a ticket through the lifecycle", "ID STATUS [--reason R]", runStatus},
 		{"claim", "record that you are working a ticket", "ID [--expires-in D] [--force]", runClaim},
 		{"release", "drop your claim on a ticket", "ID", runRelease},

@@ -24,7 +24,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-04T23:24:15Z
-updated_at: 2026-09-05T00:02:14Z
+updated_at: 2026-09-05T00:08:25Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -138,3 +138,23 @@ already there for it), and the entrypoint decision.
 **agent:terva/mieli** at 2026-09-05T00:02:14Z
 
 Process note, 2026-09-05: the list-view commit 632cf0d landed on main by a direct push, against the branch-and-PR rule in AGENTS.md. After merging PR #95 the working tree sat on main, and the next commit was made there without branching first. CI on the push is green and the content is what the previous note describes, but the change skipped review. Recorded so the history of this ticket does not read as if the rule held.
+
+**agent:terva/mieli** at 2026-09-05T00:08:25Z
+
+The entrypoint sub-decision is settled: `git ticket ui`, a subcommand in the
+existing binary, decided 2026-09-04. This supersedes the open question in the
+description and in the first progress note.
+
+The wiring keeps the plan 12.2 embedding rule intact. The `ui` command lives
+in `cli/ui.go` with flag parsing and store resolution like every other
+command, but the terminal work sits behind a new `Env.RunUI` field that only
+the composition root binds: `cmd/git-ticket` sets it to `view.RunProc`, which
+refuses a non-tty and runs the list view over `Store.List(Filter{})`. A host
+that embeds `cli` for its command surface leaves `RunUI` nil, never builds
+the terminal stack, and `ui` fails with a message saying this entrypoint has
+no terminal UI wired.
+
+Plan 12.1 lists the command with its no-JSON note. `ui` refuses `--json`,
+arguments, and a missing store, each covered by a test in `cli/ui_test.go`.
+Verified on the built binary: `--help` lists ui, and `./git-ticket ui
+</dev/null` exits 1 with "the TUI needs a terminal on stdin and stdout".

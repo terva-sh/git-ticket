@@ -1904,6 +1904,7 @@ git ticket install-merge-driver
 git ticket merge-driver BASE OURS THEIRS
 git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority]
 git ticket ready
+git ticket ui       # browse the store interactively; no --json form
 git ticket show   ID
 git ticket search QUERY [--regex]
 git ticket create --title T [--type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod]

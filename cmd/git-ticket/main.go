@@ -12,9 +12,12 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/terva-sh/git-ticket/cli"
+	"github.com/terva-sh/git-ticket/ticket"
+	"github.com/terva-sh/git-ticket/tui/view"
 )
 
 func main() {
@@ -31,5 +34,13 @@ func main() {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Stdin:  os.Stdin,
+		// The one binding an embedding host does not inherit, by design:
+		// a host that wants the TUI wires its own terminal, and a host
+		// that only wants the command surface never builds this one.
+		RunUI: func(s *ticket.Store) error {
+			return view.RunProc(func() ([]*ticket.Ticket, error) {
+				return s.List(context.Background(), ticket.Filter{})
+			})
+		},
 	}))
 }

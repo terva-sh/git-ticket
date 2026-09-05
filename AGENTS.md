@@ -60,7 +60,11 @@ and the result was byte-identical (`cmp`) to the released binary. v0.9.0
 carries `copy` and `show --body` (plan 12.7), the TUI type column and filter
 tokens, and arrive-done (plan 6.2.1: `create --status done|archived`,
 `--created` backdating, draft to done with a reason). v0.9.1 adds the TUI's
-`y` binding over the same clipboard helper.
+`y` binding over the same clipboard helper. v0.9.2 gives both surfaces the
+sort vocabulary: `o` cycles it in the TUI and `list --sort` gains
+`updated_at` and `status`, working set first. v0.9.3 ships `install.sh` at
+the repository root, and the README's curl one-liner is live and proven
+against the mirror.
 
 `schema` and `config` split the vocabulary and the split is load-bearing.
 `schema` is what the binary enforces, identical in every store, and plan 10.4
@@ -132,6 +136,12 @@ triggers on `push` of a `v*` tag and nothing else, so a branch push starts no
 run at all. Pushing three docs commits took the mirror's run count from 2 to 2.
 A tag is what spends public capacity, and a tag is the thing worth spending it
 on.
+
+The same timing governs anything in the tree that points at the mirror's
+content. A raw.githubusercontent.com URL on `main`, such as the README's
+install one-liner, exists only after a release pushes `main` there, so it
+merges dead and goes live at the next tag. Do not try to prove one at merge
+time, and do not read its 404 as a bug.
 
 `main` moves by merging a PR, so the mirror push comes after the merge, from a
 local `main` that has just been fast-forwarded:
@@ -353,6 +363,9 @@ choose.
 Before filing a feature draft, check what already exists and say so in the
 description: half the filter-token ask (`status:` in the TUI filter) was
 already built, and a draft that records that is what stops a double build.
+Then check again at build time, because the draft is not the tree: the sort
+draft predicted the vocabulary needed sharing, and SortByDueOn and
+SortByPriority already lived in the ticket package when the build arrived.
 When grooming a draft, begin the note "Groomed.", record what changed and
 whether the trigger fired, verify each claim against the tree rather than
 recall, and skip a ticket groomed the same day, because a nothing-changed
@@ -385,7 +398,12 @@ unsatisfiable as written, which is not the same as one that turned out to be
 hard. A hard one stays as it is and goes unticked, and so does one the build
 deliberately deviated from: TKT-01M1RPM3 asked for OSC 52 first, the build
 inverted the order because OSC 52 cannot report failure, and the box stayed
-empty with the reasoning in a note. Closing a ticket that way is
+empty with the reasoning in a note. A third case: evidence that cannot exist
+until a later event. TKT-01M1S02QA's curl-from-the-mirror criterion could not
+be proven before a release pushed `main` to the mirror, so it shipped
+unticked with the note assigning the evidence run to the next release's
+verification, and the tick landed afterward by PR, with the summary rewritten
+in the same change so it stopped describing the wait. Closing a ticket that way is
 fine: no check reports an unticked criterion, so an honest `[ ]` costs nothing
 and a false `[x]` costs the next reader their trust in every other box.
 
@@ -674,6 +692,9 @@ minutes after merge in a smoke test the suite could not perform.
 A release is not proven by a green job. Read the assets back, verify
 `sha256sum -c`, and run the unpacked binary, because the failure this catches is
 a build that succeeds while shipping a binary that disagrees with its own tag.
+And exercise whatever the release makes live beyond the assets: v0.9.3's
+verification ran the README's curl one-liner against the freshly pushed
+mirror, because that URL was the thing the release actually shipped.
 
 `go list -m` answers from the local module cache before it asks the proxy, so it
 can report a hash that was never published. Verifying v0.6.0 returned
@@ -706,9 +727,13 @@ not because 19 commits landed. A new surface also moves the minor, by the
 user's ruling on v0.7.0 and repeated on v0.8.0: a new command or package is a
 larger promise than a patch carries, even with nothing broken. Flags beside
 old ones and fixes stay patches, which is v0.5.1 and v0.7.1, and so does a
-new TUI binding beside existing surfaces, which is v0.9.1. v0.9.0 repeated
+new TUI binding beside existing surfaces, which is v0.9.1, and new values on
+an existing flag, which is v0.9.2. v0.9.0 repeated
 the two-step precedent from both sides at once: `copy` is a new command and
-draft-to-done loosened the 6.2 table, either alone enough for the minor. Read
+draft-to-done loosened the 6.2 table, either alone enough for the minor. A
+release can also carry no binary change at all: v0.9.3's binary is identical
+to v0.9.2's, and the tag's job was pushing `main` to the mirror, which is
+what made the install one-liner live. Read
 what an earlier release decided with `git tag -l v0.7.0 -n99` before picking
 one.
 

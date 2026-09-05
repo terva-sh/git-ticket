@@ -211,6 +211,50 @@ The Forgejo job needs a `BOT_TOKEN` repository secret holding a token with write
 access. The GitHub job uses the `GITHUB_TOKEN` that Actions provides. A tag
 pushed without `BOT_TOKEN` fails loudly rather than publishing nothing quietly.
 
+A tag also publishes a container image, `ghcr.io/terva-sh/git-ticket`, from the
+`image` job in `.github/workflows/release.yml`. Only the mirror publishes it,
+behind the same `github.server_url` guard as goreleaser, because Forgejo Actions
+executes `.github/workflows` too and reports the same owner and name.
+`.forgejo/workflows` has no image job. The tags are the full version, the minor,
+and `latest`, and a prerelease publishes its own version alone.
+
+The image is not a second build. The job downloads the published release archive
+and unpacks it into `image-context/`, and that directory is the build context,
+not the repository. `podman build .` at the root fails to find `git-ticket`, and
+that is the design. Build it locally by fetching the archive first:
+
+```sh
+gh release download v0.11.2 -R terva-sh/git-ticket \
+  -p 'git-ticket_*_linux_amd64.tar.gz' -D /tmp/imgctx
+tar -xzf /tmp/imgctx/git-ticket_*.tar.gz -C /tmp/imgctx
+podman build -f Dockerfile -t git-ticket-test:local /tmp/imgctx
+```
+
+There is no docker daemon on this machine. `podman` and `buildah` are installed
+and rootless, and every image check recorded here was run with podman.
+
+The image deliberately does not set `git config --system safe.directory '*'`.
+git refuses a mounted repository owned by another uid, and a CI image usually
+answers that with a blanket exception, which weakens a security check for
+everyone who runs the image as a tool rather than as a pipeline base. The README
+carries the verified per-invocation workaround instead. Do not add the blanket
+exception without asking the user.
+
+Prove the package is public by pulling it with no credentials, not through the
+API. `gh api users/terva-sh/packages/container/git-ticket` answers 403, `You
+need at least read:packages scope to get a package`, with the token `gh` holds
+here, so that route reads nothing about visibility and its failure means nothing
+either. An anonymous `podman pull` of each tag is the stronger check, and it
+also catches a tag that was never pushed.
+
+The Go patch release inside `--version` is a provenance tell, because the three
+builders disagree. At v0.11.2 the GitHub runner produced `go1.25.0`, Forgejo's
+alpine produced `go1.25.12`, and this machine builds with `go1.26.2`, so the
+version string alone separated three possible origins and showed the image
+carried the GitHub-published binary rather than a rebuild. The exact numbers
+move as runners update, so compare the three at the time rather than trusting
+these.
+
 A fresh clone has `origin` alone. Add the mirror when you need it, which is at
 release time and not before:
 `git remote add github git@github.com:terva-sh/git-ticket.git`.
@@ -832,6 +876,10 @@ mirror, because that URL was the thing the release actually shipped. For a
 feature release that means the feature. v0.10.0's ran `config` and `create
 --template` against the installed binary in a scratch store, which is the
 only check that the shipped artifact carries what the tag message claims.
+Since v0.11.2 the assets are not the whole release: pull all three image tags
+with no credentials, check they resolve to one digest, and run each one, because
+a digest that differs between `latest` and the version tag means the tagging
+step built twice rather than tagging once.
 
 Pointing HOME at a scratch directory for one of those runs leaves a Go module
 cache behind it, and Go makes those directories read-only, so the cleanup fails
@@ -878,7 +926,10 @@ to v0.9.2's, and the tag's job was pushing `main` to the mirror, which is
 what made the install one-liner live. v0.10.0 extends the new-surface half to
 a published JSON envelope: nothing broke and no command appeared, but
 `config` grew a `templates` key that a consumer can now depend on, and 10.6
-is a surface 12.4 covers. Read
+is a surface 12.4 covers. A new way to obtain the binary is not a new surface,
+which keeps v0.11.2 a patch on the v0.9.3 precedent even though it first
+published the container image: a distribution mechanism is not one of the
+interfaces 12.4 covers. Read
 what an earlier release decided with `git tag -l v0.7.0 -n99` before picking
 one.
 

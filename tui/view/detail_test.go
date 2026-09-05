@@ -49,7 +49,7 @@ func TestDetailRendersHeaderAndSectionsInOrder(t *testing.T) {
 	// Section order per plan 5.3, Extra last.
 	wantOrder := []string{
 		"Description", "drift compounds",
-		"Acceptance criteria", "- [ ] drift stays", "- [x] bench test",
+		"Acceptance criteria", "• [ ] drift stays", "• [x] bench test",
 		"Notes", "field observation",
 		"Vendor quotes", "twice the budget",
 	}

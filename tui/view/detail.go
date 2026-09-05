@@ -145,8 +145,19 @@ func (d *DetailView) build(cols int) {
 		if s.heading != "" {
 			d.body = append(d.body, "  \x1b[1m"+s.heading+"\x1b[22m")
 		}
-		for _, line := range tui.WrapPlain(text, limit) {
-			d.body = append(d.body, "  "+line)
+		// Styled rendering fills the slot named when the view shipped:
+		// RenderMarkdown styles the block, and the keep-style wrap folds
+		// each styled line to the width without a colored span's tail
+		// dropping to the default color at the fold.
+		styled := tui.RenderMarkdown(text, tui.DefaultTheme, limit)
+		for _, line := range strings.Split(styled, "\n") {
+			if line == "" {
+				d.body = append(d.body, "")
+				continue
+			}
+			for _, w := range tui.WrapANSILineKeepStyle(line, limit) {
+				d.body = append(d.body, "  "+w)
+			}
 		}
 	}
 	if len(d.body) == 0 {

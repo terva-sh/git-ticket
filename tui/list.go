@@ -1,3 +1,8 @@
+// Adapted from the picker pattern in terva's modes/dialogs (MIT), see
+// NOTICE at the repository root:
+//   Copyright (c) 2026 Drew Short (Terva, a hard fork of zot)
+//   Copyright (c) 2026 Patric Eckhart
+
 package tui
 
 // List is a cursor over n rows plus the viewport that keeps the cursor

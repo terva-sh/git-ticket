@@ -562,3 +562,10 @@ nothing but typing.
 MIT, in [`LICENSE`](LICENSE). Every release archive carries a copy beside the
 binary, so something downloaded from a release page ships with its own terms and
 needs nothing from this repository to be used.
+
+Parts of the `tui` package are lifted or adapted from
+[terva](https://github.com/terva-sh/terva)'s TUI, which is itself a hard fork
+of zot, so credit belongs to both projects. [`NOTICE`](NOTICE) carries terva's
+full license text and names every derived file, and each of those files opens
+with a header saying so. `TestNoticeAgreesWithTheHeaders` holds the two lists
+to each other.

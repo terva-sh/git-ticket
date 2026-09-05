@@ -32,8 +32,26 @@ and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 `dod`, `note`, `comment`, `summary`, `archive`, `unarchive`, `check`, `schema`,
 and `instructions`, each in a human form and behind `--json`. Six more landed
 after Phase 2, taking the binary to 30: `plan`, `refs`, `remove`, `config`,
-`install-merge-driver`, and `merge-driver`. All nine JSON kinds of section 10
-have a test, and every write honours `--if-revision`.
+`install-merge-driver`, and `merge-driver`. Phase 4's view work added `ui` and
+`self-update`, taking it to 32. Every JSON kind of section 10 has a test,
+ten with `self-update` per 10.7, and every write honours `--if-revision`.
+
+The TUI is Phase 4's view: `tui/` is the rendering stack, `tui/view` the
+application, and `git ticket ui` the entrypoint, wired through `Env.RunUI` so
+an embedding host that imports only `ticket` and `cli` never builds the
+terminal stack. Much of `tui/` is lifted from terva, and the attribution has a
+regime: a derived file opens with a header pointing at NOTICE, NOTICE carries
+terva's full MIT text and the file list, and `TestNoticeAgreesWithTheHeaders`
+holds the two to each other in both directions. A new lift joins both or the
+suite fails. Every key the list view accepts must appear in the footer or on
+the `?` help page, and `TestEveryListKeyIsHintedSomewhere` enforces it: a
+control the UI never prints might as well not exist.
+
+Releases run through v0.8.0, which shipped `self-update` per plan 12.6 with
+the graded exit bucket of 10.2. Its `--check` is proven against the live
+GitHub API, but the apply path is proven against httptest only, because
+v0.8.0 is the first binary that carries the command. The first release after
+it is the first real-world apply, and worth watching land.
 
 `schema` and `config` split the vocabulary and the split is load-bearing.
 `schema` is what the binary enforces, identical in every store, and plan 10.4
@@ -307,6 +325,15 @@ ticket rather than in a comment: `git ticket ready` says what is startable, and
 `git ticket create --title "..."` files what you found on the way. After
 `just install` those work as Git subcommands; `just ready` runs the first one
 from the tree without an install.
+
+A unit of work gets its ticket filed, worked, and closed on the same branch,
+so the PR carries the ticket file through its whole lifecycle and the store
+never holds a claim for a branch that merged. PRs #102, #104, and #105 are the
+pattern. Before labeling a new ticket, read the allowlist in
+`.tickets/config.yml`: an unlisted label passes the write and then fails CI at
+`check --strict`, and there is no `tui` label, which is why the TUI tickets
+ship unlabeled. `update` has no `--label` flag; labels change through
+`--add-label` and `--remove-label`.
 
 `ready` is half the backlog. Everything filed lands in `draft` and nothing
 promotes it, so `git ticket list --status draft` is the other half and it is
@@ -638,8 +665,15 @@ separates nothing. Which invocation writes a `URL`-less entry was never pinned
 down. Compare the hash against `git rev-parse` and do not read the tea leaves.
 
 A release number comes from plan 12.4, not from the size of the diff. Under
-`v0.x` a break bumps the minor and everything else bumps the patch, so v0.5.1
-shipped a set of new flags as a patch and said so in its tag message. v0.6.0 is
-a minor because `title_too_long` refuses a write that used to work, not because
-19 commits landed. Read what an earlier release decided with
-`git tag -l v0.5.1 -n99` before picking one.
+`v0.x` the operative precedent has two steps. A break moves the minor, which
+is why v0.6.0 is a minor: `title_too_long` refuses a write that used to work,
+not because 19 commits landed. A new surface also moves the minor, by the
+user's ruling on v0.7.0 and repeated on v0.8.0: a new command or package is a
+larger promise than a patch carries, even with nothing broken. Flags beside
+old ones and fixes stay patches, which is v0.5.1 and v0.7.1. Read what an
+earlier release decided with `git tag -l v0.7.0 -n99` before picking one.
+
+An interface contract that 12.4 will cover, an exit status, a flag spelling, a
+JSON kind, is settled with the user before it ships, because re-shipping a
+covered surface costs a break. The `self-update` exit bucket came out of
+exactly that question, and the plan records the decision with its precedent.

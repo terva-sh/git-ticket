@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T06:33:23Z
-updated_at: 2026-09-05T06:33:23Z
+updated_at: 2026-09-05T19:50:24Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -111,3 +111,101 @@ terva actually needs the subdivision, meaning its ticket volume makes one
 undifferentiated `TKT-` sequence hard to work, or a second repository asks
 for a partition. Whoever picks this up settles the name and writes the plan
 section, compatibility first, before touching ticket/id.go.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-05T19:50:24Z
+
+Two claims in the description above are false, demonstrated on
+2026-09-05 against the binary at 0e9faf4. A third claim, that the
+prefix is one constant, undercounts. The resolution question the
+description never asks is settled at the end.
+
+### The prefix is four sites, not one
+
+`IDPrefix` is one constant, and `ValidID`, `NormalizeRef` and
+`ResolveRef` in ticket/id.go all read it. Beyond those: the filename
+fallback in `file.id()` at ticket/store.go:312 decides whether an
+unparseable file is a ticket by testing the prefix, and
+`shortestUnique` rebuilds a display ID as `IDPrefix + b[:n]` in two
+places, cli/commands.go:96 and tui/view/list.go:462.
+
+### "Resolution barely changes" is false
+
+The method: a scratch store with two ordinary tickets, one of them
+retrofitted by hand to `IDEA-01M1SHS5631486JEM819TNMKV4` in both the
+filename and the frontmatter `id`, with a `depends_on` pointed at it
+from the other.
+
+`show 01M1SH`, a bare ULID fragment of the prefixed ticket, returned
+the *other* ticket with exit 0. The control says what should have
+happened: two ordinary tickets sharing eight leading characters answer
+`ambiguous_id: "01M1SHTM" matches 2 tickets` with exit 1. So a query
+that should have been ambiguous became a confident wrong answer.
+
+The mechanism is `NormalizeRef`, which strips `TKT-` and nothing else.
+A prefixed ID therefore never normalizes to a bare ULID, drops out of
+fragment matching entirely, and is reachable only by its full literal
+string. The claim that a bare ULID fragment still resolves uniquely
+across every track is not true today and does not become true for
+free.
+
+`list` printed the same ticket as `TKT-IDEA-01M`, because
+`shortestUnique` normalizes the ID, strips nothing, and pastes `TKT-`
+back onto a string that already carries `IDEA-`. The listing invents an
+ID that exists nowhere and resolves to nothing.
+
+### The hard part is backwards
+
+The description says an old binary reading `IDEA-...` "sees an invalid
+ID, which is an error it reports". It does not. `files()` globs every
+`.md` rather than filtering on the prefix, the ticket parses, and
+`check --strict` on that store reported exactly one finding,
+`dependency_missing` for the cross-reference, and said nothing about
+the prefixed ticket itself. `show IDEA-<full ULID>` returned it with
+exit 0, matching by full literal string through the fragment branch.
+
+So an old binary does not refuse cleanly in one place. It accepts the
+ticket, lists it under a fabricated abbreviation, resolves it only by
+its full name, silently removes it from fragment resolution, and turns
+every cross-track reference into `dependency_missing`. Four quiet
+wrong answers instead of one loud refusal.
+
+That inverts the argument for the schema bump. It is not a courtesy so
+old readers refuse cleanly instead of reporting corruption. It is the
+only thing standing between a prefixed store and wrong answers from
+every binary already installed, and it has to land before any store
+writes its first prefixed ID.
+
+### The fork, settled
+
+The prefix cannot be both decoration and identity. Either
+`NormalizeRef` strips any `[A-Z]+-`, in which case bare ULIDs resolve
+across tracks as the description wants, but `IDEA-<ulid>` and
+`TKT-<ulid>` become one reference and a wrong prefix resolves happily.
+Or the prefix is part of the identity, a prefixed reference must match
+the ticket's own prefix, and a bare ULID still resolves across tracks.
+
+Settled with the user on 2026-09-05: the prefix is part of the
+identity. The argument for prefixes over labels is that they travel
+with the reference, and decoration nothing checks does not travel, it
+just rides along. The cost is that `ResolveRef` splits a reference and
+compares two fields rather than one string, and `shortestUnique`
+abbreviates within a track while staying resolvable, which is more
+than pasting a constant back on.
+
+### Two costs the description does not price
+
+`origin:` is a new frontmatter scalar, and per 5.3 an absent scalar
+renders as `null` rather than being omitted, so adding it means editing
+every fixture that carries frontmatter. `status_reason` cost exactly
+that.
+
+The silent mis-resolution above is reachable today by anything that
+writes a foreign ID into the store, which is what the Backlog.md
+importer draft would do if it preserved source IDs. Whichever of the
+two lands first pays for the schema bump.
+
+The trigger has still not fired. Confirmed with the user on the same
+day: this remains a design conversation, and nothing here promotes the
+ticket.

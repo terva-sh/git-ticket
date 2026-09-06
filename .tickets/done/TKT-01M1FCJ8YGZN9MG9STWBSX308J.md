@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCJ8YGZN9MG9STWBSX308J
 title: Decide how much of the git ticket CLI terva ticket mirrors
 type: spike
 status: done
 status_reason: null
 priority: high
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive: null

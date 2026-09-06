@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPAFJENNESYCVQ7ZV43DT7
 title: update cannot set the description, and create cannot set the milestone
 type: bug
 status: done
 status_reason: null
 priority: high
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md

@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1PZAB87ZQF1MKZKRD2BTX3B
 title: Warn when a write falls back to the config default actor
 type: task
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

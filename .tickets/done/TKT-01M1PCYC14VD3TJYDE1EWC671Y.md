@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1PCYC14VD3TJYDE1EWC671Y
 title: Decide how a ticket filed by mistake is removed
 type: spike
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

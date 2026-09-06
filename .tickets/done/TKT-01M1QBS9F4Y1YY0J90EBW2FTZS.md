@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1QBS9F4Y1YY0J90EBW2FTZS
 title: Decide what the library must add to serve an interactive TUI host
 type: spike
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

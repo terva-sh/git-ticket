@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1SMR8D337KEP9KNWEC9A3TT
 title: Add just install-release, a source build into install.sh's location
 type: chore
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

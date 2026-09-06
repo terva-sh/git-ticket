@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1RPZ0N4TMM2CGMM9A3DP4MF
 title: Navigate between linked tickets in the TUI detail view
 type: task
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HFPCRWCW72EA6EKACFSYZ5
 title: Decide how a store archives for the long term
 type: spike
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1S0WNYBSQDE3RGSQ36MSBKF
 title: Sort the TUI list by priority, status, and time
 type: task
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

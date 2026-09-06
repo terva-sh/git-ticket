@@ -1,18 +1,21 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F8XG6KXN6QXYWF6EHVB88P
 title: Decide whether the module path should follow where the code lives
 type: spike
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - release
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1F7Z31HR5GV06D6Y7WZWJK4
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

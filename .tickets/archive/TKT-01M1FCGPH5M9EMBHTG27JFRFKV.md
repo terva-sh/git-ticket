@@ -1,18 +1,21 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCGPH5M9EMBHTG27JFRFKV
 title: "Slice 4: add the kanban board"
 type: task
 status: archived
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies:
   - TKT-01M1FCGPG9Z1TMEX28AKAAFXB1
+blocks_on: none
 references: []
 claim: null
 archive:

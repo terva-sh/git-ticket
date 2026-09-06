@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1QBSD77HG0B1XYFDHS12EYZ
 title: Build the Phase 4 TUI view for browsing and editing tickets
 type: task
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1QBS9F4Y1YY0J90EBW2FTZS
 blocks_on: none

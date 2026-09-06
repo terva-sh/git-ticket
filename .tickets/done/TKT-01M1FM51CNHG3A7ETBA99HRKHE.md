@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FM51CNHG3A7ETBA99HRKHE
 title: Enforce the read-only Git promise with a test
 type: chore
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - policy
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive: null

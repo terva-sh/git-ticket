@@ -1,18 +1,21 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F7Z2WG52PQC2QJ31AW7HDX
 title: Tag v0.1.0 once Phase 2 closes
 type: chore
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - release
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1F7Z2V612JYMNWR0GHHMMNK
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

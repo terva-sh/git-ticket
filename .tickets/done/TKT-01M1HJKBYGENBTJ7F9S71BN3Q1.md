@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HJKBYGENBTJ7F9S71BN3Q1
 title: Decide whether section 15 stays a hand-maintained index
 type: spike
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: plan:deferred-questions
     path: docs/plan.md

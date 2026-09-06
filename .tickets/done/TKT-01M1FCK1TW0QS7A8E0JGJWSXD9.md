@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCK1TW0QS7A8E0JGJWSXD9
 title: Relax the go directive so it does not pin a patch release
 type: chore
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive: null

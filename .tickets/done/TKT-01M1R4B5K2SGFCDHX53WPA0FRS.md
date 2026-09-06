@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1R4B5K2SGFCDHX53WPA0FRS
 title: Decide how prefixed ID series subdivide a store
 type: spike
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

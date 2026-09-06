@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1H9X166M1ATNK9S7ET26BVQ
 title: Decide what an explicit schema migration looks like
 type: spike
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive: null

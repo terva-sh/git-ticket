@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HXHJXRFP7VMH7D35YNTG5H
 title: Generate an epics index in the store for browsing without the tool
 type: task
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

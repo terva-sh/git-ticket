@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1PCZRF2FWEF988PTZTSM9AF
 title: Publish binaries with goreleaser on both forges
 type: task
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

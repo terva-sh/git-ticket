@@ -1,18 +1,21 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCGPE6X31CDEDRKFWZPYZF
 title: "Slice 1: add the module dependency and terva ticket"
 type: task
 status: archived
 status_reason: null
 priority: high
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies:
   - TKT-01M1FCJ8YGZN9MG9STWBSX308J
+blocks_on: none
 references: []
 claim: null
 archive:

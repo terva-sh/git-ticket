@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HFQ5F4D4KF45A5PFQ39XST
 title: Decide whether the extensions block gets a mutation
 type: spike
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

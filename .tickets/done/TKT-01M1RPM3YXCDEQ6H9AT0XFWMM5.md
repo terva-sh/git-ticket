@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1RPM3YXCDEQ6H9AT0XFWMM5
 title: Copy a ticket's body from the TUI detail view
 type: task
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1RPM03QD2D41MX7Z00WQZ36
 blocks_on: none

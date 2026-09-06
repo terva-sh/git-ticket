@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1H9QGDCV9KNVWAVD2MB655K
 title: instructions tells an agent to claim a ticket create leaves in draft
 type: bug
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

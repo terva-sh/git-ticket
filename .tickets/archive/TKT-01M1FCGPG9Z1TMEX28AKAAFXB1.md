@@ -1,19 +1,22 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCGPG9Z1TMEX28AKAAFXB1
 title: "Slice 3: add the five write tools"
 type: task
 status: archived
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies:
   - TKT-01M1FCGPFB787F6MQ37QYJY4PA
   - TKT-01M1FCJ8XDS7ECVWQ2W7VS8X0G
+blocks_on: none
 references: []
 claim: null
 archive:

@@ -1,18 +1,21 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCGPFB787F6MQ37QYJY4PA
 title: "Slice 2: add the five read tools"
 type: task
 status: archived
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies:
   - TKT-01M1FCGPE6X31CDEDRKFWZPYZF
+blocks_on: none
 references: []
 claim: null
 archive:

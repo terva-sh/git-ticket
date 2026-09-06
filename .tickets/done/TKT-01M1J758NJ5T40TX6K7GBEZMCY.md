@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1J758NJ5T40TX6K7GBEZMCY
 title: Give readiness a reason, because it cannot say why a draft is unready
 type: spike
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

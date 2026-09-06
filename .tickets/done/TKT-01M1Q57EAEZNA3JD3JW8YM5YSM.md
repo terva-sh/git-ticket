@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1Q57EAEZNA3JD3JW8YM5YSM
 title: Fix the 7.4 allowlist parse leaking 7.5 table rows
 type: bug
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPCJG8JN3WJNV6R086FNWY
 title: Make the instructions block refreshable in place
 type: task
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md

@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HVMQQQE3K6VZG7793RXVXN
 title: Partition the store into draft, tickets, done, and archive directories
 type: task
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

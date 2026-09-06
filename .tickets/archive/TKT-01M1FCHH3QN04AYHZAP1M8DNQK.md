@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
 title: "Phase 3: integrate git-ticket into terva"
 type: epic
 status: archived
 status_reason: null
 priority: high
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

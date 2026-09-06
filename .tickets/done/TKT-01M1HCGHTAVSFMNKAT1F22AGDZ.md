@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HCGHTAVSFMNKAT1F22AGDZ
 title: Prove the worktree-shared store lock with a test
 type: chore
 status: done
 status_reason: null
 priority: high
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: plan:acceptance
     path: docs/plan.md

@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1J2YR9D5242F6H7TPEV4M8K
 title: Decide whether ready ranks by priority, and how it weighs a deadline
 type: spike
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1HPCVRK1989NDNR9PJS36S4
 blocks_on: none

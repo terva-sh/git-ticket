@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG
 title: Decide whether a query reads tickets from other branches
 type: spike
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1VKV53GZK2A7PMD011H2KKM
 title: Raise the format to schema 2 and build migrate, per plan 12.5
 type: task
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

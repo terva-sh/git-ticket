@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F7Z2Y5H1ZJAHRGF3XE6F91
 title: Decide whether custom statuses are worth the cost
 type: spike
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

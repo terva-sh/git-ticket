@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F7Z2XAV593RH0KAVBYZQSR
 title: Let a caller renew a claim rather than replace it
 type: task
 status: done
 status_reason: null
 priority: low
+due_on: null
 labels:
   - claims
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

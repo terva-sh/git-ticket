@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1Q54BRW1NB406RXAKWRF2XP
 title: Build cross-branch reads for list and ready
 type: task
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG
 blocks_on: none

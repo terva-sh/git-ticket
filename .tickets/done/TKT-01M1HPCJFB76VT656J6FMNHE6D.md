@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPCJFB76VT656J6FMNHE6D
 title: Give check a fix for the two findings that have one correct repair
 type: task
 status: done
 status_reason: null
 priority: low
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md

@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F7Z2ZXFX7W4MJ9H1KB8SFZ
 title: Decide what tool discovery the stdio adapter should expose
 type: spike
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

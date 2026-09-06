@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCJ8XDS7ECVWQ2W7VS8X0G
 title: Decide whether the terva ticket integration ships off by default
 type: spike
 status: archived
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive:

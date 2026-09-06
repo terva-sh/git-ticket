@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1SZ1XJRBW5KE95JJZ5BH1CK
 title: Publish an Alpine container image with git-ticket to ghcr on tags
 type: task
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

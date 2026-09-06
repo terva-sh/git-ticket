@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F7Z2Z33HW6FW44TCQVWB7M
 title: Decide whether to add sync helpers around ordinary Git commands
 type: spike
 status: done
 status_reason: null
 priority: low
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

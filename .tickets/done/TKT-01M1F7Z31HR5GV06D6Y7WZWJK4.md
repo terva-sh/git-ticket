@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F7Z31HR5GV06D6Y7WZWJK4
 title: Set the module compatibility policy after the first stable schema
 type: spike
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

@@ -1,17 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HXHJWR806ETJQCE49AEZB3
 title: Let an epic block on its children without enumerating them
 type: task
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
   - question
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

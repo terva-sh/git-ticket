@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HJTCYTZZHGGPCXT2SAJMFR
 title: Decide what a directory must contain to count as a ticket store
 type: spike
@@ -13,6 +13,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references:

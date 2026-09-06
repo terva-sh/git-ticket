@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPB7Y3XXM026P6JSZADQAC
 title: Put readiness and the reason for it on every ticket
 type: task
 status: done
 status_reason: null
 priority: high
+due_on: null
 labels:
   - format
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md

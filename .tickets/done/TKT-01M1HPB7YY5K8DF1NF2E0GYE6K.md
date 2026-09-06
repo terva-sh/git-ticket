@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPB7YY5K8DF1NF2E0GYE6K
 title: Derive a structured comments view the way checklists are derived
 type: task
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md

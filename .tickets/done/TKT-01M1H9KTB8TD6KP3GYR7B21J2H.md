@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1H9KTB8TD6KP3GYR7B21J2H
 title: "Set up the local dev loop: a justfile and an install path"
 type: chore
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: plan:git-ticket
     path: docs/plan.md

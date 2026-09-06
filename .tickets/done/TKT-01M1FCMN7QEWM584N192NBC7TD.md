@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCMN7QEWM584N192NBC7TD
 title: Decide how a caller reads the parent hierarchy back
 type: spike
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

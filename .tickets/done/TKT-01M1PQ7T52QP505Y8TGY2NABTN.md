@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1PQ7T52QP505Y8TGY2NABTN
 title: Build git ticket remove, per plan 9.1
 type: task
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1PCYC14VD3TJYDE1EWC671Y
 blocks_on: none

@@ -1,18 +1,21 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HQ3D5BMBBP9CEVXBHP3YSN
 title: Decide whether the renderer canonicalizes body section text
 type: spike
 status: done
 status_reason: null
 priority: low
+due_on: null
 labels:
   - question
   - format
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive: null

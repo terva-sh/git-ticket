@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1H9QB49AXJHK8E1WACNJMH8
 title: Decide whether the binary should report its own version
 type: spike
 status: done
 status_reason: null
 priority: low
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive: null

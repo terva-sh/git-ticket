@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FCJ8ZBT1P6JRS86B5DBRBX
 title: Decide whether ticket_deps and ticket_files join the tool surface
 type: spike
 status: archived
 status_reason: null
 priority: low
+due_on: null
 labels:
   - integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
+origin: null
 dependencies: []
+blocks_on: none
 references: []
 claim: null
 archive:

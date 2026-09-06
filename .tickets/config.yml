@@ -1,4 +1,4 @@
-schema: 1
+schema: 2
 actors:
   - id: human:sothr
     name: ""
@@ -11,9 +11,12 @@ labels:
   - policy
   - question
   - release
+milestones: []
+series: []
 defaults:
   type: task
   priority: normal
+  actor: null
   claim_expiry: null
 lock:
   timeout: 10s

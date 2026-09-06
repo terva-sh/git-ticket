@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1VKVH13H2TPW2VBPMZZ38ZH
 title: Build ID series and origin provenance, per plan 5.6
 type: task
@@ -12,6 +12,7 @@ labels:
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies:
   - TKT-01M1VKV53GZK2A7PMD011H2KKM
 blocks_on: none

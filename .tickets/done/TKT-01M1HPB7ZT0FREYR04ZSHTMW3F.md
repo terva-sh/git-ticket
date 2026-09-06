@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPB7ZT0FREYR04ZSHTMW3F
 title: Add a milestones allowlist to config.yml
 type: task
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels:
   - format
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md

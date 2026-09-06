@@ -1,16 +1,19 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1HPAFK9EXP1X6PWDS8WXMMJ
 title: Let create seed the acceptance criteria and the definition of done
 type: task
 status: done
 status_reason: null
 priority: normal
+due_on: null
 labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: review:backlog-md
     path: docs/review-backlog-md.md

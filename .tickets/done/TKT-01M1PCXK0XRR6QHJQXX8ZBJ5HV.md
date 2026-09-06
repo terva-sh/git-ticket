@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1PCXK0XRR6QHJQXX8ZBJ5HV
 title: git ticket --help exits 1 while every subcommand answers it
 type: bug
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

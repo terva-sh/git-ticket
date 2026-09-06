@@ -1,5 +1,5 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1SPR216X4HQBDD8KC3MD5N6
 title: Make just build detect a worktree and set -buildvcs=false
 type: chore
@@ -11,6 +11,7 @@ labels: []
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
 blocks_on: none
 references: []

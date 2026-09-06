@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1FAFS0ZG1DJPWSM9PR8ZD6Q
 title: Scrub internal hostnames before pushing to the public mirror
 type: chore
 status: done
 status_reason: null
 priority: high
+due_on: null
 labels:
   - release
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

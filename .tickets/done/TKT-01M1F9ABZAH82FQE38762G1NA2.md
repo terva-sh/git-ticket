@@ -1,17 +1,20 @@
 ---
-schema: 1
+schema: 2
 id: TKT-01M1F9ABZAH82FQE38762G1NA2
 title: "Fix CI: the runner cannot resolve actions/checkout"
 type: bug
 status: done
 status_reason: null
 priority: high
+due_on: null
 labels:
   - ci
 assignees: []
 milestone: null
 parent: null
+origin: null
 dependencies: []
+blocks_on: none
 references:
   - ref: proposal:git-ticket
     path: docs/plan.md

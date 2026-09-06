@@ -238,6 +238,72 @@ func TestMigratePromotesAPreservedField(t *testing.T) {
 	}
 }
 
+// TestFixDeclinesToMigrate is the one finding with exactly one correct repair
+// that check --fix still declines, per plan 11 and 12.5. The repair is migrate,
+// which rewrites every ticket in the store under the lock, and a store moves
+// only through a migration a person runs. check --fix is what CI runs.
+func TestFixDeclinesToMigrate(t *testing.T) {
+	s := schema1Store(t)
+	a := mustCreate(t, s, "A ticket the config left behind")
+
+	// Put the declaration ahead of the files, which is exactly the shape 12.5's
+	// ordering leaves when a migration is interrupted after config.yml.
+	s.config.Schema = SchemaVersion
+	if err := os.WriteFile(filepath.Join(s.path, configFile), RenderConfig(s.config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := os.ReadFile(a.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := s.Check(context.Background())
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !hasFinding(report.Warnings, CodeMigrationIncomplete) {
+		t.Fatalf("check did not report %s: %+v", CodeMigrationIncomplete, report.Warnings)
+	}
+	if len(report.Errors) != 0 {
+		t.Errorf("a store mid-migration reported errors: %+v", report.Errors)
+	}
+
+	res, err := s.Fix(context.Background(), FixOptions{})
+	if err != nil {
+		t.Fatalf("fix: %v", err)
+	}
+	for _, r := range res.Repairs {
+		for _, c := range r.Codes {
+			if c == CodeMigrationIncomplete {
+				t.Errorf("--fix repaired %s, which is migrate's job", c)
+			}
+		}
+	}
+
+	// The file is untouched and the finding survives, so the store still says
+	// what is wrong with it.
+	after, err := os.ReadFile(a.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Errorf("--fix rewrote the ticket:\n%s", diffLines(string(before), string(after)))
+	}
+	if !hasFinding(res.Report.Warnings, CodeMigrationIncomplete) {
+		t.Errorf("the finding vanished without being repaired: %+v", res.Report.Warnings)
+	}
+}
+
+func hasFinding(fs []Finding, code string) bool {
+	for _, f := range fs {
+		if f.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
 // TestMigrateRefusesADowngrade is 12.5: a field added in a later schema has
 // nowhere to go in an earlier one, and a migration that quietly dropped it
 // would lose work.

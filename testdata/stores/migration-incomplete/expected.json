@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "migration_incomplete",
+      "file": "tickets/TKT-01K400HRM0V8QDX5N2WTFB3CJ7.md",
+      "ticket": "TKT-01K400HRM0V8QDX5N2WTFB3CJ7",
+      "field": "schema"
+    }
+  ]
+}

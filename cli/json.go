@@ -58,6 +58,48 @@ type mutationTicket struct {
 	Revision string `json:"revision"`
 }
 
+// migrateEnvelope is plan 10.8. It is its own kind rather than a mutation
+// result because a migration is not a mutation: every mutation in section 9
+// changes the fields a caller named on one ticket and returns that ticket's
+// identity, and this changes the store's declared level and rewrites files
+// nobody named.
+type migrateEnvelope struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	Kind          string `json:"kind"`
+	// From and To are the levels config.yml declared before and after, so a run
+	// with nothing to do reports the same number twice with ConfigChanged false.
+	// That is how a caller tells "already there" from "just moved it" without
+	// diffing the file.
+	From          int      `json:"from"`
+	To            int      `json:"to"`
+	ConfigChanged bool     `json:"configChanged"`
+	Tickets       []string `json:"tickets"`
+	Skipped       int      `json:"skipped"`
+	Unreadable    []string `json:"unreadable"`
+}
+
+func newMigrateEnvelope(s *ticket.Store, r *ticket.MigrateResult) migrateEnvelope {
+	env := migrateEnvelope{
+		SchemaVersion: schemaVersion,
+		Kind:          "migrate-result",
+		From:          r.From,
+		To:            r.To,
+		ConfigChanged: r.ConfigChanged,
+		Skipped:       r.Skipped,
+		Tickets:       make([]string, 0, len(r.Tickets)),
+		Unreadable:    make([]string, 0, len(r.Unreadable)),
+	}
+	// The library reports these relative to the store, and every path in the
+	// envelope is relative to the repository root, per section 10.
+	for _, rel := range r.Tickets {
+		env.Tickets = append(env.Tickets, storePath(s, rel))
+	}
+	for _, rel := range r.Unreadable {
+		env.Unreadable = append(env.Unreadable, storePath(s, rel))
+	}
+	return env
+}
+
 type checkEnvelope struct {
 	SchemaVersion int           `json:"schemaVersion"`
 	Kind          string        `json:"kind"`

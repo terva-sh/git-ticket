@@ -202,7 +202,15 @@ func TestCheckParseFixtures(t *testing.T) {
 			// No config and no repository root: a parse sidecar records only
 			// what reading one file can find, so the label allowlist and the
 			// reference paths are out of scope.
-			errs, warns := checkTicket(tk, name, DefaultConfig(), "", referenceInstant)
+			//
+			// The declared level is zeroed for that same reason.
+			// migration_incomplete compares a ticket to the level its store
+			// declares, and a parse fixture is not in a store. Leaving
+			// DefaultConfig's level here would report a migration nobody
+			// started against every schema-1 fixture in the corpus.
+			cfg := DefaultConfig()
+			cfg.Schema = 0
+			errs, warns := checkTicket(tk, name, cfg, "", referenceInstant)
 			sortFindings(errs)
 			sortFindings(warns)
 			compareFindings(t, "errors", exp.Errors, errs)

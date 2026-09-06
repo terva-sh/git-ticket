@@ -167,6 +167,7 @@ func commands() []command {
 		{"unarchive", "restore an archived ticket to ready", "ID", runUnarchive},
 		{"remove", "delete a ticket filed by mistake", "ID [--force]", runRemove},
 		{"check", "validate every ticket in the store", "[--strict] [--fix [--dry-run]]", runCheck},
+		{"migrate", "convert the store to a newer schema level", "[--to N] [--dry-run]", runMigrate},
 		{"schema", "print the values and codes this binary enforces", "", runSchema},
 		{"config", "print what this store configured, including the allowlists", "", runConfig},
 		{"instructions", "print the agent workflow block for an AGENTS.md", "[--write]", runInstructions},

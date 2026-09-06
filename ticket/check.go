@@ -321,6 +321,17 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 		errs = append(errs, at(CodeUnknownField, u.Key,
 			fmt.Sprintf("%q is not a field this version defines", u.Key)))
 	}
+	// A ticket behind the level its store declares means a migration did not
+	// finish, per plan 12.5. It is a warning because such a store is correct for
+	// a reader that understands both levels, and a half-finished job should
+	// still not be invisible. check --fix does not repair it: the repair is
+	// migrate, which rewrites every ticket under the lock, and a store moves
+	// only through a migration a person runs.
+	if cfg.Schema > 0 && t.Schema > 0 && t.Schema < cfg.Schema {
+		warns = append(warns, at(CodeMigrationIncomplete, "schema",
+			fmt.Sprintf("the ticket declares schema %d and config.yml declares %d; run git ticket migrate",
+				t.Schema, cfg.Schema)))
+	}
 	if !ValidStatus(t.Status) {
 		errs = append(errs, at(CodeInvalidStatus, "status",
 			fmt.Sprintf("%q is not one of %v", t.Status, Statuses)))

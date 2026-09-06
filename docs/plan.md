@@ -1678,10 +1678,11 @@ Every machine-readable operation emits a versioned envelope on stdout:
 { "schemaVersion": 1, "kind": "ticket-list", "tickets": [], "unreadable": [] }
 ```
 
-Kinds are `ticket`, `ticket-list`, `mutation-result`, `check-report`, `error`,
-`schema`, `config`, `instructions`, and `version`. Absent scalars are `null` and
-absent collections are `[]`, always present rather than omitted, so a consumer
-never has to distinguish missing from empty.
+Kinds are `ticket`, `ticket-list`, `mutation-result`, `migrate-result`,
+`check-report`, `error`, `schema`, `config`, `instructions`, `self-update`, and
+`version`. Absent scalars are `null` and absent collections are `[]`, always
+present rather than omitted, so a consumer never has to distinguish missing from
+empty.
 
 A mutation result:
 
@@ -2024,7 +2025,7 @@ values without reading this document or hard-coding them:
   "schemaVersion": 1,
   "kind": "schema",
   "ticketSchema": 1,
-  "kinds": ["ticket", "ticket-list", "mutation-result", "check-report", "error", "schema", "config", "instructions", "version"],
+  "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "error", "schema", "config", "instructions", "self-update", "version"],
   "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
   "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
@@ -2202,6 +2203,59 @@ that wants more than one number does not parse prose.
 Like `schema`, this command reads no store and answers outside a repository,
 because the binary being out of date is not a property of any store.
 
+This kind shipped without being added to the list above or to the `kinds` array
+10.4 publishes, so for four releases the binary emitted a kind it did not
+declare. A consumer validating an envelope against the published list would have
+rejected a legitimate `self-update` answer. Both lists now carry it, and a test
+holds every kind the binary emits to the list it publishes, so the next kind
+cannot arrive the same way.
+
+### 10.8 The migrate-result kind
+
+`migrate` answers with where the store started, where it ended, and what it
+touched:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "migrate-result",
+  "from": 1,
+  "to": 2,
+  "configChanged": true,
+  "tickets": [".tickets/tickets/TKT-….md"],
+  "skipped": 0,
+  "unreadable": []
+}
+```
+
+It is its own kind rather than a `mutation-result` because a migration is not a
+mutation. Every mutation in section 9 changes the fields a caller named on one
+ticket and returns that ticket's identity, and this changes the store's declared
+level and rewrites files nobody named. The `ticket` stub holds an identity, per
+section 10, and a migration has no single ticket to put there.
+
+`from` and `to` are the levels `config.yml` declared before and after, so a run
+that had nothing to do reports the same number twice and `configChanged` false.
+That is the shape of an idempotent second run, and it is how a caller tells
+"already there" from "just moved it" without diffing the file.
+
+`tickets` are the files rewritten and `skipped` counts the ones already at the
+target. A run finishing an interrupted one reports the remainder in `tickets`
+and the rest in `skipped`, which is what makes the idempotence of 12.5 visible
+rather than merely true. Under `--dry-run` both describe what the pass would do.
+
+`unreadable` are the files that did not parse, so nothing could be said about
+their level and nothing was written to them. It is the same channel
+`ticket-list` carries for the same reason: a caller that cannot run a second
+command still learns the answer was partial. `check` says why.
+
+The exit status is 0 whenever the pass succeeded, and a pending migration under
+`--dry-run` is a success. 12.5 makes a store move only through a migration a
+person runs, so gating a job on this command would be gating on a decision no
+job is allowed to take. `check` is where CI learns a store is behind, through
+`migration_incomplete`, and a second gate reporting the same fact through a
+different command is how two answers come to disagree.
+
 ## 11. Validation
 
 `check` runs offline, is safe in CI, and separates errors from warnings. It
@@ -2251,21 +2305,26 @@ Warnings:
 | `blocks_on_no_children` | `blocks_on` is `children` and no ticket names this one as its parent |
 | `title_long` | `title` is longer than 72 characters, per 5.1 |
 | `epics_index_stale` | `epics.md` disagrees with the epics in the store, per section 4 |
+| `migration_incomplete` | a ticket declares a lower `schema` than `config.yml` does, so a migration is unfinished, per 12.5 |
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
 a parse failure would be noise.
 
-Three codes arrive with schema 2 and are not in the tables above yet, because
+Two more codes arrive with series and are not in the tables above yet, because
 the tables and the fixture corpus are one artifact: a code here without a
-fixture fails `TestCorpusCoversEveryPlanCode`, and none of the three has a state
-a schema-1 store can reach. They register here in the change that implements
-them, which is the habit 12.5 already follows for the third.
+fixture fails `TestCorpusCoversEveryPlanCode`, and neither has a state a store
+without series can reach. They register here in the change that implements them,
+which is what `migration_incomplete` just did.
 
-The errors are `unknown_series`, a ticket whose ID carries a series the store
-does not declare, and `origin_missing`, an `origin` naming a ticket that does
-not exist. Both come from 5.6. The warning is `migration_incomplete`, a ticket
-declaring a lower `schema` than `config.yml` does, from 12.5.
+Both are errors and both come from 5.6. `unknown_series` is a ticket whose ID
+carries a series the store does not declare, and `origin_missing` is an `origin`
+naming a ticket that does not exist.
+
+`migration_incomplete` is store-scoped in the way `label_unknown` is: it
+compares a ticket to what its `config.yml` declares, so it belongs to a store
+fixture and never to a parse fixture. A single file judged against a default
+config would report a migration nobody started.
 
 An ID that breaks the grammar of 5.6 will be `parse_error` and not
 `unknown_series`, because `ValidID` refuses it before anything reads the config.
@@ -2306,12 +2365,15 @@ and `milestone_unknown` are each either a typo in the ticket or a gap in the
 allowlist. A tool that guessed at those would be wrong about half of them and
 silent about it, which is worse than reporting and stopping.
 
-Of the three codes above, `unknown_series` will be the same pair as
-`label_unknown` at a stricter severity, either a typo in the ID or a gap in the
-config, and so is not repaired either. `migration_incomplete` will be the one
-finding with exactly one correct repair that `--fix` still declines, and 12.5
-says why: the repair is `migrate`, which rewrites every ticket in the store, and
-a store moves only through a migration a person runs. `check --fix` runs in CI.
+`migration_incomplete` is the one finding with exactly one correct repair that
+`--fix` still declines, and 12.5 says why: the repair is `migrate`, which
+rewrites every ticket in the store under the lock, and a store moves only
+through a migration a person runs. `check --fix` is what CI runs, so a `--fix`
+that migrated would take that decision on a job's behalf.
+
+`unknown_series`, when it lands, will be the same pair as `label_unknown` at a
+stricter severity, either a typo in the ID or a gap in the config, and so is not
+repaired either.
 
 ### Verifying generated artifacts in CI
 
@@ -2885,11 +2947,9 @@ untested code for a state that could not occur: with one schema, no fixture can
 hold a store whose files merely disagree with its config, since a ticket
 declaring more than the reader supports does not parse at all.
 
-5.6 makes schema 2 exist, so the rest builds. The command, the method, the
-warning, and the fixtures that prove them land with it. The warning's code is
-`migration_incomplete`, which section 11 names and registers in the change that
-implements it, because a code in that table with no fixture behind it fails the
-test holding the two together.
+5.6 makes schema 2 exist, so the rest is built. The command, the method, the
+warning, and the fixtures that prove them landed with it, and the warning's code
+is `migration_incomplete`, registered in section 11.
 
 `check --fix` does not repair it. The repair is `migrate`, which rewrites every
 ticket in the store under the lock, and that is a different operation from the

@@ -137,10 +137,17 @@ func TestSchemaReportsWhatTheLibraryEnforces(t *testing.T) {
 // a Go type, so this runs one command per kind and holds the answers to it. A
 // new kind added without touching envelopeKinds fails here.
 //
-// The guard is only as complete as the table below. `version` shipped in
-// v0.4.0 absent from both envelopeKinds and this table, so the two hand-written
-// lists agreed with each other and not with plan 10.1, and nothing failed. Add
-// the command that emits a kind here in the same change that adds the kind.
+// The guard is only as complete as the table below, and that has now cost two
+// kinds. `version` shipped in v0.4.0 absent from both envelopeKinds and this
+// table, so the two hand-written lists agreed with each other and not with plan
+// 10.1, and nothing failed. `self-update` shipped the same way and stayed
+// undeclared for four releases. Add the command that emits a kind here in the
+// same change that adds the kind.
+//
+// TestEnvelopeKindsMatchTheSource is the guard that does not depend on anybody
+// doing that. This one still earns its place, because it holds the list to what
+// the commands actually answer at runtime rather than to what the source says
+// they will.
 func TestEveryEmittedKindIsPublished(t *testing.T) {
 	dir := newStore(t)
 	id := ticketID(t, createTicket(t, dir))
@@ -163,6 +170,10 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		{"the schema", []string{"--json", "schema"}},
 		{"the config", []string{"--json", "config"}},
 		{"the instructions", []string{"--json", "instructions"}},
+		// A dry run, so this writes nothing. The store newStore builds is
+		// already at the current level, which is the answer that exercises the
+		// nothing-to-do shape of 10.8.
+		{"a migration", []string{"--json", "migrate", "--dry-run"}},
 		// --version is top level only, so it goes before any subcommand.
 		{"the version", []string{"--json", "--version"}},
 	} {
@@ -175,6 +186,21 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		seen[kind] = true
 		if !published[kind] {
 			t.Errorf("%s emits kind %q, which schema does not publish", c.what, kind)
+		}
+	}
+
+	// self-update reaches the network by design, so it cannot go in the table
+	// above with the commands that only touch a store. It gets the same
+	// assertion through the httptest seam the rest of its tests use.
+	srv := fakeRelease(t, "v9.9.9", nil)
+	asRelease(t, "v0.0.1")
+	out := runSelfUpdateCLI(t, srv.URL, "", "self-update", "--check", "--json").stdout
+	if kind, ok := decode(t, out)["kind"].(string); !ok {
+		t.Errorf("self-update emitted no kind: %q", out)
+	} else {
+		seen[kind] = true
+		if !published[kind] {
+			t.Errorf("self-update emits kind %q, which schema does not publish", kind)
 		}
 	}
 

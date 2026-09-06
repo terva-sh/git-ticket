@@ -1628,8 +1628,8 @@ func count(n int, noun string) string {
 // derived, because the kinds are a contract with consumers and not a fact about
 // any Go type in this package.
 var envelopeKinds = []string{
-	"ticket", "ticket-list", "mutation-result", "check-report", "error",
-	"schema", "config", "instructions", "version",
+	"ticket", "ticket-list", "mutation-result", "migrate-result", "check-report",
+	"error", "schema", "config", "instructions", "self-update", "version",
 }
 
 // runSchema prints the values a consumer would otherwise have to read the plan

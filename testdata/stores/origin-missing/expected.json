@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "origin_missing",
+      "file": "tickets/TKT-01K400HRQ5F7YWC1S9GKTM3XB2.md",
+      "ticket": "TKT-01K400HRQ5F7YWC1S9GKTM3XB2",
+      "field": "origin"
+    }
+  ],
+  "warnings": []
+}

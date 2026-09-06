@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -212,6 +213,40 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 					Message: fmt.Sprintf("no ticket %s in this store", *t.Parent),
 				})
 			}
+		}
+		// origin_missing matches parent_missing, per plan 5.6. It is a field
+		// rather than a `ticket:` reference precisely so that it carries this
+		// guarantee: check verifies that parent resolves and verifies no
+		// reference target, and provenance wants the stronger one.
+		//
+		// There is no origin_cycle beside it. Nothing walks origin
+		// transitively, so a cycle gates nothing and breaks no query, and a
+		// finding naming a condition with no consequence spends a reader's
+		// attention for nothing.
+		if t.Origin != nil && *t.Origin != "" {
+			if _, ok := live[*t.Origin]; !ok {
+				r.addError(Finding{
+					Code: CodeOriginMissing, File: f.Rel, Ticket: t.ID, Field: "origin",
+					Message: fmt.Sprintf("no ticket %s in this store", *t.Origin),
+				})
+			}
+		}
+		// unknown_series is store-scoped in the way label_unknown is: it
+		// compares a ticket to what its config.yml declares. It lives here
+		// rather than in checkTicket for that reason, because a single file
+		// judged against a default config would report every series the store
+		// actually declares as undeclared.
+		//
+		// An ID that breaks the grammar of 5.6 never reaches this: it fails to
+		// parse and is a parse_error. This is the narrower condition, a
+		// well-formed ID whose series this store does not list, and the repair
+		// is a line in config.yml rather than a broken file.
+		if series, _ := SplitID(t.ID); series != "" && !cfg.KnownSeries(series) {
+			r.addError(Finding{
+				Code: CodeUnknownSeries, File: f.Rel, Ticket: t.ID, Field: "id",
+				Message: fmt.Sprintf("this store does not declare the series %s; it declares %s",
+					series, strings.Join(cfg.EffectiveSeries(), ", ")),
+			})
 		}
 	}
 

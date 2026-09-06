@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "unknown_series",
+      "file": "tickets/IDEA-01K400HRP8Q3XVT2M6BJ5NDZW4.md",
+      "ticket": "IDEA-01K400HRP8Q3XVT2M6BJ5NDZW4",
+      "field": "id"
+    }
+  ],
+  "warnings": []
+}

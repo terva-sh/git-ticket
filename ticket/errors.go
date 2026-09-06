@@ -54,6 +54,7 @@ const (
 	CodeInProgressUnclaimed          = "in_progress_unclaimed"
 	CodeEpicsIndexStale              = "epics_index_stale"
 	CodeMigrationIncomplete          = "migration_incomplete"
+	CodeOriginMissing                = "origin_missing"
 )
 
 // OperationCodes lists every code an operation can fail with, per plan section
@@ -82,6 +83,9 @@ var CheckErrorCodes = []string{
 	CodeParentMissing, CodeDependencyCycle, CodeParentCycle, CodeInvalidStatus,
 	CodeInvalidType, CodeInvalidPriority, CodeInvalidBlocksOn, CodeInvalidDueOn,
 	CodeTitleTooLong, CodeBlockingCycle, CodeLocationMismatch,
+	// Both from 5.6. unknown_series is also an operation code, because create
+	// refuses one and check reports one; the condition is the same either way.
+	CodeUnknownSeries, CodeOriginMissing,
 }
 
 var CheckWarningCodes = []string{

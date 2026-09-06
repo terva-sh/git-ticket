@@ -2346,6 +2346,8 @@ Errors:
 | `merge_conflict` | Git conflict markers in a ticket file, reported as this rather than as a YAML parse failure, because that is what a user needs to be told |
 | `dependency_missing` | a `dependencies` entry names a ticket that does not exist |
 | `parent_missing` | `parent` names a ticket that does not exist |
+| `origin_missing` | `origin` names a ticket that does not exist, per 5.6 |
+| `unknown_series` | the series in a ticket's ID is not one `config.yml` declares, per 5.6 |
 | `dependency_cycle` | a cycle in `dependencies` |
 | `parent_cycle` | a cycle in `parent`, checked separately from dependencies |
 | `blocking_cycle` | a cycle in the blocking graph that needs a child edge to close, so neither `dependency_cycle` nor `parent_cycle` sees it |
@@ -2377,20 +2379,22 @@ A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
 a parse failure would be noise.
 
-Two more codes arrive with series and are not in the tables above yet, because
-the tables and the fixture corpus are one artifact: a code here without a
-fixture fails `TestCorpusCoversEveryPlanCode`, and neither has a state a store
-without series can reach. They register here in the change that implements them,
-which is what `migration_incomplete` just did.
+`unknown_series` and `origin_missing` both come from 5.6 and both landed in the
+table above in the change that implemented them, with a store fixture apiece.
+That timing is forced rather than tidy: the tables and the fixture corpus are
+one artifact, so a code in a table row with no fixture behind it fails
+`TestCorpusCoversEveryPlanCode`, and neither code has a state a store without
+series can reach. `migration_incomplete` registered the same way.
 
-Both are errors and both come from 5.6. `unknown_series` is a ticket whose ID
-carries a series the store does not declare, and `origin_missing` is an `origin`
-naming a ticket that does not exist.
+`unknown_series` and `migration_incomplete` are store-scoped in the way
+`label_unknown` is: each compares a ticket to what its `config.yml` declares, so
+each belongs to a store fixture and never to a parse fixture. A single file
+judged against a default config would report a migration nobody started, and
+would call every series the store actually declares undeclared.
 
-`migration_incomplete` is store-scoped in the way `label_unknown` is: it
-compares a ticket to what its `config.yml` declares, so it belongs to a store
-fixture and never to a parse fixture. A single file judged against a default
-config would report a migration nobody started.
+`origin_missing` is store-scoped for the other reason, the one
+`parent_missing` has: it asks whether another file exists, which one file cannot
+answer about itself.
 
 An ID that breaks the grammar of 5.6 will be `parse_error` and not
 `unknown_series`, because `ValidID` refuses it before anything reads the config.

@@ -233,12 +233,33 @@ podman build -f Dockerfile -t git-ticket-test:local /tmp/imgctx
 There is no docker daemon on this machine. `podman` and `buildah` are installed
 and rootless, and every image check recorded here was run with podman.
 
-The image deliberately does not set `git config --system safe.directory '*'`.
+The image ships the `safe.directory` exception switched off rather than absent.
 git refuses a mounted repository owned by another uid, and a CI image usually
-answers that with a blanket exception, which weakens a security check for
-everyone who runs the image as a tool rather than as a pipeline base. The README
-carries the verified per-invocation workaround instead. Do not add the blanket
+answers that with a blanket `git config --system safe.directory '*'`, which
+weakens the check for everyone who runs the image as a tool rather than as a
+pipeline base. So the Dockerfile bakes `GIT_CONFIG_KEY_0=safe.directory` and
+`GIT_CONFIG_VALUE_0=*` and leaves out `GIT_CONFIG_COUNT`. git reads a
+`GIT_CONFIG_*` triple only when the count says how many entries exist, so the
+pair is inert until a caller passes `-e GIT_CONFIG_COUNT=1`. TKT-01M1T17E holds
+the decision and the measurements. Do not promote it to a blanket system-config
 exception without asking the user.
+
+An entrypoint hook is the wrong mechanism for anything the image must do at
+start, and that is why it still has none. A CI container job overrides the
+entrypoint and delivers each step by `exec`, so a startup script never runs in
+the setting that most wants the behaviour, while plain environment survives
+`exec`. An entrypoint version of this opt-in passed every check under `podman
+run` and did nothing under `exec`. Test an image change in that shape too, not
+under `run` alone:
+
+```sh
+podman create --name t --user 12345 -e GIT_CONFIG_COUNT=1 \
+  -v "$PWD:/w:ro" -w /w --entrypoint tail IMAGE -f /dev/null
+podman start t && podman exec t git rev-parse HEAD; podman rm -f t
+```
+
+The `--user 12345` is what produces the ownership mismatch, so a test that omits
+it passes for the wrong reason.
 
 Prove the package is public by pulling it with no credentials, not through the
 API. `gh api users/terva-sh/packages/container/git-ticket` answers 403, `You
@@ -571,6 +592,15 @@ reason lives in `status_reason` and in `Notes`, per 5.1 and 6.2, and a
 `references` path resolves against the Git repository root, per 5.5. The end of
 section 15 records both.
 
+Settling one takes more than writing the answer. Each deferred question carries
+a trigger naming what would reopen it, and a trigger left standing tells the
+next reader the question is still live. TKT-01M1HPCJH decided against a hand-set
+ordinal, so its trigger, a board with reorderable columns, was retired in the
+same edit and replaced with a narrower reopen condition. Any note on the ticket
+that gave forward guidance under the old trigger is superseded by name, for the
+reason a reworded criterion is: `note` appends, and the old one still argues the
+other way.
+
 ## Conventions
 
 Names are singular: `git ticket`, the `ticket_*` tools, the `ticket` package.
@@ -866,6 +896,12 @@ against `sh -c "sleep 30 & exit 0"`. The wider rule is the one self-update
 taught and copy re-taught within the hour: run the replaced function once for
 real, on the desk, before calling the feature shipped. The hang surfaced
 minutes after merge in a smoke test the suite could not perform.
+
+The invocation shape is part of "for real". A mechanism proven in one shape is
+not proven in another, which the image opt-in demonstrated: an entrypoint hook
+worked under every `podman run` variant and was simply absent under `exec`, the
+way CI delivers a step. Ask which shape the thing will actually meet, and run
+that one.
 
 A release is not proven by a green job. Read the assets back, verify
 `sha256sum -c`, and run the unpacked binary, because the failure this catches is

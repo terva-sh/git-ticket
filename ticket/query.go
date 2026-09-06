@@ -33,6 +33,20 @@ type Filter struct {
 	// hierarchy here would mean precomputing a descendant set before this could
 	// answer a question about one ticket.
 	Parent []string
+	// Origin selects what came out of a ticket, per plan 5.6. It is the reverse
+	// of the origin field, derived here and never written: a source that
+	// enumerated its descendants would be edited by every one of them, which
+	// turns the one file several agents read into the one file they all
+	// conflict on. That is the same argument blocks_on: children rests on in
+	// 5.1.
+	//
+	// Direct origin only, the way Parent is direct children only. An empty
+	// string matches the tickets that record no origin at all.
+	Origin []string
+	// Series selects by ID prefix, per plan 5.6. It is a filter on a part of
+	// the ID rather than on a field, because a series is not stored anywhere
+	// else: the prefix is the declaration.
+	Series []string
 	// DueBy selects the tickets due on or before a date, per plan section 8. It
 	// is the query the field exists for, because today's date answers what is
 	// late.
@@ -90,8 +104,15 @@ func (f Filter) matches(t *Ticket) bool {
 		return false
 	}
 	if !matchesOne(f.Milestone, deref(t.Milestone)) ||
-		!matchesOne(f.Parent, deref(t.Parent)) {
+		!matchesOne(f.Parent, deref(t.Parent)) ||
+		!matchesOne(f.Origin, deref(t.Origin)) {
 		return false
+	}
+	if len(f.Series) > 0 {
+		series, _ := SplitID(t.ID)
+		if !matchesOne(f.Series, series) {
+			return false
+		}
 	}
 	if f.DueBy != "" {
 		due := deref(t.DueOn)

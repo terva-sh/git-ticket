@@ -197,6 +197,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		reason    string
 		tmpl      string
 		series    string
+		from      string
 		labels    stringList
 		assignees stringList
 		dependsOn stringList
@@ -226,6 +227,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		f.Var(&ac, "ac", "an acceptance criterion, repeatable")
 		f.Var(&dod, "dod", "a definition of done item, repeatable")
 		f.StringVar(&series, "series", "", "the ID prefix to file under; the store's default when absent, per plan 5.6")
+		f.StringVar(&from, "from", "", "seed the title, description and acceptance criteria from this ticket, and record it as the origin, per plan 5.6")
 		f.StringVar(&tmpl, "template", "", "seed from .tickets/templates/NAME.md; explicit flags win, per plan 4.2")
 		f.StringVar(&status, "status", "", "file directly as done or archived, for a backport, per plan 6.2.1")
 		f.StringVar(&created, "created", "", "backdate the ticket: RFC 3339, or YYYY-MM-DD read as midnight UTC")
@@ -237,8 +239,15 @@ func runCreate(ctx *cmdContext, args []string) error {
 	if len(rest) > 0 {
 		return usageErr("create takes flags, not positional arguments; did you mean --title %q?", rest[0])
 	}
-	if title == "" {
+	// --from supplies the title when the caller names none, per plan 5.6, so
+	// the requirement relaxes for exactly that case and no other.
+	if title == "" && from == "" {
 		return usageErr("create needs --title")
+	}
+	// Two seed sources overlapping on the same fields need a precedence rule
+	// nobody would remember, so 5.6 refuses the pair rather than inventing one.
+	if from != "" && tmpl != "" {
+		return usageErr("--from and --template are two seed sources for the same fields; use one")
 	}
 
 	// Which of the four prose flags were typed, since "" is a legal value for
@@ -305,7 +314,10 @@ func runCreate(ctx *cmdContext, args []string) error {
 		// the grammar is uppercase and a reference resolves case-insensitively
 		// per 5.5. An empty value means the store's default.
 		Series: strings.ToUpper(strings.TrimSpace(series)),
-		Actor:  ctx.actor(s),
+		// Passed through rather than resolved here, because Create resolves it
+		// under the lock against the same index it checks the ID against.
+		From:  from,
+		Actor: ctx.actor(s),
 	}
 	if dueOn != "" {
 		opts.DueOn = &dueOn
@@ -478,6 +490,8 @@ func runList(ctx *cmdContext, args []string) error {
 		assignees stringList
 		milestone stringList
 		parent    stringList
+		origin    stringList
+		series    stringList
 		dueBy     string
 		sortBy    string
 		all       bool
@@ -492,6 +506,8 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.Var(&assignees, "assignee", "an assignee to match, repeatable")
 		fs.Var(&milestone, "milestone", "a milestone to match, repeatable")
 		fs.Var(&parent, "parent", "a parent whose children to list, or "+parentNone+" for tickets with no parent, repeatable")
+		fs.Var(&origin, "origin", "a ticket whose descendants to list, per plan 5.6, repeatable")
+		fs.Var(&series, "series", "an ID prefix to include, repeatable")
 		fs.StringVar(&dueBy, "due-by", "", "only tickets due on or before this YYYY-MM-DD date")
 		fs.StringVar(&sortBy, "sort", sortByID, "order the result: "+strings.Join(sortOrders, ", "))
 		ids.register(fs)
@@ -542,6 +558,30 @@ func runList(ctx *cmdContext, args []string) error {
 		parents = append(parents, id)
 	}
 
+	// An origin resolves like every other ID, for the reason a parent does:
+	// without this an unresolvable one would return an empty list, which reads
+	// exactly like a ticket that nothing came out of.
+	origins := make([]string, 0, len(origin))
+	for _, o := range origin {
+		id, err := resolveID(s, o)
+		if err != nil {
+			return err
+		}
+		origins = append(origins, id)
+	}
+	// A series is not resolved, because it is not a reference. It is checked
+	// against the grammar so a typo fails here rather than matching nothing and
+	// reading as an empty store.
+	seriesWanted := make([]string, 0, len(series))
+	for _, name := range series {
+		name = strings.ToUpper(strings.TrimSpace(name))
+		if !ticket.ValidSeries(name) {
+			return usageErr("%q is not a series: %d to %d characters, uppercase letters and digits, and a letter first",
+				name, ticket.SeriesMinLen, ticket.SeriesMaxLen)
+		}
+		seriesWanted = append(seriesWanted, name)
+	}
+
 	tickets, err := s.List(context.Background(), ticket.Filter{
 		Status:      status,
 		Type:        kind,
@@ -550,6 +590,8 @@ func runList(ctx *cmdContext, args []string) error {
 		Assignees:   assignees,
 		Milestone:   milestone,
 		Parent:      parents,
+		Origin:      origins,
+		Series:      seriesWanted,
 		DueBy:       dueBy,
 		All:         all,
 		CrossBranch: cross,
@@ -604,6 +646,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 		priority  string
 		milestone string
 		parent    string
+		origin    string
 		blocksOn  string
 		dueOn     string
 		addLabels stringList
@@ -623,6 +666,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 		f.StringVar(&description.path, "description-file", "", "read the new Description section from this file, or - for stdin")
 		f.StringVar(&milestone, "milestone", "", "a milestone, or empty to clear it")
 		f.StringVar(&parent, "parent", "", "the epic or ticket this belongs to, or empty to clear it")
+		f.StringVar(&origin, "origin", "", "the ticket this one came out of, or empty to clear it, per plan 5.6")
 		f.StringVar(&blocksOn, "blocks-on", "", "none, or children to also wait on the direct children")
 		f.StringVar(&dueOn, "due-on", "", "a deadline as a YYYY-MM-DD date, or empty to clear it")
 		f.Var(&addLabels, "add-label", "a label to add, repeatable")
@@ -703,7 +747,7 @@ func runUpdate(ctx *cmdContext, args []string) error {
 	for _, a := range assign {
 		ms = append(ms, ticket.Assign{Actor: a})
 	}
-	if len(ms) == 0 && !given["parent"] {
+	if len(ms) == 0 && !given["parent"] && !given["origin"] {
 		return usageErr("update needs something to change; run `git ticket help`")
 	}
 
@@ -725,6 +769,21 @@ func runUpdate(ctx *cmdContext, args []string) error {
 			to = &id
 		}
 		ms = append(ms, ticket.SetParent{Parent: to})
+	}
+
+	// origin is resolved the same way and for the same reason: it holds an ID,
+	// and a person types a prefix. An empty --origin clears it and resolves
+	// nothing.
+	if given["origin"] {
+		var to *string
+		if origin != "" {
+			id, err := resolveID(s, origin)
+			if err != nil {
+				return err
+			}
+			to = &id
+		}
+		ms = append(ms, ticket.SetOrigin{Origin: to})
 	}
 
 	res, err := ctx.applyTo(s, rest[0], ms)

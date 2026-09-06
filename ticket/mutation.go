@@ -276,6 +276,47 @@ func (m SetParent) apply(t *Ticket, env mutEnv) error {
 	return nil
 }
 
+// SetOrigin sets or clears the ticket this one came out of, per plan 5.6. Nil
+// and the empty string both clear it, and the target must exist.
+//
+// It mirrors SetParent because the two carry the same guarantee, and 5.6 says
+// why origin is a field rather than a `ticket:` reference: check verifies that
+// parent resolves and verifies no reference target, and provenance wants the
+// stronger one.
+//
+// The one difference is the code for a self-reference. SetParent answers
+// parent_cycle because readiness walks the parent graph and a cycle there gates
+// work. Nothing walks origin transitively, so 5.6 declines an origin_cycle
+// outright, and the one case anybody reaches by accident is a ticket naming
+// itself. That is invalid_field: a bad value, not a broken graph.
+type SetOrigin struct{ Origin *string }
+
+func (m SetOrigin) apply(t *Ticket, env mutEnv) error {
+	if m.Origin == nil || *m.Origin == "" {
+		t.Origin = nil
+		return nil
+	}
+	if *m.Origin == t.ID {
+		return &Error{
+			Code:    CodeInvalidField,
+			Message: "a ticket cannot be its own origin",
+			Ticket:  t.ID,
+			Field:   "origin",
+		}
+	}
+	if !env.exists(*m.Origin) {
+		return &Error{
+			Code:    CodeInvalidField,
+			Message: "no ticket " + *m.Origin + " in this store",
+			Ticket:  t.ID,
+			Field:   "origin",
+		}
+	}
+	origin := *m.Origin
+	t.Origin = &origin
+	return nil
+}
+
 // AddLabel and RemoveLabel edit the label set. A label outside the config
 // allowlist is accepted here and warned about by check, because the allowlist
 // is advisory.

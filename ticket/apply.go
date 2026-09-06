@@ -130,7 +130,20 @@ type CreateOptions struct {
 	// store's default. A series the store does not declare is refused with
 	// unknown_series rather than warned about, because the prefix is inside an
 	// immutable ID and the only repair is remove and a second create.
-	Series       string
+	Series string
+	// From is the ticket this one comes out of, per plan 5.6. It seeds the
+	// title, description, and acceptance criteria, and records the link in
+	// origin. It is a reference rather than an ID, so a prefix resolves.
+	//
+	// Those three fields and no more. They are the statement of the work, while
+	// priority, labels, and milestone are routing the receiving series decides
+	// for itself.
+	//
+	// It never writes the source. An idea that fans out to three implementation
+	// tickets must not close on the first, and nothing here closes it, because
+	// the create that is the last one is not distinguishable at create time
+	// from the create that is not.
+	From         string
 	Type         string
 	Priority     string
 	Labels       []string
@@ -180,19 +193,29 @@ type CreateOptions struct {
 	Template string
 }
 
+// validateNewTitle is the title check a create runs. The ID does not exist yet,
+// so the refusal names no ticket: there is nothing to look up and the caller is
+// holding the title it just typed.
+func validateNewTitle(title string) error {
+	if title == "" {
+		return &Error{Code: CodeInvalidField, Message: "a ticket needs a title", Field: "title"}
+	}
+	return checkTitleLength(title, "")
+}
+
 // Create writes a new ticket and returns it.
 func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	actor, err := s.resolveActor(o.Actor)
 	if err != nil {
 		return nil, err
 	}
-	if o.Title == "" {
-		return nil, &Error{Code: CodeInvalidField, Message: "a ticket needs a title", Field: "title"}
-	}
-	// The ID does not exist yet, so the refusal names no ticket. There is
-	// nothing to look up and the caller is holding the title it just typed.
-	if err := checkTitleLength(o.Title, ""); err != nil {
-		return nil, err
+	// With --from the title may come from the source, and the source cannot be
+	// read until the store is locked, so the check runs again below the seeding.
+	// Without --from it runs here alone and an empty title costs no lock.
+	if o.From == "" {
+		if err := validateNewTitle(o.Title); err != nil {
+			return nil, err
+		}
 	}
 	// The template merges before the defaults resolve, so the precedence
 	// reads option, then template, then store default, per plan 4.2. The
@@ -305,6 +328,46 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		}
 	}
 
+	// --from seeds from an existing ticket and records where this one came
+	// from, per plan 5.6. Each field is seeded only when the caller named none,
+	// so an explicit flag wins, which is the precedence --template already uses.
+	var origin *string
+	if o.From != "" {
+		fromID, err := s.resolveRef(o.From, mergeIDs(index.ids(), broken.ids()))
+		if err != nil {
+			return nil, err
+		}
+		if e, ok := broken[fromID]; ok {
+			return nil, e
+		}
+		data, err := os.ReadFile(index[fromID])
+		if err != nil {
+			return nil, &Error{Code: CodeTicketNotFound, Message: err.Error(), Ticket: fromID, Err: err}
+		}
+		src, err := Parse(data)
+		if err != nil {
+			return nil, err
+		}
+		if o.Title == "" {
+			o.Title = src.Title
+		}
+		if o.Description == "" {
+			o.Description = src.Body.Description
+		}
+		if len(o.AcceptanceCriteria) == 0 {
+			// The text, not the item: a copied criterion starts unticked
+			// whatever the source had done about it. Carrying a tick across
+			// would claim evidence for work this ticket has not begun.
+			for _, item := range Checklist(src.Body.AcceptanceCriteria) {
+				o.AcceptanceCriteria = append(o.AcceptanceCriteria, item.Text)
+			}
+		}
+		origin = &fromID
+	}
+	if err := validateNewTitle(o.Title); err != nil {
+		return nil, err
+	}
+
 	now := s.now()
 	if !o.Created.IsZero() {
 		if o.Created.After(now) {
@@ -371,17 +434,20 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	}
 
 	t := &Ticket{
-		Schema:       schema,
-		ID:           id,
-		Title:        o.Title,
-		Type:         kind,
-		Status:       status,
-		Priority:     priority,
-		DueOn:        dueOn,
-		Labels:       append([]string{}, o.Labels...),
-		Assignees:    append([]string{}, o.Assignees...),
-		Milestone:    o.Milestone,
-		Parent:       o.Parent,
+		Schema:    schema,
+		ID:        id,
+		Title:     o.Title,
+		Type:      kind,
+		Status:    status,
+		Priority:  priority,
+		DueOn:     dueOn,
+		Labels:    append([]string{}, o.Labels...),
+		Assignees: append([]string{}, o.Assignees...),
+		Milestone: o.Milestone,
+		Parent:    o.Parent,
+		// Nil unless --from named a source, and nil renders as null at schema 2
+		// and not at all below it, per 5.3.
+		Origin:       origin,
 		Dependencies: append([]string{}, o.Dependencies...),
 		BlocksOn:     blocksOn,
 		CreatedAt:    Now(now),

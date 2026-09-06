@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "unknown_field",
+      "file": "origin-below-schema.md",
+      "ticket": "TKT-01K3ZYS9X0T6BFN4Q2WMD7HC5R",
+      "field": "origin"
+    }
+  ],
+  "warnings": []
+}

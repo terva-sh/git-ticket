@@ -2,6 +2,7 @@ package ticket
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -490,10 +491,17 @@ func TestUnreadableTicketIsNotAbsent(t *testing.T) {
 	// A schema this reader does not know reports as itself. The parse error
 	// carries no ID here, because the schema is refused before the rest of the
 	// frontmatter is decoded, so this is what exercises the filename fallback.
+	//
+	// The level is relative to what this reader supports rather than written
+	// out. Raising SchemaVersion otherwise turns this into a test that a
+	// supported schema parses, which is what happened when schema 2 landed:
+	// breakFile replaces one substring and does nothing when it finds none, so
+	// the hard-coded pair stopped matching and the file was never broken at all.
 	breakFile("title: [unclosed", "title:")
-	breakFile("schema: 1", "schema: 2")
+	tooNew := SchemaVersion + 1
+	breakFile(fmt.Sprintf("schema: %d", SchemaVersion), fmt.Sprintf("schema: %d", tooNew))
 	if _, err := s.Get(context.Background(), tk.ID); CodeOf(err) != CodeSchemaUnsupported {
-		t.Errorf("Get on a schema-2 ticket = %v, want %s", err, CodeSchemaUnsupported)
+		t.Errorf("Get on a schema-%d ticket = %v, want %s", tooNew, err, CodeSchemaUnsupported)
 	}
 
 	// A ticket that genuinely is not there still says so.
@@ -510,20 +518,41 @@ func TestUnreadableTicketIsNotAbsent(t *testing.T) {
 // written at the store's declared schema rather than at this binary's maximum,
 // so a newer binary cannot drift an older store upward with no migration run.
 //
-// The interesting half cannot be tested in tree while SchemaVersion is 1,
-// because the store's level and the binary's maximum are then the same number.
-// It was verified by building a copy with SchemaVersion = 2 and creating a
-// ticket in a schema-1 store. With the rule the file says schema 1 and a
-// schema-1 reader sees every ticket. Without it the file says schema 2, and
-// that reader drops to two rows of three and one error, losing the newest
-// ticket. What is testable here is that Create consults the declaration at all,
-// and the fallback when a store declares nothing.
+// Schema 2 is what makes the interesting half testable. While SchemaVersion was
+// 1 the store's level and the binary's maximum were the same number, so every
+// assertion here passed whether or not Create consulted the declaration, and
+// the rule was verified by hand against a patched copy instead.
 func TestCreateWritesTheStoreSchema(t *testing.T) {
 	s := newTestStore(t)
 
 	tk := mustCreate(t, s, "Written at the level the store declares")
 	if tk.Schema != s.config.Schema {
 		t.Errorf("schema = %d, want the store's declared %d", tk.Schema, s.config.Schema)
+	}
+
+	// The half that matters. A store one level behind this binary keeps its
+	// level, so a colleague's older reader still reads the newest ticket in it.
+	behind := SchemaVersion - 1
+	s.config.Schema = behind
+	older := mustCreate(t, s, "Written into a store one level behind")
+	if older.Schema != behind {
+		t.Errorf("schema = %d in a store declaring %d, want %d", older.Schema, behind, behind)
+	}
+
+	// The file says so too. The struct field alone would not prove the renderer
+	// honoured it, and the renderer is where the field set is chosen.
+	data, err := os.ReadFile(older.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := fmt.Sprintf("schema: %d\n", behind); !strings.Contains(string(data), want) {
+		t.Errorf("file does not carry %q:\n%s", want, data)
+	}
+	// And it carries no key that a later level introduced, per plan 5.6. This is
+	// the assertion that would have caught writing origin: null into a schema-1
+	// store, which is the drift 12.5 exists to prevent.
+	if strings.Contains(string(data), "origin:") {
+		t.Errorf("a schema-%d file carries origin:\n%s", behind, data)
 	}
 
 	// A store that declares nothing gets this reader's version. Without the

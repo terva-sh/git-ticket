@@ -17,7 +17,26 @@ import (
 // SchemaVersion is the ticket schema this package reads and writes. A file
 // declaring a higher version is refused with SchemaUnsupported rather than
 // parsed, because a major bump may remove a field or change its meaning.
-const SchemaVersion = 1
+//
+// Schema 2 adds the series key to config.yml and the origin field to
+// frontmatter, per plan 5.6, and removes nothing. Reading a schema-1 file is
+// unchanged, which is what makes learning a new level an additive minor
+// release under 12.4. A store does not move on its own: create stamps the
+// store's declared level rather than this constant, per 12.5, so upgrading a
+// binary migrates nothing.
+const SchemaVersion = 2
+
+// hasOrigin reports whether a ticket at this schema level carries the origin
+// field, per plan 5.6.
+//
+// Parse and render both call this, and they have to agree or a round trip
+// drops the field. A field introduced at schema 2 renders only at schema 2:
+// writing origin into a schema-1 file would make every ticket a newer binary
+// touched an unknown_field error for a colleague who has not upgraded, which
+// is the drift 12.5 exists to prevent. Below that level the key is not a
+// struct field at all, it is an unknown field, so a hand-edited schema-1 file
+// carrying one still round-trips and check still reports it.
+func hasOrigin(schema int) bool { return schema >= 2 }
 
 // Status values, per plan 6.1.
 const (
@@ -321,11 +340,18 @@ type Ticket struct {
 	// format that is not an instant, which is why the key ends _on rather than
 	// _at, and it is stored exactly as written: a deadline is a claim about a
 	// calendar day, and expanding it would have to pick a zone at write time.
-	DueOn        *string
-	Labels       []string
-	Assignees    []string
-	Milestone    *string
-	Parent       *string
+	DueOn     *string
+	Labels    []string
+	Assignees []string
+	Milestone *string
+	Parent    *string
+	// Origin names the ticket this one was created from, per plan 5.6. It
+	// arrives at schema 2, so it is always nil on a schema-1 ticket, where an
+	// origin key in the file is an unknown field instead. It is not Parent:
+	// parent holds one value and a ticket born from an idea may also belong to
+	// an epic, so a format storing one in the other would make an agent choose
+	// which fact to keep.
+	Origin       *string
 	Dependencies []string
 	// BlocksOn names the edges that gate this ticket beyond its dependencies,
 	// per plan 5.1. It is an enum and always carries a value, like Type and

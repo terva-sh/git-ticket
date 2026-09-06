@@ -235,6 +235,7 @@ type ticketJSON struct {
 	Assignees    []string        `json:"assignees"`
 	Milestone    *string         `json:"milestone"`
 	Parent       *string         `json:"parent"`
+	Origin       *string         `json:"origin"`
 	Dependencies []string        `json:"dependencies"`
 	BlocksOn     string          `json:"blocksOn"`
 	References   []referenceJSON `json:"references"`
@@ -383,6 +384,11 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 		Assignees:    stringSlice(t.Assignees),
 		Milestone:    copyString(t.Milestone),
 		Parent:       copyString(t.Parent),
+		// Always present and null below schema 2, per 10.1: absent scalars are
+		// null rather than omitted, so a consumer never distinguishes missing
+		// from empty. This is the one place the envelope and the file differ,
+		// because 5.6 omits the key from a schema-1 file entirely.
+		Origin:       copyString(t.Origin),
 		Dependencies: stringSlice(t.Dependencies),
 		BlocksOn:     t.BlocksOn,
 		References:   make([]referenceJSON, 0, len(t.References)),

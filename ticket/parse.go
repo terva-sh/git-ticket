@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// knownFields are the top-level frontmatter keys this version defines, in the
+// knownFields are the top-level frontmatter keys schema 1 defines, in the
 // order plan 5.1 renders them. Anything else is preserved as an unknown field.
 var knownFields = []string{
 	"schema", "id", "title", "type", "status", "status_reason", "priority",
@@ -20,6 +20,25 @@ var knownFields = []string{
 	"blocks_on",
 	"references", "claim", "archive",
 	"created_at", "updated_at", "created_by", "updated_by", "extensions",
+}
+
+// knownFieldsAt returns the field set for one schema level, which is the set
+// above plus whatever later levels add, per plan 5.3 and 5.6.
+//
+// The set is per level rather than per binary on purpose. A key a later schema
+// defines is unknown to a ticket below it, so it lands in Unknown, round-trips
+// after the known keys, and check reports it. Treating it as known everywhere
+// would parse it into a struct field the renderer then declines to emit at
+// that level, which loses the value on the next write.
+func knownFieldsAt(schema int) map[string]bool {
+	known := make(map[string]bool, len(knownFields)+1)
+	for _, k := range knownFields {
+		known[k] = true
+	}
+	if hasOrigin(schema) {
+		known["origin"] = true
+	}
+	return known
 }
 
 // knownSections are the body sections this version defines, in the order plan
@@ -117,10 +136,7 @@ func Parse(data []byte) (*Ticket, error) {
 }
 
 func decodeFields(t *Ticket, root *yaml.Node) error {
-	known := make(map[string]bool, len(knownFields))
-	for _, k := range knownFields {
-		known[k] = true
-	}
+	known := knownFieldsAt(t.Schema)
 
 	// blocks_on is an enum with a real value for the default case, so an absent
 	// key means none rather than null. Seeding it here rather than after the
@@ -172,6 +188,10 @@ func decodeFields(t *Ticket, root *yaml.Node) error {
 			t.Milestone, err = optionalString(val, key)
 		case "parent":
 			t.Parent, err = optionalString(val, key)
+		case "origin":
+			// Only reachable at a schema that defines it, because the key is
+			// otherwise unknown and the loop has already taken that branch.
+			t.Origin, err = optionalString(val, key)
 		case "dependencies":
 			t.Dependencies, err = stringSeq(val, key)
 		case "blocks_on":

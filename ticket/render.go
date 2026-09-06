@@ -36,6 +36,13 @@ func renderFrontmatter(b *strings.Builder, t *Ticket) {
 	m.addStringSeq("assignees", t.Assignees)
 	m.addStringPtr("milestone", t.Milestone)
 	m.addStringPtr("parent", t.Parent)
+	// origin sits directly after parent, per plan 5.1, and exists only at the
+	// schema that introduced it. At a level below, an origin key in the file is
+	// an unknown field and renders after the known keys instead, which is what
+	// keeps a hand-edited schema-1 file from losing it here.
+	if hasOrigin(schema) {
+		m.addStringPtr("origin", t.Origin)
+	}
 	m.addStringSeq("dependencies", t.Dependencies)
 	// A ticket built in Go rather than parsed carries the zero string, and the
 	// zero value of this field is none. Rendering it as none keeps a built

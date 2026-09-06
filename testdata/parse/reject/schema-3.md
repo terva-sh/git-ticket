@@ -1,5 +1,5 @@
 ---
-schema: 2
+schema: 3
 id: TKT-01K3ZYYXB0QP32SG8GF99N5VXW
 title: Ticket written by a future major version
 type: task
@@ -29,9 +29,14 @@ extensions: {}
 Everything here parses. The refusal is a policy decision, not a syntax one.
 
 A major bump is the only place 5.4 allows a field to be removed or given a new
-meaning, so a v1 reader cannot know whether `status: ready` still means what it
-used to. Guessing would be worse than stopping, so the reader refuses with
-`schema_unsupported` and names the version it would need.
+meaning, so a reader one level behind cannot know whether `status: ready` still
+means what it used to. Guessing would be worse than stopping, so the reader
+refuses with `schema_unsupported` and names the version it would need.
 
 The ID is recoverable here, unlike the parse failures, so the finding carries
 it.
+
+This fixture is always one level above what the reader supports, so its number
+moves with `SchemaVersion`. It was `schema-2.md` until schema 2 shipped, per
+plan 5.6. Nothing else about it changes: the point is the policy refusal, not
+any particular number.

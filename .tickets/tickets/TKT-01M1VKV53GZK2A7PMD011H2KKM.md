@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1VKV53GZK2A7PMD011H2KKM
 title: Raise the format to schema 2 and build migrate, per plan 12.5
 type: task
-status: draft
+status: in-progress
 status_reason: null
 priority: high
 due_on: null
@@ -15,10 +15,16 @@ parent: null
 dependencies: []
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: feat/schema-2-migrate
+  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
+  commit: 2328d6f3a274908e04d86040d68f1ff9b7fe8fac
+  claimed_at: 2026-09-06T17:22:36Z
+  expires_at: null
 archive: null
 created_at: 2026-09-06T15:01:59Z
-updated_at: 2026-09-06T15:01:59Z
+updated_at: 2026-09-06T17:22:37Z
 created_by:
   id: agent:terva/mieli
   name: ""

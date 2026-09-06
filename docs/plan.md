@@ -3266,31 +3266,41 @@ stale index. The verification command is `check --fix --dry-run --strict`, and
 without `--strict` a job goes green over the exact condition it was added to
 catch.
 
-**A hand-set order in the format** (`TKT-01M1HPCJH5RWSA6Z28QM3QV1H0`). Whether a
-ticket carries an ordinal somebody sets. Raised by reading Backlog.md, section
+**A hand-set order in the format** (`TKT-01M1HPCJH5RWSA6Z28QM3QV1H0`) is
+answered: the format does not carry one. Raised by reading Backlog.md, section
 B6 of `docs/review-backlog-md.md`. `List` sorts by ID, which 5.5 makes
 chronological because a ULID sorts by creation time, so the only sequence this
-format can express is the order tickets were filed in.
+format expresses is the order tickets were filed in, and that stands.
 
-Half of it is already answered, and the half that is left is the one no flag
-reaches. Sorting a listing is display, and display needs no format change:
-`list --sort priority` and `ready` ranking by priority arrived with
+Half of it was answered by display, which needs no format change. `list --sort
+priority` and `ready` ranking by priority arrived with
 `TKT-01M1J2YR9D5242F6H7TPEV4M8K`, a flag over data every consumer already had.
-A sequence set by hand is different, because no interface can persist a field
-the format does not define. Backlog.md keeps an ordinal per task, and that is
-what makes its drag-and-drop stick.
+A sequence set by hand was the other half, because no interface can persist a
+field the format does not define. Backlog.md keeps an ordinal per task, and that
+is what makes its drag-and-drop stick.
 
-The trigger is a board with reorderable columns, or a request for an order
-inside one priority level where a fifth priority is not the answer. Neither has
-happened.
+Two things settle it against an ordinal.
 
-The cost, if it is ever met, is a frontmatter field on every ticket under 5.3,
-which means every fixture. The harder part is that an ordinal would be the first
-field whose value means nothing alone and only means something against its
-neighbours. 7.5 changed what that costs rather than removing it. Concurrent
-inserts now have somewhere to be resolved, which is one row in the field table,
-and the honest entry for that row may well be conflict, because two agents
-inserting at the same position genuinely disagree.
+This format already expresses order twice, with fields that merge. `due_on` is a
+total order and 7.5 takes the side that changed, because a date means something
+by itself. `dependencies` is a real partial order and 7.5 unions it, because an
+edge means something by itself too. An ordinal would be a third ordering
+mechanism and the only one that cannot merge, since its value means nothing
+alone and only means something against its neighbours.
+
+That is what makes its honest row in the 7.5 table conflict. Two agents
+inserting at the same position genuinely disagree, and no rule resolves that
+without discarding somebody's intent. A field that conflicts by design fights
+the property this format rests on, that two agents working at once produce files
+Git can reconcile. The cost in files, a frontmatter field on every ticket under
+5.3 and so on every fixture, is the smaller objection and was never the reason.
+
+So a board derives its column order from fields that exist rather than storing
+one, and the trigger this question used to carry, a board with reorderable
+columns, no longer reopens it by itself. Reopening needs a want that `due_on`,
+`dependencies` and `priority` provably cannot express, together with an answer
+to the concurrency objection rather than an acknowledgement of it, because that
+objection does not weaken with time.
 
 **Reading tickets from other branches** (`TKT-01M1HPCJJ1FFHG7HXC8QG1JRAG`) is
 answered in 8, with the JSON in 10.1. Raised by reading Backlog.md, section D of

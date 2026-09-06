@@ -355,9 +355,10 @@ git branch -f main origin/main     # main is where the remote has it
 `just` drives the local loop. `just --list` names every recipe.
 
 ```sh
-just ci        # lint, test-race, check: the same steps CI runs, in the same order
-just test      # the whole suite, without the race detector
-just install   # git-ticket into GOBIN, so `git ticket` resolves outside this tree
+just ci                    # lint, test-race, check: the same steps CI runs, in the same order
+just test                  # the whole suite, without the race detector
+just install               # git-ticket where install.sh puts it, so `git ticket` resolves outside this tree
+just install DIR           # the same, into a directory you name
 just install-release TAG   # build that tag and install it where install.sh does
 ```
 
@@ -700,16 +701,33 @@ under a shadow it can be any age at all, so the diff compares the wrong pair.
 Empty is exactly the answer the technique is looking for, which is what makes
 that failure expensive.
 
-Three things install this binary and they do not agree on where. `just install`
-writes to GOBIN, and `install.sh` and `just install-release` both write to the
-first writable of `~/.local/bin` and `~/bin`. Run more than one and there are
-two binaries named git-ticket, with PATH order alone deciding which one
-`git ticket` means. Nothing reconciles them: `git ticket self-update` upgrades
-the binary that ran it and leaves the other where it was. Per TKT-01M1SMAP,
-`just install` and `just install-release` both warn when the copy they wrote is
-not the one that answers, and they name the winner and its version. Two copies
-can also disagree while being built from the same commit, since one built before
-a tag existed reports a pseudo-version and one built after reports the tag, so
+Everything in this repository that installs the binary writes to one file, per
+TKT-01M1WE1JSC8GNR5BWM0RGJB3FT. `install.sh`, `just install` and `just
+install-release` all resolve the first writable of `~/.local/bin` and `~/bin`,
+never sudo, and each takes an override: `--prefix DIR` for the script, a
+positional `DIR` for the two recipes. Whatever ran last is what `git ticket`
+means.
+
+`just install` ran `go install` until then, which writes to GOBIN, and that is
+worth knowing because of how the failure looked. On a machine where
+`~/.local/bin` came before `~/go/bin` on PATH, the recipe built the tree, wrote
+the binary where nothing would look for it, and left `git ticket` meaning the
+release install. TKT-01M1SMAP's warning fired correctly every time and reported
+exactly that, which is how a working warning can sit on top of a broken recipe
+for several releases.
+
+That warning stays, and it now means something narrower: a copy an older
+convention left behind. It names the copy, its version, and the `just install
+DIR` that would write there instead. It deletes nothing, by the same ruling,
+because no recipe here removes a binary it did not write.
+
+So two copies still happen, by two routes. `go install
+github.com/terva-sh/git-ticket/cmd/git-ticket@latest` writes to GOBIN, since
+that is Go's rule and not this project's to change, and an install predating
+this change is still wherever it landed. `git ticket self-update` upgrades the
+binary that ran it and leaves any other where it was. Two copies can also
+disagree while being built from the same commit, since one built before a tag
+existed reports a pseudo-version and one built after reports the tag, so
 comparing version strings does not tell you which is newer.
 
 `go:embed` silently skips any path whose name starts with `.` or `_`. That is
@@ -771,6 +789,19 @@ sidecars record that form, but every path in the JSON contract is relative to
 the repository root. `findings()` in `cli/json.go` converts. A test
 that only matches the path suffix passes either way, so
 `TestCheckAgreesWithTheCorpus` stats the path from the repository root instead.
+
+The JSON envelope camelCases every frontmatter field, so the Markdown spelling
+does not read it back. `status_reason` is `statusReason` in the envelope, and
+`blocks_on`, `due_on`, `created_at` and `updated_by` follow the same rule.
+A read with the underscore name returns nothing, which looks exactly like a
+write that did not happen, and that is the trap: it sends you to debug a
+mutation that worked. Nesting differs from the file too, since the checklists
+are at `ticket.checklists.acceptanceCriteria` and `.definitionOfDone` rather
+than alongside the scalars. Print the keys instead of guessing at them:
+
+```sh
+git ticket show ID --json | python3 -c "import json,sys; print(*sorted(json.load(sys.stdin)['ticket']), sep='\n')"
+```
 
 `reference_path_unresolved` is the one check whose result depends on where the
 store sits. The library tests inject the fixture's case directory as the root;

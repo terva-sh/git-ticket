@@ -211,10 +211,15 @@ go install github.com/terva-sh/git-ticket/cmd/git-ticket@latest
 ```
 
 That lands `git-ticket` in your `GOBIN`, or `GOPATH/bin` without one. Git spells
-a binary named `git-ticket` on `PATH` as `git ticket`. From a clone, `just
-install` does the same thing and `just build` puts the binary in the repository
-root instead. That root copy is gitignored and nothing rebuilds it for you, so
-prefer `just ready` and `just check`, which depend on `build`.
+a binary named `git-ticket` on `PATH` as `git ticket`.
+
+From a clone, `just install` builds your working tree and writes it where the
+install script above writes, so the two cannot leave you with a binary on
+`PATH` that neither of them last touched. `just install ~/go/bin` names a
+directory instead, which is how to keep the `GOBIN` convention. `just build`
+puts the binary in the repository root and installs nothing. That root copy is
+gitignored and nothing rebuilds it for you, so prefer `just ready` and `just
+check`, which depend on `build`.
 
 `just install-release` builds a release rather than your working tree. It
 compiles a tag in a throwaway clone and puts the binary where the install script

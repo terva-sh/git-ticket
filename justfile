@@ -46,31 +46,83 @@ build:
 # makes the subcommand work outside this tree, which is what dogfooding it in
 # another repository needs.
 #
-# This writes to GOBIN, and install.sh and `install-release` write to the first
-# writable of ~/.local/bin and ~/bin. Run both and there are two binaries named
-# git-ticket, with PATH order deciding which one `git ticket` means, so the last
-# check warns when the copy just installed is not the one that answers. Per
-# TKT-01M1SMAP it warns rather than staying quiet, because it fires only when
-# the install did not change what `git ticket` means, which is a fact worth
-# hearing every time it is true.
-# Install git-ticket into GOBIN, else GOPATH/bin.
-install:
-    go install {{buildvcs}} ./cmd/git-ticket
-    @dest="$(go env GOBIN)"; [ -n "$dest" ] || dest="$(go env GOPATH)/bin"; \
-      echo "installed git-ticket -> $dest/git-ticket"; \
-      case ":$PATH:" in *":$dest:"*) ;; *) echo "warning: $dest is not on PATH, so \`git ticket\` will not resolve" >&2 ;; esac; \
-      first="$(command -v git-ticket || true)"; \
-      if [ -n "$first" ] && [ "$first" != "$dest/git-ticket" ]; then \
-        echo "warning: $first comes first on PATH, so \`git ticket\` still means that one" >&2; \
-        echo "  it reports: $("$first" --version 2>/dev/null || echo unknown)" >&2; \
-      fi
-    @[ -z "{{buildvcs}}" ] || echo "note: linked worktree, so this was built with {{buildvcs}} and the installed binary reports devel rather than a version" >&2
+# There is one destination, and install.sh, `install-release` and this recipe
+# all resolve it the same way: DIR when given, else the first writable of
+# ~/.local/bin and ~/bin, and never sudo. So they land on the same file and
+# whatever was installed last is what `git ticket` means. There is no PATH race
+# to lose, because there is nothing to race against.
+#
+# This ran `go install` until TKT-01M1WE1JSC8GNR5BWM0RGJB3FT, which writes to
+# GOBIN. On a machine where ~/.local/bin comes before ~/go/bin, that made the
+# recipe a no-op for the subcommand: it built the tree, wrote the binary
+# somewhere nothing would look, and left `git ticket` meaning the release
+# install. TKT-01M1SMAPV96V9SPB0BF7E78ZFQ shipped the warning that reports
+# this, and the warning was working. What it reported was that the recipe had
+# not done the thing it was run for.
+#
+# `just install ~/go/bin` keeps GOBIN for anyone who wants the Go convention.
+#
+# The resolution loop is a third copy of install.sh's, and a copy is what it
+# stays. A just variable holding it would run its mkdir at parse time, on every
+# `just --list`.
+# Install git-ticket where install.sh installs it, or into DIR.
+install DIR="":
+    #!/usr/bin/env bash
+    set -euo pipefail
 
-# `just install` builds whatever is in your tree and puts it in GOBIN, which is
-# what dogfooding wants. This is the other half. It builds a released tag and
-# puts it where install.sh puts a downloaded one, so compiling from source and
-# running the README's curl one-liner cannot leave two binaries of different
-# ages on PATH with `git ticket` quietly picking between them.
+    dest="{{DIR}}"
+    if [ -n "$dest" ]; then
+        mkdir -p "$dest" 2>/dev/null || { echo "install: cannot create $dest" >&2; exit 1; }
+        [ -w "$dest" ] || { echo "install: $dest is not writable" >&2; exit 1; }
+    else
+        for d in "$HOME/.local/bin" "$HOME/bin"; do
+            if mkdir -p "$d" 2>/dev/null && [ -w "$d" ]; then
+                dest="$d"
+                break
+            fi
+        done
+        if [ -z "$dest" ]; then
+            echo "install: neither ~/.local/bin nor ~/bin is writable." >&2
+            echo "  nothing here sudos. Make one writable, or name a directory: just install DIR" >&2
+            exit 1
+        fi
+    fi
+
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    go build {{buildvcs}} -o "$work/git-ticket" ./cmd/git-ticket
+
+    # Replace through a temporary name in the destination, so the swap is
+    # atomic and a running git-ticket cannot make this fail with ETXTBSY.
+    cp "$work/git-ticket" "$dest/.git-ticket.new"
+    chmod 0755 "$dest/.git-ticket.new"
+    mv "$dest/.git-ticket.new" "$dest/git-ticket"
+
+    echo "installed $dest/git-ticket"
+    echo "  $("$dest/git-ticket" --version)"
+
+    case ":$PATH:" in
+        *":$dest:"*) ;;
+        *) echo "warning: $dest is not on PATH, so \`git ticket\` will not resolve" >&2 ;;
+    esac
+
+    # With one destination this fires only for a copy some earlier convention
+    # left behind, so it names the copy and lets you decide. Nothing here
+    # deletes a binary it did not write.
+    first="$(command -v git-ticket || true)"
+    if [ -n "$first" ] && [ "$first" != "$dest/git-ticket" ]; then
+        echo "warning: $first comes first on PATH, so \`git ticket\` still means that one" >&2
+        echo "  it reports: $("$first" --version 2>/dev/null || echo unknown)" >&2
+        echo "  remove it, or install there instead:  just install $(dirname "$first")" >&2
+    fi
+
+    [ -z "{{buildvcs}}" ] || echo "note: linked worktree, so this was built with {{buildvcs}} and the installed binary reports devel rather than a version" >&2
+
+# `just install` builds whatever is in your tree, which is what dogfooding
+# wants. This is the other half: it builds a released tag, so you can put a
+# real version back over a working-tree build without downloading one. Both
+# write to the same file, so neither can leave two binaries of different ages
+# on PATH with `git ticket` quietly picking between them.
 #
 # The tag is checked before anything is built. `go build` takes the version from
 # what the VCS reports, per plan 12.1, so an untagged commit stamps a

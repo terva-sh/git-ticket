@@ -61,7 +61,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Backlog.md
 ----------
 
-Backlog.md (https://github.com/MrLesk/Backlog.md) shaped three parts of
+Backlog.md (https://github.com/MrLesk/Backlog.md) shaped four parts of
 this project. No code was taken from it. Its implementation is
 TypeScript and nothing here is adapted from it, so no file carries a
 Backlog.md header and the MIT conditions on copying are not triggered.
@@ -82,6 +82,13 @@ What was taken:
   The cross-branch reads behind `git ticket refs`. Plan section 8,
   under "Reading tickets from other branches", records that the 30-day
   window comes from the same section D.
+
+  Shell completion, also from section D, which observed that Backlog.md
+  ships "completion install" for four shells and completes command
+  names, live task IDs and enum values. The shape here is its own: one
+  private "completion --dump" that both generated scripts read, and one
+  file per shell serving both the git-ticket and the git ticket
+  invocation forms.
 
 Backlog.md is MIT licensed:
 

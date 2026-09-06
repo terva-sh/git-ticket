@@ -515,6 +515,51 @@ Write a consumer against `schema` rather than against a hard-coded list, and it
 keeps working when the sets grow. It reads no store, so it answers outside a
 repository and before `init`.
 
+`completion` prints a shell completion script for bash or zsh. Print it and
+redirect it yourself, or let `--install` put it where the shell looks:
+
+```sh
+git ticket completion bash --install
+git ticket completion zsh --install --dir ~/.zsh/completions
+```
+
+Both invocation forms complete, `git-ticket <TAB>` and `git ticket <TAB>`. The
+second one is why the file names matter and why `--install` picks them for you.
+Git's bash completion asks its loader for a file named after the binary, and
+zsh's `_git` scans `$fpath` for `_git-*` and calls the function of the same
+name, so a script installed under any other name leaves the subcommand form
+silently doing nothing while the direct form works.
+
+bash needs no further setup. The file lands in
+`${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/` and is
+loaded on demand. zsh takes a `--dir` and will not guess one, because zsh has
+no standard user completion directory and the directory has to be on `$fpath`
+before `compinit` runs. `--install` prints the two lines to add. `compinit`
+caches its scan, so a newly installed file may need
+`rm -f ~/.zcompdump && compinit` before it appears.
+
+It completes command names, the flags of the command you are on, enum values
+for flags and positionals that take one, and ticket IDs. The IDs are the same
+shortest-unique abbreviations `list` prints and `show` accepts, so completion
+can never offer something the CLI would then reject. zsh shows each ticket's
+title beside its ID, because a bare ULID is close to unpickable; bash shows the
+IDs alone, which is what that shell gives you.
+
+Everything it offers comes from `git ticket completion --dump`, so a command or
+a flag added to the binary completes with no edit to the script. Reinstall
+after upgrading and it catches up. The dump is an internal detail rather than a
+published contract, and it is deliberately not one of the JSON kinds in section
+10 of the plan.
+
+One conflict worth knowing, and it is not ours. Git ships its own zsh
+completion, and installing it ahead of zsh's on `$fpath` replaces the `_git`
+that dispatches to `_git-ticket`. `git ticket <TAB>` then stops working with no
+error anywhere, while `git-ticket <TAB>` is unaffected. Homebrew's git does this
+on macOS, and git-lfs and git-extras both document hitting it. `--install`
+warns when it can see that arrangement.
+
+fish and PowerShell are not built yet.
+
 ## Status
 
 | Phase | What | State |

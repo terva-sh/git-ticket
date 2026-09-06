@@ -172,6 +172,7 @@ func commands() []command {
 		{"config", "print what this store configured, including the allowlists", "", runConfig},
 		{"series", "list the ID prefixes this store uses, or declare one", "[add NAME | remove NAME]", runSeries},
 		{"instructions", "print the agent workflow block for an AGENTS.md", "[--write]", runInstructions},
+		{"completion", "print a shell completion script", "SHELL [--install]", runCompletion},
 		{"self-update", "replace this binary with the latest release", "[--check | --dry-run]", runSelfUpdate},
 		{"install-merge-driver", "configure this binary as Git's merge driver for ticket files", "", runInstallMergeDriver},
 		{"merge-driver", "resolve a ticket file mid-merge, for git's merge.*.driver", "BASE OURS THEIRS", runMergeDriver},
@@ -185,6 +186,13 @@ type cmdContext struct {
 	g   *globals
 	env Env
 	out io.Writer
+	// captureFlags, when set, receives each command's fully registered
+	// FlagSet and stops the command before it does anything. `completion
+	// --dump` walks every command this way, so the dump reports the flags the
+	// binary actually accepts. The alternative was parsing the text that
+	// --help prints, which would make the completion script a second source
+	// of truth for the same facts and let the two drift.
+	captureFlags func(name string, fs *flag.FlagSet)
 }
 
 // Run executes one invocation and returns the process exit status. args
@@ -287,6 +295,10 @@ func (ctx *cmdContext) parseFlags(name string, args []string, register func(*fla
 	if register != nil {
 		register(fs)
 	}
+	if ctx.captureFlags != nil {
+		ctx.captureFlags(name, fs)
+		return nil, errFlagsCaptured
+	}
 
 	var literal []string
 	for i, a := range args {
@@ -324,6 +336,11 @@ func (ctx *cmdContext) parseFlags(name string, args []string, register func(*fla
 // asked for it. Like errReported it travels as an error so that parseFlags can
 // stop the command, but the exit status is zero: asking is not failing.
 var errHelpShown = errors.New("usage was printed")
+
+// errFlagsCaptured stops a command once its flags are registered and before it
+// opens a store or writes anything. Only `completion --dump` produces it, and
+// only that command sees it.
+var errFlagsCaptured = errors.New("flags captured")
 
 // errReported means the command ran, wrote its own output, and the verdict is
 // no. check returns it for a store with findings: the report is already on

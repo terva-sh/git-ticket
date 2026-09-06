@@ -1,6 +1,9 @@
 Third-party notices for git-ticket
 ==================================
 
+terva
+-----
+
 Parts of the tui package are lifted or adapted from terva's TUI
 (https://github.com/terva-sh/terva, packages/tui and
 packages/agent/modes/dialogs). terva is itself a hard fork of zot, and
@@ -53,3 +56,39 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+Backlog.md
+----------
+
+Backlog.md (https://github.com/MrLesk/Backlog.md) shaped three parts of
+this project. No code was taken from it. Its implementation is
+TypeScript and nothing here is adapted from it, so no file carries a
+Backlog.md header and the MIT conditions on copying are not triggered.
+This credit is recorded because the ideas decided real design, not
+because a license compels it.
+
+What was taken:
+
+  The acceptance criteria and definition of done fields. docs/plan.md
+  section 16 names Backlog.md as their source, and the README says the
+  same where it compares the prior projects.
+
+  The refreshable instruction block. `git ticket instructions --write`
+  replaces an earlier block in place, and cli/instructions.md opens
+  with a <!-- git-ticket:begin --> marker. That is the marker-delimited
+  design proposed in section D of docs/review-backlog-md.md.
+
+  The cross-branch reads behind `git ticket refs`. Plan section 8,
+  under "Reading tickets from other branches", records that the 30-day
+  window comes from the same section D.
+
+Backlog.md is MIT licensed:
+
+Copyright (c) 2025 Backlog.md
+
+The full license text is at
+https://github.com/MrLesk/Backlog.md/blob/main/LICENSE and is not
+reproduced here. Reproducing it is the condition MIT places on copies
+and substantial portions of the software, and this repository contains
+neither.

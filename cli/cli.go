@@ -170,6 +170,7 @@ func commands() []command {
 		{"migrate", "convert the store to a newer schema level", "[--to N] [--dry-run]", runMigrate},
 		{"schema", "print the values and codes this binary enforces", "", runSchema},
 		{"config", "print what this store configured, including the allowlists", "", runConfig},
+		{"series", "list the ID prefixes this store uses, or declare one", "[add NAME | remove NAME]", runSeries},
 		{"instructions", "print the agent workflow block for an AGENTS.md", "[--write]", runInstructions},
 		{"self-update", "replace this binary with the latest release", "[--check | --dry-run]", runSelfUpdate},
 		{"install-merge-driver", "configure this binary as Git's merge driver for ticket files", "", runInstallMergeDriver},

@@ -169,6 +169,9 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		{"a failure", []string{"--json", "show", "TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ"}},
 		{"the schema", []string{"--json", "schema"}},
 		{"the config", []string{"--json", "config"}},
+		// The bare read. add and remove answer with the same kind, per 10.9,
+		// and this table only has to reach the kind once.
+		{"the series", []string{"--json", "series"}},
 		{"the instructions", []string{"--json", "instructions"}},
 		// A dry run, so this writes nothing. The store newStore builds is
 		// already at the current level, which is the answer that exercises the

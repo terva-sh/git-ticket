@@ -1687,10 +1687,10 @@ Every machine-readable operation emits a versioned envelope on stdout:
 ```
 
 Kinds are `ticket`, `ticket-list`, `mutation-result`, `migrate-result`,
-`check-report`, `error`, `schema`, `config`, `instructions`, `self-update`, and
-`version`. Absent scalars are `null` and absent collections are `[]`, always
-present rather than omitted, so a consumer never has to distinguish missing from
-empty.
+`check-report`, `error`, `schema`, `config`, `series`, `instructions`,
+`self-update`, and `version`. Absent scalars are `null` and absent collections
+are `[]`, always present rather than omitted, so a consumer never has to
+distinguish missing from empty.
 
 A mutation result:
 
@@ -2033,13 +2033,14 @@ values without reading this document or hard-coding them:
   "schemaVersion": 1,
   "kind": "schema",
   "ticketSchema": 1,
-  "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "error", "schema", "config", "instructions", "self-update", "version"],
+  "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "error", "schema", "config", "series", "instructions", "self-update", "version"],
   "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
   "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
   "priorities": ["low", "normal", "high", "urgent"],
   "unreadyReasons": ["draft", "in-progress", "blocked", "review", "done", "archived", "waiting_on_dependencies", "claimed"],
   "titleLimits": { "warn": 72, "max": 120 },
+  "seriesLimits": { "minLength": 2, "maxLength": 8, "pattern": "^[A-Z][A-Z0-9]{1,7}$" },
   "transitions": { "draft": ["ready", "archived"] },
   "errorCodes": ["store_not_found", "usage"],
   "findingCodes": [{ "code": "duplicate_id", "severity": "error" }]
@@ -2066,6 +2067,15 @@ ones, so the two cannot drift.
 knows where the line is before it writes one. `warn` is where `title_long`
 starts and `max` is where a write is refused, which is the number that matters
 to a writer. Both count characters rather than bytes.
+
+`seriesLimits` publishes 5.6's grammar for the same reason, and it is here
+rather than in `config` because the bounds are a fact about the binary rather
+than about one store. A consumer composing a prefix learns what is legal before
+it opens anything. `pattern` is the same rule as an RE2 regular expression, so a
+consumer validates without reimplementing the check and getting the
+leading-digit edge wrong. `ValidSeries` does not use the pattern, because
+compiling a regexp to check three characters on a path every `create` takes buys
+nothing, so the two are one rule said twice and a test holds them together.
 
 `unreadyReasons` is every value `readiness.reason` can carry, per section 8, so
 a consumer switching on it does not hard-code the list and fall through the day
@@ -2263,6 +2273,54 @@ person runs, so gating a job on this command would be gating on a decision no
 job is allowed to take. `check` is where CI learns a store is behind, through
 `migration_incomplete`, and a second gate reporting the same fact through a
 different command is how two answers come to disagree.
+
+### 10.9 The series kind
+
+`series`, `series add NAME`, and `series remove NAME` all answer with this,
+per 5.6:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "series",
+  "series": ["TKT", "IDEA"],
+  "changed": true,
+  "pathsChanged": [".tickets/config.yml"]
+}
+```
+
+One kind for a read and two writes, which no other command in section 10 does.
+The reason is that all three answer the same question. What a caller wants back
+from any of them is the list the store now declares, and a caller that ran `add`
+to make sure a series exists wants exactly what the bare read returns. Giving
+the writes a `mutation-result` would answer a question about a ticket for an
+operation that touches no ticket, and would put an empty `ticket` stub in the
+envelope for the same reason 10.8 declined one.
+
+`series` is the effective list, per 5.6, so it is never empty and never null. A
+store that has written no `series` key at all answers `["TKT"]` here, the same
+as in the `config` envelope of 10.6.
+
+`changed` is false when nothing was written, which covers the bare read and an
+`add` naming a series the store already declares. That second case is a no-op
+rather than an error, so a caller running `add` to be sure of a series does not
+have to tell one kind of success from another. `pathsChanged` is `config.yml`
+when the operation wrote and `[]` when it did not, which is the field every
+mutation reports.
+
+The grammar bounds are not here. They are in `schema`, per 10.4, because they
+are a fact about the binary rather than about this store, and a caller wants
+them before it has a store to ask.
+
+`remove` refuses while any ticket carries the prefix and returns
+`validation_failed` naming the count, because undeclaring it would report every
+one of those tickets as `unknown_series` at the next `check`. It also refuses to
+remove the last declared series: an empty list means `[TKT]` rather than "none",
+so the removal would not stick and the store would read back as declaring
+exactly what it just dropped.
+
+`add` on a schema-1 store returns `validation_failed` naming `migrate`, per 5.6.
+Adding `TKT` is the exception, because it is what the store already has.
 
 ## 11. Validation
 

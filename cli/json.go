@@ -164,7 +164,12 @@ type schemaEnvelope struct {
 	// TitleLimits publishes the two thresholds of plan 5.1, so a caller
 	// composing a title knows where the line is before it writes one rather
 	// than after a write is refused.
-	TitleLimits  titleLimitsJSON     `json:"titleLimits"`
+	TitleLimits titleLimitsJSON `json:"titleLimits"`
+	// SeriesLimits publishes plan 5.6's grammar. It is here rather than in
+	// config because it is a fact about the binary and not about one store, so
+	// a consumer learns what a legal prefix looks like before it opens
+	// anything, per 10.4.
+	SeriesLimits seriesLimitsJSON    `json:"seriesLimits"`
 	Transitions  map[string][]string `json:"transitions"`
 	ErrorCodes   []string            `json:"errorCodes"`
 	FindingCodes []findingCodeJSON   `json:"findingCodes"`
@@ -176,6 +181,58 @@ type schemaEnvelope struct {
 type titleLimitsJSON struct {
 	Warn int `json:"warn"`
 	Max  int `json:"max"`
+}
+
+// seriesLimitsJSON carries the series grammar of plan 5.6. MinLength and
+// MaxLength count characters, and Pattern is the same rule as an RE2 regular
+// expression, so a consumer can validate a prefix without reimplementing the
+// check and getting the leading-digit edge wrong.
+type seriesLimitsJSON struct {
+	MinLength int    `json:"minLength"`
+	MaxLength int    `json:"maxLength"`
+	Pattern   string `json:"pattern"`
+}
+
+// seriesEnvelope is plan 10.9, and it is what all three forms of the series
+// command answer with: the bare read, add, and remove.
+//
+// One kind for a read and two writes is deliberate. What a caller wants back
+// from any of the three is the same thing, the list the store now declares, and
+// giving the writes a mutation-result would answer a question about a ticket
+// for an operation that touches no ticket. Changed is what separates them.
+type seriesEnvelope struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	Kind          string `json:"kind"`
+	// Series is the effective list after the operation, per 5.6, so it is never
+	// empty and never null.
+	Series []string `json:"series"`
+	// Changed is false when nothing was written, which covers the bare read and
+	// an add naming a series the store already declares. That second case is a
+	// no-op rather than an error, so a caller running it to be sure does not
+	// have to tell success from success.
+	Changed bool `json:"changed"`
+	// PathsChanged is config.yml when the operation wrote and empty when it did
+	// not, the same field every mutation reports.
+	PathsChanged []string `json:"pathsChanged"`
+}
+
+func newSeriesEnvelope(s *ticket.Store, r *ticket.SeriesResult) seriesEnvelope {
+	env := seriesEnvelope{
+		SchemaVersion: schemaVersion,
+		Kind:          "series",
+		Series:        r.Series,
+		Changed:       r.Changed,
+		PathsChanged:  make([]string, 0, len(r.PathsChanged)),
+	}
+	if env.Series == nil {
+		env.Series = []string{}
+	}
+	// The library names config.yml relative to the store, and every path in the
+	// envelope is relative to the repository root, per section 10.
+	for _, rel := range r.PathsChanged {
+		env.PathsChanged = append(env.PathsChanged, storePath(s, rel))
+	}
+	return env
 }
 
 type findingCodeJSON struct {

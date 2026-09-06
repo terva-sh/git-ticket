@@ -35,14 +35,27 @@ const abbrevLen = 8
 // L, O, and U, which are the ones a person misreads.
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-// seriesMinLen and seriesMaxLen are the bounds of plan 5.6. Two is the floor
+// SeriesMinLen and SeriesMaxLen are the bounds of plan 5.6. Two is the floor
 // because one letter carries no meaning and spends a whole namespace on a
 // character nobody can guess the expansion of. Eight is the ceiling because the
 // prefix is quoted beside 26 characters of ULID everywhere it appears.
+//
+// They are exported because `schema` publishes them, per 10.4, so a consumer
+// learns what is legal before it opens a store.
 const (
-	seriesMinLen = 2
-	seriesMaxLen = 8
+	SeriesMinLen = 2
+	SeriesMaxLen = 8
 )
+
+// SeriesPattern is the same grammar as a regular expression, for a consumer
+// that would otherwise reimplement ValidSeries and get an edge wrong.
+//
+// ValidSeries does not use it. A hand-written check is cheaper on a path every
+// create takes, and compiling a package-level regexp to validate three
+// characters buys nothing. That makes this a second statement of one rule, so
+// TestSeriesPatternAgreesWithValidSeries holds the two together and fails if
+// either moves without the other.
+const SeriesPattern = "^[A-Z][A-Z0-9]{1,7}$"
 
 // ValidSeries reports whether s is a well-formed series prefix, per plan 5.6:
 // [A-Z][A-Z0-9]{1,7}.
@@ -56,7 +69,7 @@ const (
 // timestamp that are mostly digits, so 2FA-01M1 and a ULID fragment that lost
 // its prefix look alike at the speed anybody reads an ID.
 func ValidSeries(s string) bool {
-	if len(s) < seriesMinLen || len(s) > seriesMaxLen {
+	if len(s) < SeriesMinLen || len(s) > SeriesMaxLen {
 		return false
 	}
 	if s[0] < 'A' || s[0] > 'Z' {

@@ -67,7 +67,13 @@ func (l *intList) Set(v string) error {
 //
 // A failure here costs only brevity, so it falls back to full IDs rather than
 // failing a read the caller asked for.
-func storeAbbreviations(s *ticket.Store, shown []*ticket.Ticket) map[string]string {
+//
+// mode is --ids, per plan 5.6. Returning nil for full is the same fallback:
+// writeListHuman prints the whole ID for any row the map does not carry.
+func storeAbbreviations(s *ticket.Store, shown []*ticket.Ticket, mode string) map[string]string {
+	if mode == idsFull {
+		return nil
+	}
 	all, err := s.List(context.Background(), ticket.Filter{All: true})
 	if err != nil {
 		return nil
@@ -85,6 +91,9 @@ func storeAbbreviations(s *ticket.Store, shown []*ticket.Ticket) map[string]stri
 			seen[t.ID] = true
 			ids = append(ids, t.ID)
 		}
+	}
+	if mode == idsStore {
+		return ticket.ShortestUniqueAcrossSeries(ids)
 	}
 	return ticket.ShortestUnique(ids)
 }
@@ -187,6 +196,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		created   string
 		reason    string
 		tmpl      string
+		series    string
 		labels    stringList
 		assignees stringList
 		dependsOn stringList
@@ -215,6 +225,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		f.Var(&dependsOn, "depends-on", "a ticket this waits on, repeatable")
 		f.Var(&ac, "ac", "an acceptance criterion, repeatable")
 		f.Var(&dod, "dod", "a definition of done item, repeatable")
+		f.StringVar(&series, "series", "", "the ID prefix to file under; the store's default when absent, per plan 5.6")
 		f.StringVar(&tmpl, "template", "", "seed from .tickets/templates/NAME.md; explicit flags win, per plan 4.2")
 		f.StringVar(&status, "status", "", "file directly as done or archived, for a backport, per plan 6.2.1")
 		f.StringVar(&created, "created", "", "backdate the ticket: RFC 3339, or YYYY-MM-DD read as midnight UTC")
@@ -290,7 +301,11 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Created:            createdAt,
 		Reason:             reason,
 		Template:           tmpl,
-		Actor:              ctx.actor(s),
+		// Uppercased rather than refused, the way `series add idea` is, because
+		// the grammar is uppercase and a reference resolves case-insensitively
+		// per 5.5. An empty value means the store's default.
+		Series: strings.ToUpper(strings.TrimSpace(series)),
+		Actor:  ctx.actor(s),
 	}
 	if dueOn != "" {
 		opts.DueOn = &dueOn
@@ -415,6 +430,44 @@ const (
 // per plan 8's rule that one field has one order everywhere it sorts.
 var sortOrders = []string{sortByID, sortByDueOn, sortByPriority, sortByUpdated, sortByStatus}
 
+// How much of each ID a listing prints, per plan 5.6.
+//
+// series is the default and shortens against the other tickets in the same
+// series, because the prefix already carries the rest of the disambiguation.
+// store shortens against every ticket regardless of series, so the ULID half
+// resolves on its own, which is what somebody pasting an ID into a document
+// read outside this store wants. full prints all 26 characters.
+const (
+	idsSeries = "series"
+	idsStore  = "store"
+	idsFull   = "full"
+)
+
+// idModes is every value --ids accepts. Like sortOrders, one list, so the help
+// text and the validation cannot disagree.
+var idModes = []string{idsSeries, idsStore, idsFull}
+
+// idsOption is --ids on a listing command. It is a type rather than three
+// lines repeated six times, because the six listings have to agree: a flag
+// that means one thing on list and another on ready is worse than no flag.
+//
+// The flag takes a value so the default has a name, which is why --sort does
+// too, per section 8. A bare --ids-full would leave a reader of the help text
+// unable to say what they get without it.
+type idsOption struct{ mode string }
+
+func (o *idsOption) register(fs *flag.FlagSet) {
+	fs.StringVar(&o.mode, "ids", idsSeries,
+		"how much of each ID to print: "+strings.Join(idModes, ", "))
+}
+
+func (o *idsOption) validate() error {
+	if !slices.Contains(idModes, o.mode) {
+		return usageErr("%q is not one of %s", o.mode, strings.Join(idModes, ", "))
+	}
+	return nil
+}
+
 // runList prints the tickets that match the filters.
 func runList(ctx *cmdContext, args []string) error {
 	var (
@@ -429,6 +482,7 @@ func runList(ctx *cmdContext, args []string) error {
 		sortBy    string
 		all       bool
 		cross     bool
+		ids       idsOption
 	)
 	rest, err := ctx.parseFlags("list", args, func(fs *flag.FlagSet) {
 		fs.Var(&status, "status", "a status to include, repeatable")
@@ -440,6 +494,7 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.Var(&parent, "parent", "a parent whose children to list, or "+parentNone+" for tickets with no parent, repeatable")
 		fs.StringVar(&dueBy, "due-by", "", "only tickets due on or before this YYYY-MM-DD date")
 		fs.StringVar(&sortBy, "sort", sortByID, "order the result: "+strings.Join(sortOrders, ", "))
+		ids.register(fs)
 		fs.BoolVar(&all, "all", false, "include every status, done and archived too")
 		fs.BoolVar(&cross, "cross-branch", false, "also read the recent local and remote-tracking refs, per plan 8")
 	})
@@ -458,6 +513,9 @@ func runList(ctx *cmdContext, args []string) error {
 	// every ticket and answer with a straight face.
 	if dueBy != "" && !ticket.ValidDueOn(dueBy) {
 		return usageErr("%q is not a YYYY-MM-DD date", dueBy)
+	}
+	if err := ids.validate(); err != nil {
+		return err
 	}
 	if !slices.Contains(sortOrders, sortBy) {
 		return usageErr("%q is not one of %s", sortBy, strings.Join(sortOrders, ", "))
@@ -515,7 +573,8 @@ func runList(ctx *cmdContext, args []string) error {
 		ticket.SortByStatus(tickets)
 	}
 
-	return ctx.writeTicketListWith(s, tickets, "No tickets match.", listView{CrossBranch: cross})
+	return ctx.writeTicketListWith(s, tickets, "No tickets match.",
+		listView{CrossBranch: cross, IDs: ids.mode})
 }
 
 // resolveID turns a user-typed reference into the canonical ID the library
@@ -825,11 +884,16 @@ func runUnlink(ctx *cmdContext, args []string) error {
 // runDeps prints what a ticket waits on, or what waits on it.
 func runDeps(ctx *cmdContext, args []string) error {
 	var transitive, dependents bool
+	var ids idsOption
 	rest, err := ctx.parseFlags("deps", args, func(f *flag.FlagSet) {
 		f.BoolVar(&transitive, "transitive", false, "follow the graph, not just the direct edges")
 		f.BoolVar(&dependents, "dependents", false, "what waits on this ticket, rather than what it waits on")
+		ids.register(f)
 	})
 	if err != nil {
+		return err
+	}
+	if err := ids.validate(); err != nil {
 		return err
 	}
 	if len(rest) != 1 {
@@ -864,7 +928,7 @@ func runDeps(ctx *cmdContext, args []string) error {
 			empty += " " + hint
 		}
 	}
-	return ctx.writeTicketList(s, tickets, empty)
+	return ctx.writeTicketListWith(s, tickets, empty, listView{IDs: ids.mode})
 }
 
 // childHint describes a ticket's children, to add to an otherwise empty deps
@@ -896,10 +960,15 @@ func childHint(s *ticket.Store, ref string) string {
 // searched, so looking for "task" does not return every ticket of that type.
 func runSearch(ctx *cmdContext, args []string) error {
 	var regex bool
+	var ids idsOption
 	rest, err := ctx.parseFlags("search", args, func(f *flag.FlagSet) {
 		f.BoolVar(&regex, "regex", false, "read the query as an RE2 regular expression")
+		ids.register(f)
 	})
 	if err != nil {
+		return err
+	}
+	if err := ids.validate(); err != nil {
 		return err
 	}
 	if len(rest) != 1 {
@@ -914,17 +983,22 @@ func runSearch(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	return ctx.writeTicketList(s, tickets, "Nothing matches.")
+	return ctx.writeTicketListWith(s, tickets, "Nothing matches.", listView{IDs: ids.mode})
 }
 
 // runReady lists what could be started now: status ready, no live claim, and
 // every dependency satisfied, per plan section 8.
 func runReady(ctx *cmdContext, args []string) error {
 	var cross bool
+	var ids idsOption
 	rest, err := ctx.parseFlags("ready", args, func(fs *flag.FlagSet) {
 		fs.BoolVar(&cross, "cross-branch", false, "also read the recent local and remote-tracking refs, per plan 8")
+		ids.register(fs)
 	})
 	if err != nil {
+		return err
+	}
+	if err := ids.validate(); err != nil {
 		return err
 	}
 	if len(rest) > 0 {
@@ -942,7 +1016,8 @@ func runReady(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	return ctx.writeTicketListWith(s, tickets, "Nothing is ready to pick up.", listView{CrossBranch: cross})
+	return ctx.writeTicketListWith(s, tickets, "Nothing is ready to pick up.",
+		listView{CrossBranch: cross, IDs: ids.mode})
 }
 
 // runFiles finds the tickets that recorded a reference to a path.
@@ -950,8 +1025,12 @@ func runReady(ctx *cmdContext, args []string) error {
 // This reads what agents wrote and is only as complete as they were. It is
 // advisory and is not derived from Git history, which the help text says too.
 func runFiles(ctx *cmdContext, args []string) error {
-	rest, err := ctx.parseFlags("files", args, nil)
+	var ids idsOption
+	rest, err := ctx.parseFlags("files", args, ids.register)
 	if err != nil {
+		return err
+	}
+	if err := ids.validate(); err != nil {
 		return err
 	}
 	if len(rest) != 1 {
@@ -966,7 +1045,8 @@ func runFiles(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	return ctx.writeTicketList(s, tickets, "No ticket recorded a reference to that path.")
+	return ctx.writeTicketListWith(s, tickets,
+		"No ticket recorded a reference to that path.", listView{IDs: ids.mode})
 }
 
 // runRefs finds the tickets carrying a reference, per plan 5.5.
@@ -978,8 +1058,12 @@ func runFiles(ctx *cmdContext, args []string) error {
 //
 // Like files, this reads what agents wrote and is only as complete as they were.
 func runRefs(ctx *cmdContext, args []string) error {
-	rest, err := ctx.parseFlags("refs", args, nil)
+	var ids idsOption
+	rest, err := ctx.parseFlags("refs", args, ids.register)
 	if err != nil {
+		return err
+	}
+	if err := ids.validate(); err != nil {
 		return err
 	}
 	if len(rest) != 1 {
@@ -994,7 +1078,8 @@ func runRefs(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	return ctx.writeTicketList(s, tickets, "No ticket carries that reference.")
+	return ctx.writeTicketListWith(s, tickets,
+		"No ticket carries that reference.", listView{IDs: ids.mode})
 }
 
 // runNote, runComment, runPlan, and runSummary each take an ID and one piece
@@ -1629,7 +1714,7 @@ func count(n int, noun string) string {
 // any Go type in this package.
 var envelopeKinds = []string{
 	"ticket", "ticket-list", "mutation-result", "migrate-result", "check-report",
-	"error", "schema", "config", "instructions", "self-update", "version",
+	"error", "schema", "config", "series", "instructions", "self-update", "version",
 }
 
 // runSchema prints the values a consumer would otherwise have to read the plan
@@ -1681,9 +1766,14 @@ func runSchema(ctx *cmdContext, args []string) error {
 			BlocksOn:       ticket.BlocksOnValues,
 			UnreadyReasons: ticket.UnreadyReasons,
 			TitleLimits:    titleLimitsJSON{Warn: ticket.TitleWarn, Max: ticket.TitleMax},
-			Transitions:    transitions,
-			ErrorCodes:     errorCodes,
-			FindingCodes:   findings,
+			SeriesLimits: seriesLimitsJSON{
+				MinLength: ticket.SeriesMinLen,
+				MaxLength: ticket.SeriesMaxLen,
+				Pattern:   ticket.SeriesPattern,
+			},
+			Transitions:  transitions,
+			ErrorCodes:   errorCodes,
+			FindingCodes: findings,
 		})
 		return nil
 	}
@@ -1889,21 +1979,20 @@ func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human 
 	return nil
 }
 
-// writeTicketList reports a read that answers with tickets. Every such command
-// emits the same kind, and each supplies its own line for an empty answer,
-// because "nothing" means something different to search and to ready.
-func (ctx *cmdContext) writeTicketList(s *ticket.Store, tickets []*ticket.Ticket, empty string) error {
-	return ctx.writeTicketListWith(s, tickets, empty, listView{})
-}
-
 // listView says what the listing was read from, so the explanation beside it is
 // computed over the same set. A cross-branch listing explained by a
 // working-tree readiness reports no reason at all for a row that lives only on
 // another ref.
 type listView struct {
 	CrossBranch bool
+	// IDs is --ids, per plan 5.6. Empty means the series default, so a caller
+	// that has no opinion gets what a listing has always printed.
+	IDs string
 }
 
+// writeTicketListWith reports a read that answers with tickets. Every such
+// command emits the same kind, and each supplies its own line for an empty
+// answer, because "nothing" means something different to search and to ready.
 func (ctx *cmdContext) writeTicketListWith(s *ticket.Store, tickets []*ticket.Ticket, empty string, v listView) error {
 	if ctx.g.json {
 		// One call for the whole listing. Readiness reads the store to resolve
@@ -1935,7 +2024,11 @@ func (ctx *cmdContext) writeTicketListWith(s *ticket.Store, tickets []*ticket.Ti
 		fmt.Fprintln(ctx.out, empty)
 		return nil
 	}
-	writeListHuman(ctx.out, tickets, storeAbbreviations(s, tickets))
+	// --ids shapes the human listing alone. The JSON envelope carries whole IDs
+	// whatever the flag says, because a consumer parses them rather than reading
+	// them, and an abbreviated ID in a published contract is one a later ticket
+	// can make ambiguous.
+	writeListHuman(ctx.out, tickets, storeAbbreviations(s, tickets, v.IDs))
 	return nil
 }
 

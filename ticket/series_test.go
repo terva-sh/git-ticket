@@ -3,6 +3,7 @@ package ticket
 import (
 	"bytes"
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -32,6 +33,174 @@ func TestValidSeriesGrammar(t *testing.T) {
 		if ValidSeries(c.in) {
 			t.Errorf("ValidSeries(%q) = true, want false: %s", c.in, c.why)
 		}
+	}
+}
+
+// TestSeriesPatternAgreesWithValidSeries holds the two statements of one rule
+// together. `schema` publishes SeriesPattern so a consumer can validate without
+// reimplementing ValidSeries, and ValidSeries does not use the pattern, so
+// nothing but this test stops the two from drifting.
+func TestSeriesPatternAgreesWithValidSeries(t *testing.T) {
+	re, err := regexp.Compile(SeriesPattern)
+	if err != nil {
+		t.Fatalf("SeriesPattern does not compile: %v", err)
+	}
+	for _, s := range []string{
+		"TKT", "IDEA", "K8S", "V2", "S3", "AB", "ABCDEFGH",
+		"", "A", "ABCDEFGHI", "2FA", "tkt", "TK-T", "TK_T", "TK T", "T1", "A0000000",
+	} {
+		if got, want := re.MatchString(s), ValidSeries(s); got != want {
+			t.Errorf("%q: pattern says %v, ValidSeries says %v", s, got, want)
+		}
+	}
+	// The bounds are published beside the pattern, so they have to describe the
+	// same rule. A pattern permitting a length the numbers forbid would send a
+	// consumer two different answers from one envelope.
+	if !ValidSeries(strings.Repeat("A", SeriesMinLen)) {
+		t.Errorf("SeriesMinLen is %d, but a name that long is refused", SeriesMinLen)
+	}
+	if !ValidSeries(strings.Repeat("A", SeriesMaxLen)) {
+		t.Errorf("SeriesMaxLen is %d, but a name that long is refused", SeriesMaxLen)
+	}
+	if ValidSeries(strings.Repeat("A", SeriesMaxLen+1)) {
+		t.Errorf("a name one past SeriesMaxLen is accepted")
+	}
+}
+
+// TestAddSeriesKeepsWhatTheStoreAlreadyHad is the trap this whole feature turns
+// on. A store that has written no `series` key has [TKT] in effect and an empty
+// literal, so an add that appended to the literal would write [IDEA] alone and
+// turn every ticket already in the store into an unknown_series error.
+func TestAddSeriesKeepsWhatTheStoreAlreadyHad(t *testing.T) {
+	s := newTestStore(t)
+	if got := s.Config().Series; len(got) != 0 {
+		t.Fatalf("a fresh store declares %v, want an empty literal list", got)
+	}
+
+	res, err := s.AddSeries(context.Background(), "IDEA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(res.Series, ","); got != "TKT,IDEA" {
+		t.Fatalf("after adding IDEA the store declares %q, want TKT,IDEA", got)
+	}
+	if !res.Changed || len(res.PathsChanged) != 1 {
+		t.Errorf("a write reported changed=%v paths=%v", res.Changed, res.PathsChanged)
+	}
+
+	// And it survives a reopen, which is the half that a cached config would
+	// pass without writing anything.
+	reopened, err := Open(s.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(reopened.Config().EffectiveSeries(), ","); got != "TKT,IDEA" {
+		t.Fatalf("config.yml declares %q after reopening, want TKT,IDEA", got)
+	}
+}
+
+// TestAddSeriesIsANoOpWhenAlreadyDeclared. Running it to be sure is a thing
+// people do, so it is a success that wrote nothing rather than an error.
+func TestAddSeriesIsANoOpWhenAlreadyDeclared(t *testing.T) {
+	s := newTestStore(t)
+	res, err := s.AddSeries(context.Background(), DefaultSeries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Changed || len(res.PathsChanged) != 0 {
+		t.Errorf("adding the default reported changed=%v paths=%v, want a no-op",
+			res.Changed, res.PathsChanged)
+	}
+	if got := strings.Join(res.Series, ","); got != DefaultSeries {
+		t.Errorf("series = %q, want %s", got, DefaultSeries)
+	}
+}
+
+// TestAddSeriesRefusesBelowSchema2 is 5.6: a schema-1 store cannot render the
+// field set a series comes with, so the refusal names the command that fixes
+// it rather than writing a store an older reader will misread.
+func TestAddSeriesRefusesBelowSchema2(t *testing.T) {
+	s := schema1Store(t)
+
+	_, err := s.AddSeries(context.Background(), "IDEA")
+	var e *Error
+	if !asTicketError(err, &e) || e.Code != CodeValidationFailed {
+		t.Fatalf("err = %v, want %s", err, CodeValidationFailed)
+	}
+	if !strings.Contains(e.Message, "migrate") {
+		t.Errorf("the refusal does not name migrate: %s", e.Message)
+	}
+
+	// TKT is the exception, because it is what the store already has. Refusing
+	// it would make a harmless no-op look like a schema problem.
+	if _, err := s.AddSeries(context.Background(), DefaultSeries); err != nil {
+		t.Errorf("adding the default to a schema-1 store: %v", err)
+	}
+}
+
+// TestAddSeriesRefusesAMalformedName. The grammar failure is invalid_field and
+// not unknown_series: the repair is to type a legal name, not to declare this
+// one.
+func TestAddSeriesRefusesAMalformedName(t *testing.T) {
+	s := newTestStore(t)
+	for _, bad := range []string{"2FA", "A", "ABCDEFGHI", "TK-T", ""} {
+		_, err := s.AddSeries(context.Background(), bad)
+		var e *Error
+		if !asTicketError(err, &e) || e.Code != CodeInvalidField {
+			t.Errorf("AddSeries(%q): err = %v, want %s", bad, err, CodeInvalidField)
+		}
+	}
+}
+
+// TestRemoveSeriesRefusesWhileTicketsCarryIt names the count, because the
+// number is what tells the caller whether this is a mistake or a migration.
+func TestRemoveSeriesRefusesWhileTicketsCarryIt(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.AddSeries(context.Background(), "IDEA"); err != nil {
+		t.Fatal(err)
+	}
+	for _, title := range []string{"One idea", "Another idea"} {
+		if _, err := s.Create(context.Background(), CreateOptions{
+			Title:  title,
+			Series: "IDEA",
+			Actor:  Actor{ID: "human:sothr"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, err := s.RemoveSeries(context.Background(), "IDEA")
+	var e *Error
+	if !asTicketError(err, &e) || e.Code != CodeValidationFailed {
+		t.Fatalf("err = %v, want %s", err, CodeValidationFailed)
+	}
+	if e.Details["count"] != "2" {
+		t.Errorf("count = %q, want 2", e.Details["count"])
+	}
+	if !strings.Contains(e.Message, "2") {
+		t.Errorf("the message does not name the count: %s", e.Message)
+	}
+
+	// Nothing carries TKT here, so that one comes out. The refusal is about
+	// tickets and not about removal in general.
+	res, err := s.RemoveSeries(context.Background(), DefaultSeries)
+	if err != nil {
+		t.Fatalf("removing an unused series: %v", err)
+	}
+	if got := strings.Join(res.Series, ","); got != "IDEA" {
+		t.Fatalf("series = %q, want IDEA alone", got)
+	}
+}
+
+// TestRemoveSeriesRefusesTheLastOne. An empty list means [TKT], per 5.6, so
+// removing the last entry would not stick: the store would read back as
+// declaring exactly what it just dropped.
+func TestRemoveSeriesRefusesTheLastOne(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.RemoveSeries(context.Background(), DefaultSeries)
+	var e *Error
+	if !asTicketError(err, &e) || e.Code != CodeValidationFailed {
+		t.Fatalf("err = %v, want %s", err, CodeValidationFailed)
 	}
 }
 

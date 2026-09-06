@@ -289,6 +289,24 @@ warning still earns its place: `milestone` is a bare scalar with no registry, so
 nothing else can tell `v1.2` from `v1.2.0`, and a store left alone accumulates
 near-duplicates until `list --milestone` quietly answers about the wrong one.
 
+`series` is the third vocabulary key and the one that is not advisory. It lists
+the ID prefixes this store uses and defaults to `[TKT]`, so a store that says
+nothing has one series and is already correct. `create` refuses a prefix outside
+the list and `check` errors on a ticket carrying one. Declaring a series beyond
+`TKT` puts the store at schema 2:
+
+```yaml
+schema: 2
+series:
+  - TKT
+  - IDEA
+```
+
+5.6 carries the design and the argument for enforcing this list while the two
+above stay advisory. The short version is repair rather than strictness: an
+unlisted label is corrected in place, and a mistyped series is inside an ID that
+never changes.
+
 ### 4.2 Templates
 
 A template is a ticket-shaped Markdown file a person reviewed, in
@@ -451,6 +469,17 @@ a broken link in `check`.
 a consumer may write fields the core does not define, and the core never
 interprets its contents.
 
+`origin` names the ticket this one was created from, or null, per 5.6. It
+arrives at schema 2, so a schema-1 ticket does not carry the key at all. In the
+key order it sits directly after `parent`, because both name a single ticket and
+a reader takes the two together:
+
+```yaml
+parent: null
+origin: IDEA-01M1SHS5631486JEM819TNMKV4
+dependencies: []
+```
+
 The claim block, when a ticket is claimed:
 
 ```yaml
@@ -509,7 +538,9 @@ the same logical ticket must produce identical bytes, or the golden tests and
 the CLI-versus-terva acceptance criterion cannot hold.
 
 - Frontmatter keys in exactly the order listed in 5.1, then any preserved
-  unknown keys in their original order.
+  unknown keys in their original order. The set is the one the ticket's own
+  `schema` defines, so a field introduced at a later level is absent rather than
+  null on a ticket below it, per 5.6.
 - Block style for non-empty sequences and mappings. An empty collection is `[]`
   or `{}`, and an absent scalar is `null`.
 - No YAML anchors or aliases, and no flow style except the two empty forms
@@ -592,15 +623,22 @@ client problem this format has to survive. So:
 A field may only be removed or given a new meaning at a schema major bump.
 Adding a field is a minor change.
 
+That holds because a new field renders only at the level that introduced it, per
+5.3 and 5.6. Without the qualifier the row above would defeat itself: a newer
+binary writing a v1.1 field into a v1.0 store makes every ticket it touches an
+`unknown_field` error for the reader that shares the store, which is the case
+this table exists to prevent.
+
 ### 5.5 IDs and reference resolution
 
-An ID is `TKT-` followed by a 26-character Crockford base32 ULID, uppercase.
-ULIDs need no central counter, so two disconnected agents cannot collide, and
-they sort by creation time, which makes a directory listing chronological for
-free.
+An ID is a series prefix, a hyphen, and a 26-character Crockford base32 ULID,
+uppercase. `TKT` is the default series and the only one a store has until it
+declares another, per 5.6. ULIDs need no central counter, so two disconnected
+agents cannot collide, and they sort by creation time, which makes a directory
+listing chronological for free.
 
 Twenty-six characters is too many to type, so any command taking an ID accepts a
-unique case-insensitive prefix, with or without the `TKT-` part. A prefix must
+unique case-insensitive prefix, with or without the series part. A prefix must
 be at least four characters of the ULID to be considered, which stops a typo
 from resolving by accident. An ambiguous prefix returns `ambiguous_id` and lists
 the candidates. This is git's rule for object hashes and users already know it.
@@ -636,6 +674,257 @@ warning rather than an error because the ref does name something, and only a
 person knows which namespace it belonged in. A query with no colon matches an
 untyped ref whole and reaches into no namespace, so `PROJ-1234` does not find
 `jira:PROJ-1234`. Ask for a namespace with the colon.
+
+### 5.6 Series
+
+A series is a prefix that partitions the IDs in one store. `TKT` is the default
+and the only one until a store declares another, so
+`IDEA-01M1SHS5631486JEM819TNMKV4` and `TKT-01K3ZYEE00HV9ZDBB8BEASXBBG` are two
+tickets in one store, under one lock, in one resolution universe.
+
+One store and not many. Per-component stores would need cross-store resolution,
+would fragment the lock of 7.2, and would blind `check`, which reads a whole
+store to answer whether its edges resolve. Prefixes inside one store keep all
+three.
+
+What a prefix buys that a label does not is that it travels with the reference.
+A label is invisible at the point of mention, while the prefix sits inside the
+ID wherever the ID is quoted: in a `dependencies` list, a commit message, a PR
+body, a note. `IDEA-01M1SH` in a blocking list says at a glance that the wait is
+on something nobody has decided yet, and the reader learns that without opening
+anything.
+
+#### The prefix is identity
+
+A prefixed reference matches the ticket's own series or it matches nothing.
+`IDEA-01M1SH` never resolves to `TKT-01M1SHS5631486JEM819TNMKV4`.
+
+The alternative was to treat the prefix as decoration that `NormalizeRef`
+strips, which would let a bare ULID resolve everywhere at the cost of making
+`IDEA-x` and `TKT-x` one reference and a wrong prefix a happy answer. That fails
+on the argument that justifies series in the first place. A prefix earns its
+place by travelling with the reference, and a prefix nothing checks does not
+travel, it rides along.
+
+The cost is paid in two functions. `ResolveRef` splits a reference and compares
+two fields rather than one string, and `ShortestUnique` abbreviates within a
+series rather than pasting a constant back on. Both live in `ticket/id.go`
+because they are inverses, and two copies of that rule drift.
+
+#### Grammar
+
+A series prefix is two to eight characters, uppercase letters and digits, with a
+letter first: `[A-Z][A-Z0-9]{1,7}`.
+
+Digits are legal because a component names itself and `K8S`, `V2`, and `S3` are
+names people actually use. A leading digit is not, because a ULID's body opens
+with ten characters of timestamp that are mostly digits, so `2FA-01M1` and a
+ULID fragment that lost its prefix look alike at the speed anybody reads an ID.
+
+Two is the floor because one letter carries no meaning and spends a whole
+namespace on a character nobody can guess the expansion of. Eight is the ceiling
+because the prefix is quoted beside 26 characters of ULID everywhere it appears,
+and 5.1 already rests on the ID being the part of a reference a person does not
+read. A long series makes the unreadable part longer.
+
+The bounds are in `schema` and not `config`, per 10.4, so a consumer learns what
+is legal before it opens a store. Loosening them later is additive under 12.4
+and tightening them is a break, which is the reason to start narrow.
+
+#### Declaring one
+
+`config.yml` gains `series`, a list of prefixes. A store that declares nothing
+has `[TKT]`, so every store that exists today is already correct.
+
+It is enforced, unlike the `labels` and `milestones` allowlists beside it.
+`create` refuses a series the store does not declare and `check` reports a
+ticket whose prefix is not declared, as an error rather than a warning. Both say
+`unknown_series`.
+
+4.1's argument for advisory allowlists does not transfer, and the reason is
+repair rather than strictness. A label outside the allowlist is a value on a
+ticket, and `update --add-label` and `--remove-label` correct it in place, so
+the warning costs one command whenever the vocabulary catches up late. A series
+is inside the ID, and 7.5 conflicts a differing `id` rather than merging it,
+because an ID that changed is corruption. There is no `update --series` and
+there cannot be one. A ticket filed into a mistyped series is repaired by
+`remove` and a second `create`, and every reference already written to it is
+wrong. Erroring costs one config edit. Permitting costs a ticket nobody can fix.
+
+An empty `series` list means `[TKT]` rather than "no series permitted", which is
+the reading 4.1 gives an empty allowlist. `config` therefore publishes the
+effective list, which is never empty, with `enforced` always true, per 10.6.
+This is the one allowlist whose `enforced` is not derived from its length, and
+the envelope says so rather than leaving a consumer to infer a regime that does
+not apply here.
+
+`git ticket series` lists them and `git ticket series add NAME` declares one,
+per 12.1. Editing `config.yml` by hand does the same job. The command exists so
+that adopting a series validates the grammar at the moment somebody asks for it,
+rather than at the next `create`.
+
+`series remove NAME` refuses while any ticket carries that prefix and names the
+count, because removing it turns every one of those tickets into an
+`unknown_series` error at the next `check`.
+
+#### A ticket never changes series
+
+The ID is immutable, so moving work between series means creating a new ticket
+in the receiving series. It is never a rename. The source keeps its ID and every
+reference already written to it keeps resolving, and because `done` and
+`archived` tickets stay in the store as files, a reference to a closed idea is
+never dangling.
+
+#### Resolution
+
+5.5 gives the rules a reference resolves by, and series changes three of them.
+
+A bare ULID fragment resolves across every series. ULIDs cannot collide, so
+`show 01M1QK` answers without knowing which series the ticket is in, and the
+commands a person already types keep working in a store that adopts one.
+
+A prefixed fragment matches on both halves: the series exactly, and the ULID as
+a prefix. Case is ignored on both, per 5.5.
+
+The four-character floor applies to the ULID half alone. A series is typed whole
+or not at all, so `ID-01M1` is not a shortening of `IDEA-`, it is the series
+`ID`.
+
+A reference naming a series the store does not declare returns `unknown_series`
+and not `ticket_not_found`. The two send a reader to different places, one to
+look for a ticket and the other to look at the config. An ambiguous fragment is
+still `ambiguous_id` and still lists its candidates.
+
+#### Abbreviation
+
+`ShortestUnique` shortens a ULID against the other IDs in its own series,
+because the prefix already carries the rest of the disambiguation. Two tickets
+created in the same millisecond in different series then print short
+abbreviations that both resolve, where a store-wide computation would lengthen
+both for a collision resolution never sees.
+
+Listings take `--ids`, which is `series` by default and also accepts `store` and
+`full`. `store` abbreviates against every ticket regardless of series, so the
+ULID half resolves on its own, which is what somebody pasting an ID into a
+document read outside this store wants. `full` prints all 26 characters. The
+flag takes a value so that the default has a name, which is why `--sort` takes
+one, per section 8.
+
+#### Provenance
+
+`origin` is a frontmatter scalar holding the ID of the ticket this one was
+created from, or null. `create --from ID` seeds the new ticket's title,
+description, and acceptance criteria from that ticket and records it there.
+
+Those three and no more. They are the statement of the work, while `priority`,
+`labels`, and `milestone` are routing that the receiving series decides for
+itself. `--from` and `--template` are refused together with `usage`, because two
+seed sources overlapping on the same fields need a precedence rule nobody would
+remember.
+
+It is a field and not a `ticket:` reference, because `check` verifies that
+`parent` resolves and verifies no reference target, and provenance wants the
+guarantee `parent` has. A `refs ticket:` query would also mix provenance in with
+every other kind of link a ticket carries.
+
+It is not `parent`, because `parent` holds one value and the two relations are
+different. A ticket born from `IDEA-y` may also belong to epic `TKT-z`, and a
+format that stored one in the other would make an agent choose which fact to
+keep.
+
+The reverse direction is derived and never written. `list --origin ID` answers
+what came out of a ticket, the way `list --parent` answers what is under an
+epic, and for the reason `blocks_on: children` derives its children in 5.1: a
+source that enumerated its descendants would be edited by every one of them,
+which turns the one file several agents read into the one file they all
+conflict on.
+
+`create --from` never touches the source. An idea that fans out to three
+implementation tickets must not close on the first, and no flag closes it,
+because the create that is the last one is not distinguishable at create time
+from the create that is not. Closing it is a separate `status` when a person
+decides it is spent, and a flag can be added beside this later, which 12.4 makes
+a minor change.
+
+`--from` is not restricted to a cross-series create. Splitting a ticket within
+one series is the same operation and earns the same record.
+
+`check` reports `origin_missing` when `origin` names a ticket that does not
+exist, matching `parent_missing`. There is no `origin_cycle`. Nothing walks
+`origin` transitively, so a cycle in it gates nothing and breaks no query, and a
+finding naming a condition with no consequence spends a reader's attention for
+nothing. `parent_cycle` and `dependency_cycle` exist because readiness walks
+both graphs. A write naming the ticket's own ID is refused with `invalid_field`,
+which costs no code and catches the one case anybody reaches by accident.
+
+#### Series and the directories
+
+A series does not partition the store's directories. Section 4 partitions by
+status, and a second axis would multiply four directories by the number of
+series and leave `location_mismatch` with two things to be wrong about. A
+ticket's file is `<id>.md` under its status directory, so the name carries the
+series and the path carries the status, which is the split the store already
+has.
+
+The filename fallback follows. A file whose frontmatter is too broken to parse
+still yields an ID from its name, per section 8, and that fallback recognizes
+any series the store declares rather than `TKT` alone.
+
+#### Compatibility, which is the whole cost
+
+A store that declares any series beyond `TKT` is at schema 2, and so is a store
+that uses `origin`. That declaration is not a courtesy to old readers. It is the
+only thing standing between a prefixed store and wrong answers from every binary
+already installed.
+
+That was measured on 2026-09-05 rather than reasoned about. A schema-1 binary
+was run against a scratch store holding one ticket hand-retrofitted to `IDEA-`
+in both its filename and its `id`, with a `dependencies` entry pointed at it
+from an ordinary ticket:
+
+| What was run | What the schema-1 binary did |
+|---|---|
+| `check --strict` | reported nothing about the prefixed ticket. `files()` globs every `.md` and the file parses |
+| `show 01M1SH`, a bare fragment of the prefixed ULID | returned a different ticket, exit 0. Two ordinary tickets sharing that fragment answer `ambiguous_id` with exit 1 |
+| `list` | printed the ticket as `TKT-IDEA-01M`, an ID that exists nowhere and resolves to nothing |
+| the cross-series dependency | `dependency_missing` |
+
+Four quiet wrong answers instead of one loud refusal, and `show` is the worst of
+them, because nothing in its output says it guessed.
+
+12.5 already carries the mechanism that fixes this. `config.yml` declares the
+store's schema, a reader refuses a store declaring more than it supports, and
+`create` stamps the store's declared level rather than the binary's maximum. So
+an old binary meeting a schema-2 store stops on every command with
+`schema_unsupported`, which is the loud refusal, and a store that never adopts a
+series stays at schema 1 and is untouched by any of this. Upgrading a binary
+migrates nothing.
+
+The order matters, and 12.5 fixes that too: `config.yml` is written first,
+before any ticket, so an adoption interrupted by a crash leaves a store an old
+reader refuses outright rather than one it reads with tickets missing.
+
+#### What schema 2 is
+
+Schema 2 adds two things and removes nothing:
+
+1. `series` in `config.yml`, and IDs whose prefix is a declared series.
+2. `origin` in frontmatter.
+
+A schema-2 reader reads schema-1 files unchanged, which is what makes learning a
+new level an additive minor release under 12.4 rather than a `/v2`.
+
+A field introduced at schema 2 renders only at schema 2. 5.3 renders every known
+field on every ticket, so a binary that wrote `origin: null` into a schema-1
+store would make an older reader's `check` fail with `unknown_field` on every
+ticket it touched, which is the drift 12.5 exists to prevent. The renderer
+therefore emits the field set for the ticket's own schema, and the round-trip
+guarantee of 5.3 holds per level. That rule is what makes 5.4's "adding a field
+is a minor change" true rather than merely intended.
+
+A schema-1 store refuses `create --from` and `series add`, naming `migrate`.
+Neither can be honoured at that level, and a refusal naming the one command that
+fixes it beats a field the store cannot render.
 
 ## 6. Status and lifecycle
 
@@ -925,7 +1214,7 @@ driver worth shipping rather than a rule telling people not to do that.
 | `schema`, `id`, `created_at`, `created_by` | conflict. These never change, so a difference is corruption and not a merge |
 | `updated_at` | the later of the two |
 | `updated_by` | the actor belonging to that later `updated_at`, so the pair stays one fact |
-| `title`, `type`, `status`, `status_reason`, `priority`, `due_on`, `milestone`, `parent`, `blocks_on` | take the side that changed, and conflict when both changed to different values |
+| `title`, `type`, `status`, `status_reason`, `priority`, `due_on`, `milestone`, `parent`, `origin`, `blocks_on` | take the side that changed, and conflict when both changed to different values |
 | `labels`, `assignees`, `dependencies`, `references` | union. These are unordered sets, so two additions are compatible |
 | `claim` | conflict whenever the sides differ. A claim is a mutual exclusion record, and resolving it silently hands one ticket to two agents, each holding a file that says it is theirs |
 | `archive` | conflict, for the reason `claim` does. Two sides archiving out of different statuses disagree about history |
@@ -962,15 +1251,15 @@ was nothing to do.
 
 ## 8. Query surface
 
-- `list` with filters on status, type, priority, label, assignee, milestone, and
-  parent. Within one filter the values are alternatives and across filters they
-  all have to hold. It answers with open work: every status except `done` and
-  `archived`. A caller who wants those names the status, or asks for everything
-  with `--all`. `--due-by` takes a
-  date and selects the tickets due on or before it, which is the query the
-  field exists for, because today's date answers what is late. It is a bound
-  and not a set, so the alternatives rule above does not apply to it, and a
-  ticket carrying no `due_on` is not due by any date and never matches
+- `list` with filters on status, type, priority, label, assignee, milestone,
+  parent, series, and origin. Within one filter the values are alternatives and
+  across filters they all have to hold. It answers with open work: every status
+  except `done` and `archived`. A caller who wants those names the status, or
+  asks for everything with `--all`. `--due-by` takes a date and selects the
+  tickets due on or before it, which is the query the field exists for, because
+  today's date answers what is late. It is a bound and not a set, so the
+  alternatives rule above does not apply to it, and a ticket carrying no
+  `due_on` is not due by any date and never matches
 - `ready`: status `ready`, no live claim, and every dependency satisfied per 6.3.
   Only direct dependencies are read, so a dependency cycle cannot make this loop
 - `show` for one complete ticket
@@ -1195,6 +1484,13 @@ The CLI resolves a parent the way it resolves every other ID, so a prefix works
 and an ID matching nothing is `ticket_not_found`. Filtering on a parent that
 does not exist is a mistake worth reporting, and a silent empty result reads
 exactly like an epic with no children.
+
+`--series` takes a prefix rather than an ID, so `list --series IDEA` is every
+idea. A series the store does not declare is `unknown_series` and not an empty
+answer, for the reason a missing parent is `ticket_not_found`: a filter that
+reports nothing about a name nobody defined reads exactly like a series holding
+no tickets. `--origin` resolves an ID the way `--parent` does and matches direct
+origin only, per 5.6.
 
 Search reads every file on every call. At the scale this format targets,
 hundreds to a few thousand tickets, that is a few milliseconds and needs no
@@ -1450,10 +1746,10 @@ at all is refused rather than warned.
 Stable codes, which callers may switch on:
 
 `store_not_found`, `store_exists`, `ticket_not_found`, `ambiguous_id`,
-`stale_revision`, `invalid_transition`, `invalid_field`, `dependency_missing`,
-`dependency_cycle`, `claim_conflict`, `ticket_referenced`, `ticket_touched`,
-`parse_error`, `merge_conflict`, `schema_unsupported`, `lock_timeout`,
-`validation_failed`, `usage`.
+`unknown_series`, `stale_revision`, `invalid_transition`, `invalid_field`,
+`dependency_missing`, `dependency_cycle`, `claim_conflict`, `ticket_referenced`,
+`ticket_touched`, `parse_error`, `merge_conflict`, `schema_unsupported`,
+`lock_timeout`, `validation_failed`, `usage`.
 
 The last two are `remove`'s, per 9.1. They are their own codes rather than a
 `validation_failed` apiece because the repairs differ, so a caller that reads
@@ -1464,6 +1760,15 @@ command and overridden by the same `--force`.
 `usage` is the CLI's own: an unknown command, a missing argument, or a flag
 value outside its set. It never comes from the library, which is why it names no
 store condition.
+
+`unknown_series` is 5.6's, and it sits beside `ambiguous_id` rather than folding
+into `invalid_field` because it answers a resolution question. A caller that
+receives it named a series the store does not declare, so the repair is
+`series add` or a corrected prefix, and neither is discoverable from a code that
+only says some field was wrong. The templates precedent points the other way,
+where an unknown `--template` refuses as `invalid_field`, and the difference is
+that a template names a file while a series names a namespace that other
+tickets' IDs already live in.
 
 Every path in the envelope is relative to the repository root when the store
 sits inside one, and absolute otherwise. That covers `pathsChanged`, the `path`
@@ -1510,6 +1815,7 @@ answers.
   "assignees": ["human:sothr"],
   "milestone": "v1.2",
   "parent": null,
+  "origin": null,
   "dependencies": [],
   "blocksOn": "none",
   "references": [{ "ref": "proposal:git-ticket", "path": "docs/plan.md" }],
@@ -1802,6 +2108,7 @@ Like `schema`, it reads no store and answers anywhere.
   "ticketSchema": 1,
   "labels": { "values": ["ci", "format", "release"], "enforced": true },
   "milestones": { "values": [], "enforced": false },
+  "series": { "values": ["TKT", "IDEA"], "enforced": true },
   "actors": [{ "id": "human:sothr", "name": "Drew Short" }],
   "defaults": { "type": "task", "priority": "normal", "actor": null, "claimExpiry": null },
   "lock": { "timeout": "10s" },
@@ -1842,6 +2149,18 @@ and a store that listed none are the same state, because 4.1 gives an empty list
 the meaning "this store has not expressed an opinion" rather than "this store
 permits nothing". This envelope reports which regime is in force instead of
 inventing a distinction the format does not carry.
+
+`series` is the one allowlist where `enforced` is not derived, and it is always
+true. 5.6 gives an empty `series` list the meaning `[TKT]` rather than "no
+opinion", so the derivation above has nothing to measure: the effective list is
+never empty and the regime never varies. `values` carries the effective list and
+not the literal config, which is why a store that has written no `series` key at
+all publishes `["TKT"]` here.
+
+That makes the object shape carry its weight rather than being a formality. A
+consumer reading `values` alone gets the right answer for all three allowlists,
+and a consumer reading `enforced` learns that a label it invents will be
+accepted while a series it invents will not.
 
 Publishing an allowlist does not make it stricter. It stays advisory, per 4.1: a
 write naming a label outside the list succeeds, and `check` reports
@@ -1891,9 +2210,9 @@ exits nonzero on any error, and `--strict` promotes warnings to errors.
 Every finding carries a stable code, so a caller switches on the code instead of
 matching a message. These codes overlap the operation codes in section 10 only
 where the condition is the same one: `parse_error`, `merge_conflict`,
-`schema_unsupported`, `dependency_missing`, and `dependency_cycle`. The operation
-code `invalid_field` does not appear here, because a report says which field is
-wrong rather than that some field is.
+`schema_unsupported`, `dependency_missing`, `dependency_cycle`, and
+`unknown_series`. The operation code `invalid_field` does not appear here,
+because a report says which field is wrong rather than that some field is.
 
 Errors:
 
@@ -1937,6 +2256,24 @@ A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
 a parse failure would be noise.
 
+Three codes arrive with schema 2 and are not in the tables above yet, because
+the tables and the fixture corpus are one artifact: a code here without a
+fixture fails `TestCorpusCoversEveryPlanCode`, and none of the three has a state
+a schema-1 store can reach. They register here in the change that implements
+them, which is the habit 12.5 already follows for the third.
+
+The errors are `unknown_series`, a ticket whose ID carries a series the store
+does not declare, and `origin_missing`, an `origin` naming a ticket that does
+not exist. Both come from 5.6. The warning is `migration_incomplete`, a ticket
+declaring a lower `schema` than `config.yml` does, from 12.5.
+
+An ID that breaks the grammar of 5.6 will be `parse_error` and not
+`unknown_series`, because `ValidID` refuses it before anything reads the config.
+`unknown_series` is the narrower condition: a well-formed ID whose series this
+store does not list. The two repairs differ, which is why the codes do. A
+malformed ID is a broken file, and an undeclared series is usually a missing
+line in `config.yml`.
+
 Severity belongs to the code, not to the condition that raised it. A caller
 reading a report has only the code to go on, so `unknown_field` is an error
 wherever `check` finds it. `git ticket schema` publishes this split, per 10.4,
@@ -1968,6 +2305,13 @@ creating the ticket, and only a person knows which was meant. `label_unknown`
 and `milestone_unknown` are each either a typo in the ticket or a gap in the
 allowlist. A tool that guessed at those would be wrong about half of them and
 silent about it, which is worse than reporting and stopping.
+
+Of the three codes above, `unknown_series` will be the same pair as
+`label_unknown` at a stricter severity, either a typo in the ID or a gap in the
+config, and so is not repaired either. `migration_incomplete` will be the one
+finding with exactly one correct repair that `--fix` still declines, and 12.5
+says why: the repair is `migrate`, which rewrites every ticket in the store, and
+a store moves only through a migration a person runs. `check --fix` runs in CI.
 
 ### Verifying generated artifacts in CI
 
@@ -2033,14 +2377,14 @@ That is the smaller price.
 git ticket init   [--instructions]
 git ticket install-merge-driver
 git ticket merge-driver BASE OURS THEIRS
-git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --due-by DATE --sort id|due_on|priority|updated_at|status]
+git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --series S --origin ID --due-by DATE --sort id|due_on|priority|updated_at|status --ids series|store|full]
 git ticket ready
 git ticket ui       # browse the store interactively; no --json form
 git ticket show   ID [--body]
 git ticket copy   ID     # put the body on the system clipboard, per 12.7
 git ticket search QUERY [--regex]
-git ticket create --title T [--template NAME --type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --template per 4.2; --status, --created, --reason per 6.2.1
-git ticket update ID [--title --type --priority --description --description-file --milestone --parent --blocks-on --due-on --add-label --remove-label --assign --unassign]
+git ticket create --title T [--template NAME --from ID --series S --type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --template per 4.2; --from and --series per 5.6; --status, --created, --reason per 6.2.1
+git ticket update ID [--title --type --priority --description --description-file --milestone --parent --origin --blocks-on --due-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
 git ticket release ID
@@ -2063,6 +2407,7 @@ git ticket migrate [--to N] [--dry-run]
 git ticket instructions [--write]
 git ticket schema
 git ticket config   # what this store configured, including the allowlists
+git ticket series [add NAME | remove NAME]   # the ID prefixes this store uses, per 5.6
 git ticket self-update [--check | --dry-run]   # replace this binary with the latest release, per 12.6
 ```
 
@@ -2112,6 +2457,17 @@ prose to want subheadings.
 `merge-driver` is plumbing that Git invokes with the three temporary files of a
 merge, rather than something a person types. Section 7.5 is what it does, and
 `install-merge-driver` is the command that points Git at it.
+
+`--ids` is written once above and belongs to every command that prints more than
+one ticket, so `list`, `ready`, `search`, `deps`, `files`, and `refs` all take
+it. A command printing one ticket does not, because there is nothing to
+abbreviate against and `show` prints the ID whole.
+
+`series` with no argument lists what the store declares and is a read, so it
+needs no actor. `add` and `remove` write `config.yml` rather than a ticket,
+which makes them the only writes outside section 9. They still take the store
+lock, because a store whose `series` list is read by every `create` cannot have
+it changed underneath one.
 
 The store is found in this order: `--store`, then `GIT_TICKET_STORE`, then
 discovery walking up from the current directory to the Git root. `config.yml`
@@ -2446,6 +2802,26 @@ needs to know what it is talking to reads `ticket.SchemaVersion` at runtime,
 which is why that constant is exported. The module goes to `/v2` when the Go
 API breaks, and not because the file format moved.
 
+Schema 2 is that minor release and 5.6 is what it carries: `series` in
+`config.yml`, `origin` in frontmatter, the `unknown_series`, `origin_missing`,
+and `migration_incomplete` codes, the `series` key on the `config` envelope, and
+the `--ids` flag. Every one is an addition beside something that already worked,
+so a consumer ignoring all of them reads what it read before.
+
+Two things that look like breaks are not. `ShortestUnique` keeps its signature,
+because an ID carries its own series and the function groups by prefix from its
+argument alone, so the store-wide mode arrives as a second function rather than
+a changed one. And a schema-1 store is untouched: `series` defaults to `[TKT]`,
+which is what every store already had, and no file changes until somebody runs
+`migrate`.
+
+The break this design had to avoid is quieter than either. Writing `origin:
+null` into a schema-1 store would turn every ticket a newer binary touched into
+an `unknown_field` error for the colleague who has not upgraded, which is a
+covered surface changing meaning without anybody choosing it. 5.3 and 5.6 answer
+it by rendering a field only at the level that introduced it, and that rule is
+what lets any later field ship the same way.
+
 A store never upgrades itself. When the library learns to write a newer schema,
 an existing store stays where it is. Reading never rewrites, a mutation writes
 back the schema the file already declared, and a new ticket is written at the
@@ -2504,13 +2880,22 @@ many and pointing at `migrate`. It warns rather than errors, because such a stor
 is correct for a reader that understands both levels. A half-finished job should
 still not be invisible.
 
-Only the `create` rule is built. The command, the method, and the warning land
-with schema 2, along with the fixtures that prove them and the finding code
-registered in section 11. Building them now would mean untested code for a state
-that cannot occur. A ticket declaring more than the reader supports does not
-parse, so no fixture can hold a store whose files merely disagree with its
-config. The `create` rule ships now because it is load-bearing whether or not a
-second schema ever arrives.
+Only the `create` rule was built at first, because the rest would have been
+untested code for a state that could not occur: with one schema, no fixture can
+hold a store whose files merely disagree with its config, since a ticket
+declaring more than the reader supports does not parse at all.
+
+5.6 makes schema 2 exist, so the rest builds. The command, the method, the
+warning, and the fixtures that prove them land with it. The warning's code is
+`migration_incomplete`, which section 11 names and registers in the change that
+implements it, because a code in that table with no fixture behind it fails the
+test holding the two together.
+
+`check --fix` does not repair it. The repair is `migrate`, which rewrites every
+ticket in the store under the lock, and that is a different operation from the
+three recomputations `--fix` performs. A `--fix` that silently migrated a store
+would also defeat the rule above it: a store moves only through an explicit
+migration that a person runs, and `check --fix` is something CI runs.
 
 ### 12.6 Self-update
 
@@ -2994,6 +3379,37 @@ lives is answered by `status_reason` in 5.1 and 6.2: the field holds the
 current reason and `Notes` keeps the history. What a `references` path resolves
 against is answered in 5.5: the root of the Git repository holding the store,
 and no finding at all when the store sits outside one.
+
+**Prefixed ID series** (`TKT-01M1R4B5K2SGFCDHX53WPA0FRS`) is answered in 5.6,
+and it is the question that makes schema 2 exist. Whether one store can carry ID
+prefixes beside `TKT-` was raised on 2026-09-04 and deferred behind a trigger
+naming terva's ticket volume. That trigger never fired and is retired here,
+because the question was settled on its merits instead.
+
+What settled it was measuring what a schema-1 binary does with a prefixed store,
+and the measurement changed the design. The deferral had recorded two claims,
+that resolution barely changes and that an old binary refuses a prefixed ID
+cleanly, and both are false. An old binary accepts the ticket, prints it under
+an abbreviation that exists nowhere, drops it out of fragment resolution
+entirely, and answers a bare fragment with a different ticket at exit 0. So
+compatibility stopped being a courtesy to old readers and became the whole cost
+of the feature, which is why 5.6 leads with it and why this cannot ship without
+the migration 12.5 specifies.
+
+The name is `series`, decided 2026-09-05 by grepping the candidates rather than
+by ear. `stream` is spent eleven times over and always on I/O. `track` has zero
+noun uses and seventeen verb ones, two of them where a reader cannot miss them,
+so `tracks:` would land in a document whose first line calls this work tracking
+for agents and whose first section calls it a ledger that lives in the
+repository it tracks. `series` is unused in either sense, and an invoice series
+is a numbered run distinguished by a prefix, which is the mechanism itself and
+not an analogy for it.
+
+The fork underneath is whether the prefix is decoration or identity, and it is
+identity. Decoration would let a bare ULID resolve everywhere for free, at the
+cost of making `IDEA-x` and `TKT-x` one reference. A prefix earns its place by
+travelling with the reference into a dependency list and a commit message, and a
+prefix nothing checks does not travel.
 
 **The module path** (`TKT-01M1F8XG6KXN6QXYWF6EHVB88P`) was settled by publishing
 rather than by argument. `go.mod` declares `github.com/terva-sh/git-ticket` and a

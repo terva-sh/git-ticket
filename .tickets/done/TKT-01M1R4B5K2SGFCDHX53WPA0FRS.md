@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1R4B5K2SGFCDHX53WPA0FRS
 title: Decide how prefixed ID series subdivide a store
 type: spike
-status: draft
+status: done
 status_reason: null
 priority: low
 due_on: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T06:33:23Z
-updated_at: 2026-09-05T20:19:20Z
+updated_at: 2026-09-06T15:02:20Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -348,3 +348,95 @@ sessions and be found to disagree later.
 
 The trigger has still not fired. This note corrects a survey, it does
 not start the work.
+
+**agent:terva/mieli** at 2026-09-06T15:01:06Z
+
+Answered. The design is plan 5.6, and this supersedes the three notes
+above, each of which closes by saying the trigger has not fired. It
+has not. The question was settled on its merits instead, with the user
+on 2026-09-06, and the forward guidance in those notes about what a
+later session should survey is spent.
+
+### The eight decisions
+
+1. Sequencing. Two tickets, one release. `migrate` lands first in its
+   own PR, series follows on top, and both ship as v0.12.0.
+2. `origin` is in the first cut rather than deferred, because
+   cross-series creation is the point of having series.
+3. The `series` allowlist is enforced, not advisory like `labels` and
+   `milestones`. `create` refuses an undeclared prefix and `check`
+   errors on one.
+4. An undeclared series refuses with a new stable code,
+   `unknown_series`, rather than folding into `invalid_field` on the
+   templates precedent.
+5. The grammar is two to eight characters, uppercase letters and
+   digits, never a leading digit: `[A-Z][A-Z0-9]{1,7}`.
+6. A `git ticket series` command lists and adds them, beside `config`.
+7. `ShortestUnique` abbreviates within a series, with `--ids store`
+   as the escape hatch for a store-wide unique abbreviation and
+   `--ids full` for all 26 characters.
+8. This spike closes with the plan section merged, and a new ticket per
+   implementation unit carries the code.
+
+### What the design work added beyond those answers
+
+Schema 2 is the whole cost, and 12.5 already specified the mechanism
+before there was a second schema to use it on. That section says the
+`migrate` command, `Store.Migrate`, the `check` warning, and its
+fixtures land with schema 2. Series is what makes schema 2 exist, so
+it drags all four into the release. That is why the sequencing question
+above was asked before any plan text moved.
+
+A field introduced at schema 2 renders only at schema 2. This is new
+and is in 5.3, 5.4, and 5.6. Without it a v0.12.0 binary writing
+`origin: null` into a schema-1 store would make every ticket it touched
+an `unknown_field` error for a colleague who has not upgraded, which is
+the drift 12.5 exists to prevent. It is also what makes 5.4's "adding a
+field is a minor change" true rather than merely intended.
+
+### Two spellings I chose rather than the user
+
+Both are 12.4 surfaces and both are open to revision in review.
+
+`--ids series|store|full` is the flag for decision 7. The user asked
+for the capability and not the name. It takes a value so the default
+has a name, which is the reason `--sort` takes one, per section 8.
+
+`migration_incomplete` is the warning 12.5 promised as "the finding
+code registered in section 11" without naming it. Naming it was
+necessary to write the section 11 text.
+
+### Why section 11 does not carry the three new codes yet
+
+`unknown_series`, `origin_missing`, and `migration_incomplete` are
+named in section 11 prose and are absent from its tables.
+`TestCorpusCoversEveryPlanCode` requires a fixture for every code in
+those tables, and none of the three has a state a schema-1 store can
+reach, so the rows land in the change that implements them. 12.5
+already followed that habit for the third. Adding the rows now fails
+the suite, which was confirmed by doing it and reading the failure
+rather than by predicting it.
+
+## Summary
+
+Settled. The design is plan 5.6, with supporting edits in 4.1, 5.1,
+5.3, 5.4, 5.5, 7.5, 8, 10, 10.1, 10.6, 11, 12.1, 12.4, 12.5, and a
+section 15 entry that retires the trigger.
+
+A series is an ID prefix that partitions one store. The prefix is
+identity rather than decoration, so a prefixed reference matches the
+ticket's own series or nothing. `TKT` is the default, the `series`
+config key is enforced, and the grammar is `[A-Z][A-Z0-9]{1,7}`.
+`origin` records what a ticket was created from, `create --from` seeds
+it, and `list --origin` reads the reverse.
+
+The cost is compatibility and it is the whole cost. A schema-1 binary
+does not refuse a prefixed store, it gives four quiet wrong answers,
+including returning a different ticket at exit 0 for a bare ULID
+fragment. So a store that declares a series beyond `TKT` is at schema
+2, which makes an old binary refuse it outright per 12.5, and that in
+turn makes `migrate` part of the same release.
+
+Two implementation tickets follow, in this order: raise the format to
+schema 2 and build `migrate`, then build series and `origin` on top.
+Both ship as v0.12.0.

@@ -138,6 +138,47 @@ func TestAddSeriesRefusesBelowSchema2(t *testing.T) {
 	}
 }
 
+// TestCreateFromRefusesBelowSchema2 is the other half of 5.6's schema-1
+// refusal, and the half that costs most to get wrong.
+//
+// origin renders only at the level that introduced it, per 5.3, so without this
+// refusal the create succeeds, exits 0, reports origin null, and writes no
+// origin line to disk. The caller asked to record provenance and is told
+// nothing went wrong while it is discarded. That is exactly the silent loss
+// 12.5 exists to prevent, so it is a refusal naming migrate.
+func TestCreateFromRefusesBelowSchema2(t *testing.T) {
+	s := schema1Store(t)
+	source, err := s.Create(context.Background(), CreateOptions{
+		Title: "A source at schema 1",
+		Actor: Actor{ID: "human:sothr"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.Create(context.Background(), CreateOptions{
+		Title: "Seeded from it",
+		From:  source.Ticket.ID,
+		Actor: Actor{ID: "human:sothr"},
+	})
+	var e *Error
+	if !asTicketError(err, &e) || e.Code != CodeValidationFailed {
+		t.Fatalf("err = %v, want %s", err, CodeValidationFailed)
+	}
+	if !strings.Contains(e.Message, "migrate") {
+		t.Errorf("the refusal does not name migrate: %s", e.Message)
+	}
+
+	// A create with no --from is untouched by this. A schema-1 store keeps
+	// working exactly as it did, which is the whole compatibility claim.
+	if _, err := s.Create(context.Background(), CreateOptions{
+		Title: "An ordinary create on the same store",
+		Actor: Actor{ID: "human:sothr"},
+	}); err != nil {
+		t.Errorf("an ordinary create on a schema-1 store: %v", err)
+	}
+}
+
 // TestAddSeriesRefusesAMalformedName. The grammar failure is invalid_field and
 // not unknown_series: the repair is to type a legal name, not to declare this
 // one.

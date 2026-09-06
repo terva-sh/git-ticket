@@ -333,6 +333,21 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	// so an explicit flag wins, which is the precedence --template already uses.
 	var origin *string
 	if o.From != "" {
+		// Refused below schema 2, per 5.6, and this is the refusal that matters
+		// most. origin renders only at the level that introduced it, so without
+		// this the create succeeds, exits 0, reports origin null, and writes no
+		// origin line at all. The caller asked to record provenance and is told
+		// nothing went wrong while it is silently dropped, which is worse than
+		// any refusal.
+		if cfg := s.Config(); !hasOrigin(cfg.Schema) {
+			return nil, &Error{
+				Code: CodeValidationFailed,
+				Message: fmt.Sprintf(
+					"this store declares schema %d and --from records an origin, which needs schema %d; run git ticket migrate first",
+					cfg.Schema, SchemaVersion),
+				Field: "origin",
+			}
+		}
 		fromID, err := s.resolveRef(o.From, mergeIDs(index.ids(), broken.ids()))
 		if err != nil {
 			return nil, err

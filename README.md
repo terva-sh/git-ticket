@@ -181,9 +181,22 @@ and `latest`, so you can pin exactly or float; a prerelease publishes its own
 version alone and never moves `latest`.
 
 It runs as root, and git refuses to operate on a mounted repository owned by a
-different user with `detected dubious ownership`. Add
-`-e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/w`
-when that happens, or run the container as the owning uid.
+different user with `detected dubious ownership`. The image carries the
+exception for that switched off: it bakes `safe.directory=*` into git's
+config-environment slot 0 and leaves out the count that would activate it. Add
+one variable to turn it on, or run the container as the owning uid:
+
+```sh
+docker run --rm -e GIT_CONFIG_COUNT=1 -v "$PWD:/w" -w /w \
+  ghcr.io/terva-sh/git-ticket:latest git ticket ready
+```
+
+Read `GIT_CONFIG_COUNT=1` on this image as "trust whatever repository is
+mounted here". It works inside a CI container job, where an entrypoint script
+would not, because the runner overrides the entrypoint and delivers each step
+by `exec`. If you use `GIT_CONFIG_*` yourself, note that the image has taken
+slot 0: setting your own `GIT_CONFIG_KEY_0` overrides it, but setting only the
+count gets you `safe.directory`.
 
 A release carries archives for Linux, macOS and Windows, on amd64 and arm64.
 Download one, unpack it, and put `git-ticket` on your `PATH`. The binary sits at

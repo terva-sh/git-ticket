@@ -33,6 +33,29 @@ RUN apk add --no-cache \
 COPY git-ticket /usr/local/bin/git-ticket
 COPY LICENSE /usr/share/doc/git-ticket/LICENSE
 
+# An opt-in exception to git's ownership check, shipped disarmed. git refuses to
+# work on a mounted repository owned by another uid, and a CI image usually
+# answers that with a blanket `safe.directory '*'` in its system config. That
+# weakens the check for everyone, including whoever runs this as a tool rather
+# than as a pipeline base, so the exception ships switched off instead.
+#
+# git reads a GIT_CONFIG_* triple only when GIT_CONFIG_COUNT says how many
+# entries exist. With the count absent these two are inert and the image trusts
+# nothing. Passing `-e GIT_CONFIG_COUNT=1` arms them, so the opt-in costs one
+# variable rather than the three the README used to prescribe.
+#
+# This is environment rather than an entrypoint hook on purpose. A CI container
+# job overrides the entrypoint and delivers each step by exec, so a startup
+# script never runs in the setting that most wants the exception. Environment
+# survives exec, and this was measured against the published image rather than
+# assumed.
+#
+# The cost is that the image claims slot 0. Setting your own GIT_CONFIG_KEY_0
+# overrides the value below, so a caller already using the protocol is not
+# silently overruled, but a caller who sets only the count gets this.
+ENV GIT_CONFIG_KEY_0="safe.directory"
+ENV GIT_CONFIG_VALUE_0="*"
+
 # Git spells a binary named git-ticket on PATH as `git ticket`, so both
 # spellings work with nothing further to configure.
 #

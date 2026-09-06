@@ -658,7 +658,7 @@ func (s *Store) Deps(ctx context.Context, ref string, o DepsOptions) ([]*Ticket,
 		byID[t.ID] = t
 		ids = append(ids, t.ID)
 	}
-	id, err := ResolveRef(ref, ids)
+	id, err := s.resolveRef(ref, ids)
 	if err != nil {
 		return nil, err
 	}

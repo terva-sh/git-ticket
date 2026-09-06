@@ -3,7 +3,7 @@ schema: 1
 id: TKT-01M1VKVH13H2TPW2VBPMZZ38ZH
 title: Build ID series and origin provenance, per plan 5.6
 type: task
-status: draft
+status: in-progress
 status_reason: null
 priority: high
 due_on: null
@@ -16,10 +16,16 @@ dependencies:
   - TKT-01M1VKV53GZK2A7PMD011H2KKM
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: feat/id-series
+  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
+  commit: 51a8ca7f7ddb45f6650144448e7047bc566d0252
+  claimed_at: 2026-09-06T18:14:25Z
+  expires_at: null
 archive: null
 created_at: 2026-09-06T15:02:11Z
-updated_at: 2026-09-06T15:02:11Z
+updated_at: 2026-09-06T18:16:23Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -110,3 +116,65 @@ section 11 together with the fixtures that cover them, because
 - [ ] just ci is green
 - [ ] A real store adopts a second series end to end: migrate, series add, create --series, list, show by prefix
 - [ ] docs/plan.md 5.6 is amended in the same commit if the build deviates from it
+
+## Implementation plan
+
+### Survey, verified against 51a8ca7 on 2026-09-06
+
+The description's count holds. `IDPrefix` is read in exactly two files.
+
+`ticket/id.go`: the constant, `NewID` (mints), `ValidID`, `NormalizeRef`,
+`ResolveRef`, `ShortestUnique`.
+`ticket/store.go`, in `file.id()`: the filename fallback that decides
+whether an unparseable file is a ticket.
+
+Callers of the abbreviation: `storeAbbreviations` in `cli/commands.go`
+and `abbreviateIDs` in `tui/view/list.go`, both deferring to the one
+`ticket.ShortestUnique` since PR #135.
+
+### The shape
+
+An ID becomes `SERIES-ULID`. A new `SplitID` returns the two halves, and
+everything above stops reasoning about a fixed-width constant.
+
+`Config.Series` holds the declared list. The effective list is `["TKT"]`
+when it is empty, per 5.6, and it is enforced rather than advisory, so
+`config` publishes it with `enforced` always true.
+
+Resolution splits at the first hyphen, per 5.6:
+
+- a bare ULID fragment matches across every series, since ULIDs cannot
+  collide
+- a prefixed fragment matches the series exactly and the ULID as a
+  prefix, because the prefix is identity and not decoration
+- the four-character floor applies to the ULID half alone
+- a reference naming an undeclared series is `unknown_series`, not
+  `ticket_not_found`, because the two send a reader to different places
+
+`ShortestUnique` groups by series and abbreviates within each, keeping
+its signature: an ID carries its own series, so the function can group
+from its argument alone. The store-wide mode of `--ids store` arrives as
+a second exported function rather than a changed one, which is what
+keeps this additive under 12.4.
+
+### Order of work
+
+Config and the code first, then minting and validation, then
+resolution, then abbreviation, then the surfaces that read them:
+`--ids`, the `series` command, `create --series`, then `origin`. The two
+findings and their fixtures land last, because
+`TestCorpusCoversEveryPlanCode` fails on a section 11 row with no
+fixture behind it.
+
+### Traps already known
+
+A schema-1 store refuses `create --from` and `series add`, naming
+`migrate`, because neither can be honoured at a level whose field set
+lacks `origin`.
+
+`file.id()` must recognize any declared series, or a broken file in a
+new series stops being seen as a ticket at all.
+
+Adding `origin_missing` means `check` walks a new edge; `list --origin`
+matches direct origin only, the way `--parent` does, and there is no
+`origin_cycle` because nothing walks it transitively.

@@ -12,6 +12,7 @@ const (
 	CodeStoreExists       = "store_exists"
 	CodeTicketNotFound    = "ticket_not_found"
 	CodeAmbiguousID       = "ambiguous_id"
+	CodeUnknownSeries     = "unknown_series"
 	CodeStaleRevision     = "stale_revision"
 	CodeInvalidTransition = "invalid_transition"
 	CodeInvalidField      = "invalid_field"
@@ -60,6 +61,7 @@ const (
 // because it never comes from this package.
 var OperationCodes = []string{
 	CodeStoreNotFound, CodeStoreExists, CodeTicketNotFound, CodeAmbiguousID,
+	CodeUnknownSeries,
 	CodeStaleRevision, CodeInvalidTransition, CodeInvalidField,
 	CodeDependencyMissing, CodeDependencyCycle, CodeClaimConflict,
 	CodeTicketReferenced, CodeTicketTouched,

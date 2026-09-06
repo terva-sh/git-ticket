@@ -9,8 +9,15 @@ import (
 	"time"
 )
 
-// IDPrefix is the fixed part of every ticket ID.
-const IDPrefix = "TKT-"
+// DefaultSeries is the series every store has, per plan 5.6. A store that
+// declares nothing has this one, so every store written before series existed
+// is already correct.
+const DefaultSeries = "TKT"
+
+// IDPrefix is the default series with its separator. It is what NewID mints
+// when no series is named, and it is no longer the fixed part of every ID:
+// since 5.6 a store may declare others.
+const IDPrefix = DefaultSeries + "-"
 
 // ulidLen is the length of the Crockford base32 ULID that follows the prefix.
 const ulidLen = 26
@@ -28,10 +35,72 @@ const abbrevLen = 8
 // L, O, and U, which are the ones a person misreads.
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-// NewID returns a ticket ID for the given instant: TKT- followed by a
+// seriesMinLen and seriesMaxLen are the bounds of plan 5.6. Two is the floor
+// because one letter carries no meaning and spends a whole namespace on a
+// character nobody can guess the expansion of. Eight is the ceiling because the
+// prefix is quoted beside 26 characters of ULID everywhere it appears.
+const (
+	seriesMinLen = 2
+	seriesMaxLen = 8
+)
+
+// ValidSeries reports whether s is a well-formed series prefix, per plan 5.6:
+// [A-Z][A-Z0-9]{1,7}.
+//
+// This is grammar alone and says nothing about whether a store declares the
+// series. The two are different failures with different repairs, so they have
+// different codes: a malformed prefix is invalid_field and a well-formed one
+// the store has not declared is unknown_series.
+//
+// A leading digit is refused because a ULID's body opens with ten characters of
+// timestamp that are mostly digits, so 2FA-01M1 and a ULID fragment that lost
+// its prefix look alike at the speed anybody reads an ID.
+func ValidSeries(s string) bool {
+	if len(s) < seriesMinLen || len(s) > seriesMaxLen {
+		return false
+	}
+	if s[0] < 'A' || s[0] > 'Z' {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+// SplitID divides an ID at its separator, per plan 5.6. A reference carrying no
+// separator is all ULID and returns an empty series, which is the bare fragment
+// 5.6 resolves across every series.
+//
+// It splits at the first hyphen rather than the last. Crockford base32 has no
+// hyphen in it, so a well-formed ID has exactly one, and splitting at the first
+// makes a malformed reference fail as a bad series rather than silently
+// swallowing part of one.
+func SplitID(id string) (series, ulid string) {
+	if i := strings.IndexByte(id, '-'); i >= 0 {
+		return id[:i], id[i+1:]
+	}
+	return "", id
+}
+
+// NewID returns a ticket ID for the given instant: the series, a hyphen, and a
 // 26-character ULID. ULIDs need no central counter, so two disconnected agents
 // cannot collide, and they sort by creation time.
-func NewID(at time.Time, entropy io.Reader) (string, error) {
+//
+// An empty series means DefaultSeries, so a caller that has no opinion gets the
+// series every store has. Whether the store declares the series is the caller's
+// question, because this function reads no config.
+func NewID(series string, at time.Time, entropy io.Reader) (string, error) {
+	if series == "" {
+		series = DefaultSeries
+	}
+	if !ValidSeries(series) {
+		return "", codedError(CodeInvalidField,
+			"%q is not a series: two to eight characters, uppercase letters and digits, letter first", series)
+	}
 	if entropy == nil {
 		entropy = rand.Reader
 	}
@@ -46,7 +115,7 @@ func NewID(at time.Time, entropy io.Reader) (string, error) {
 	if _, err := io.ReadFull(entropy, raw[6:]); err != nil {
 		return "", fmt.Errorf("ticket: reading entropy for an ID: %w", err)
 	}
-	return IDPrefix + encodeULID(raw), nil
+	return series + "-" + encodeULID(raw), nil
 }
 
 // encodeULID writes 128 bits as 26 base32 characters. The 26 characters hold
@@ -69,12 +138,15 @@ func encodeULID(raw [16]byte) string {
 	return string(out)
 }
 
-// ValidID reports whether s is a well-formed ticket ID.
+// ValidID reports whether s is a well-formed ticket ID: a legal series, a
+// hyphen, and a 26-character ULID.
+//
+// It is grammar alone, per 5.6. An ID in a series this store does not declare
+// is well-formed and is unknown_series, which is the narrower condition and a
+// different repair.
 func ValidID(s string) bool {
-	if !strings.HasPrefix(s, IDPrefix) {
-		return false
-	}
-	return validULID(s[len(IDPrefix):])
+	series, ulid := SplitID(s)
+	return ValidSeries(series) && validULID(ulid)
 }
 
 func validULID(s string) bool {
@@ -89,33 +161,51 @@ func validULID(s string) bool {
 	return true
 }
 
-// NormalizeRef puts a user-typed reference into the form IDs are stored in: the
-// TKT- prefix removed and the rest uppercased. Matching is case-insensitive
-// because a person types an ID in whatever case their terminal gave them.
+// NormalizeRef puts a user-typed reference into the form IDs are stored in:
+// trimmed and uppercased. Matching is case-insensitive on both halves, per 5.5
+// and 5.6, because a person types an ID in whatever case their terminal gave
+// them.
+//
+// It no longer strips a prefix. Under 5.6 the series is part of the ID rather
+// than decoration around it, so stripping would make IDEA-x and TKT-x one
+// reference and a wrong prefix a happy answer. SplitID is what separates the
+// halves, and ResolveRef compares them one at a time.
 //
 // Crockford's letter substitutions are deliberately not applied. Reading I as 1
 // would let two different typos resolve to the same ticket, and git does not do
 // it for object hashes either.
 func NormalizeRef(ref string) string {
-	s := strings.TrimSpace(ref)
-	if len(s) >= len(IDPrefix) && strings.EqualFold(s[:len(IDPrefix)], IDPrefix) {
-		s = s[len(IDPrefix):]
-	}
-	return strings.ToUpper(s)
+	return strings.ToUpper(strings.TrimSpace(ref))
 }
 
-// ResolveRef matches a reference against a set of known IDs, per plan 5.5. It
-// accepts a full ID or a unique prefix of at least four characters, and returns
-// ambiguous_id listing the candidates when more than one ticket matches.
+// ResolveRef matches a reference against a set of known IDs, per plan 5.5 and
+// 5.6. It accepts a full ID or a unique prefix of at least four characters, and
+// returns ambiguous_id listing the candidates when more than one ticket
+// matches.
+//
+// Series changes three of 5.5's rules. A bare ULID fragment resolves across
+// every series, because ULIDs cannot collide and the commands a person already
+// types have to keep working in a store that adopts one. A prefixed fragment
+// matches on both halves, the series exactly and the ULID as a prefix, because
+// under 5.6 the prefix is identity: IDEA-01M1SH never resolves to a TKT ticket.
+// And the four-character floor applies to the ULID half alone, since a series
+// is typed whole or not at all.
+//
+// It does not check whether the store declares the series, because it reads no
+// config. That is unknown_series and it belongs to Store.resolveRef.
 func ResolveRef(ref string, ids []string) (string, error) {
 	norm := NormalizeRef(ref)
 	if norm == "" {
 		return "", codedError(CodeTicketNotFound, "no ticket reference given")
 	}
-	if validULID(norm) {
-		full := IDPrefix + norm
+	series, body := SplitID(norm)
+
+	// A whole ID, prefix and all. A bare 26-character ULID is not this case: it
+	// carries no series, so it falls through to the scan below and matches
+	// across every one of them.
+	if series != "" && validULID(body) {
 		for _, id := range ids {
-			if id == full {
+			if id == norm {
 				return id, nil
 			}
 		}
@@ -124,17 +214,23 @@ func ResolveRef(ref string, ids []string) (string, error) {
 			// The ID is not repeated here. Error() prefixes it from Ticket, and
 			// naming it in both places printed it twice in one sentence.
 			Message: "no such ticket in this store",
-			Ticket:  full,
+			Ticket:  norm,
 		}
 	}
-	if len(norm) < minPrefixLen {
+	if len(body) < minPrefixLen {
 		return "", codedError(CodeTicketNotFound,
 			"%q is shorter than the %d characters a prefix needs", ref, minPrefixLen)
 	}
 
 	var matches []string
 	for _, id := range ids {
-		if strings.HasPrefix(NormalizeRef(id), norm) {
+		idSeries, idBody := SplitID(id)
+		// An empty series in the reference means the caller named none, which
+		// matches every series. A named one matches only itself.
+		if series != "" && idSeries != series {
+			continue
+		}
+		if strings.HasPrefix(idBody, body) {
 			matches = append(matches, id)
 		}
 	}
@@ -152,6 +248,32 @@ func ResolveRef(ref string, ids []string) (string, error) {
 	}
 }
 
+// resolveRef is ResolveRef plus the one rule that needs a store: a reference
+// naming a series this store does not declare returns unknown_series and not
+// ticket_not_found, per plan 5.6. The two send a reader to different places,
+// one to look for a ticket and the other to look at the config.
+//
+// It is checked before the scan rather than after it, so an undeclared series
+// answers the same way whether or not some ticket happens to carry it.
+//
+// Not every resolution goes through here. `unlink --depends-on` resolves
+// against the ticket's own dependency list, and a dependency naming an
+// undeclared series is exactly the dangling edge unlink exists to repair, so
+// refusing it there would make it unrepairable.
+func (s *Store) resolveRef(ref string, ids []string) (string, error) {
+	if series, _ := SplitID(NormalizeRef(ref)); series != "" {
+		if cfg := s.Config(); !cfg.KnownSeries(series) {
+			return "", &Error{
+				Code: CodeUnknownSeries,
+				Message: fmt.Sprintf("this store does not declare the series %q; it declares %s",
+					series, strings.Join(cfg.EffectiveSeries(), ", ")),
+				Field: "series",
+			}
+		}
+	}
+	return ResolveRef(ref, ids)
+}
+
 // ShortestUnique maps each ID to the fewest characters that still resolve to
 // it, never fewer than abbrevLen. It is the inverse of ResolveRef and lives
 // beside it because the two have to agree: what a listing prints, a person
@@ -165,10 +287,47 @@ func ResolveRef(ref string, ids []string) (string, error) {
 // for prefixes.
 //
 // It takes IDs rather than tickets because it needs nothing else from one.
+//
+// Under 5.6 it shortens within a series rather than across the store, because
+// the prefix already carries the rest of the disambiguation. Two tickets minted
+// in the same millisecond in different series then print short abbreviations
+// that both resolve, where a store-wide computation would lengthen both for a
+// collision resolution never sees. Every ID carries its own series, so the
+// grouping comes out of the argument and the signature does not change.
 func ShortestUnique(ids []string) map[string]string {
+	groups := make(map[string][]string)
+	for _, id := range ids {
+		series, _ := SplitID(id)
+		groups[series] = append(groups[series], id)
+	}
+	out := make(map[string]string, len(ids))
+	for _, group := range groups {
+		for id, short := range shortestWithin(group) {
+			out[id] = short
+		}
+	}
+	return out
+}
+
+// ShortestUniqueAcrossSeries is the same computation over the whole store at
+// once, which is what `--ids store` prints, per 5.6. The ULID half of every
+// result resolves on its own, which is what somebody pasting an ID into a
+// document read outside this store wants.
+//
+// It is a second function rather than a flag on the first because the two
+// answer different questions and both are wanted at once: a listing chooses,
+// and neither choice is a mode the other should have to carry.
+func ShortestUniqueAcrossSeries(ids []string) map[string]string {
+	return shortestWithin(ids)
+}
+
+// shortestWithin abbreviates one set of IDs against each other, ignoring the
+// series. Both exported forms are this function over a different grouping.
+func shortestWithin(ids []string) map[string]string {
 	bodies := make([]string, 0, len(ids))
 	for _, id := range ids {
-		bodies = append(bodies, NormalizeRef(id))
+		_, body := SplitID(NormalizeRef(id))
+		bodies = append(bodies, body)
 	}
 	sorted := append([]string{}, bodies...)
 	sort.Strings(sorted)
@@ -191,7 +350,15 @@ func ShortestUnique(ids []string) map[string]string {
 	for i, id := range ids {
 		b := bodies[i]
 		n := min(need[b], len(b))
-		out[id] = IDPrefix + b[:n]
+		series, _ := SplitID(id)
+		if series == "" {
+			// Nothing in a store produces this, since every ID carries a
+			// series. A caller passing bare ULIDs gets bare ULIDs back rather
+			// than a leading hyphen.
+			out[id] = b[:n]
+			continue
+		}
+		out[id] = series + "-" + b[:n]
 	}
 	return out
 }

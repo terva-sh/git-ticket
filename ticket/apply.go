@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -61,7 +62,7 @@ func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOption
 	if err != nil {
 		return nil, err
 	}
-	id, err := ResolveRef(ref, mergeIDs(index.ids(), broken.ids()))
+	id, err := s.resolveRef(ref, mergeIDs(index.ids(), broken.ids()))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,12 @@ func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOption
 // CreateOptions describes a new ticket. Type and priority fall back to the
 // store defaults.
 type CreateOptions struct {
-	Title        string
+	Title string
+	// Series is the ID prefix to file under, per plan 5.6. Empty means the
+	// store's default. A series the store does not declare is refused with
+	// unknown_series rather than warned about, because the prefix is inside an
+	// immutable ID and the only repair is remove and a second create.
+	Series       string
 	Type         string
 	Priority     string
 	Labels       []string
@@ -310,7 +316,19 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 		}
 		now = o.Created
 	}
-	id, err := NewID(now, o.Entropy)
+	series := o.Series
+	if series == "" {
+		series = DefaultSeries
+	}
+	if cfg := s.Config(); !cfg.KnownSeries(series) {
+		return nil, &Error{
+			Code: CodeUnknownSeries,
+			Message: fmt.Sprintf("this store does not declare the series %q; it declares %s",
+				series, strings.Join(cfg.EffectiveSeries(), ", ")),
+			Field: "series",
+		}
+	}
+	id, err := NewID(series, now, o.Entropy)
 	if err != nil {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 	}
@@ -574,7 +592,7 @@ func (s *Store) Get(ctx context.Context, ref string) (*Ticket, error) {
 		byID[id] = f
 	}
 	sort.Strings(ids)
-	id, err := ResolveRef(ref, ids)
+	id, err := s.resolveRef(ref, ids)
 	if err != nil {
 		return nil, err
 	}

@@ -35,6 +35,31 @@ func setAllowlists(t *testing.T, dir string, labels, milestones []string) {
 	}
 }
 
+// setSeries rewrites config.yml at schema 2 declaring the given series. A
+// store adopting one is at schema 2 by 5.6, so this writes that level rather
+// than the 1 setAllowlists uses.
+func setSeries(t *testing.T, dir string, series []string) {
+	t.Helper()
+	var b strings.Builder
+	b.WriteString("schema: 2\nactors:\n  - id: human:sothr\n    name: Drew Short\n")
+	b.WriteString("labels: []\nmilestones: []\n")
+	if len(series) == 0 {
+		b.WriteString("series: []\n")
+	} else {
+		b.WriteString("series:\n")
+		for _, v := range series {
+			b.WriteString("  - " + v + "\n")
+		}
+	}
+	b.WriteString("defaults:\n  type: task\n  priority: normal\n  claim_expiry: null\n")
+	b.WriteString("lock:\n  timeout: 10s\n")
+
+	path := filepath.Join(dir, ".tickets", "config.yml")
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		t.Fatalf("write config.yml: %v", err)
+	}
+}
+
 // allowlistOf reads one published allowlist out of the config envelope.
 func allowlistOf(t *testing.T, dir, key string) ([]string, bool) {
 	t.Helper()
@@ -212,6 +237,52 @@ func TestConfigNeedsAStore(t *testing.T) {
 	if s := runCLI(t, t.TempDir(), nil, "--json", "schema"); s.code != exitOK {
 		t.Errorf("schema stopped answering without a store: %s", s.stderr)
 	}
+}
+
+// TestConfigPublishesTheEffectiveSeries is the exception 10.6 calls out. Every
+// other allowlist here derives enforced from its length, and this one cannot,
+// because 5.6 gives an empty series list the meaning [TKT] rather than "no
+// opinion". So there is no state in which the list is empty or the regime is
+// off, and a consumer reading values alone is still right.
+func TestConfigPublishesTheEffectiveSeries(t *testing.T) {
+	t.Run("a store declaring nothing publishes TKT", func(t *testing.T) {
+		dir := newStore(t)
+		values, enforced := allowlistOf(t, dir, "series")
+		if !enforced {
+			t.Error("series is enforced whatever the store declares")
+		}
+		if strings.Join(values, " ") != "TKT" {
+			t.Errorf("series = %v, want the effective list [TKT]", values)
+		}
+	})
+
+	t.Run("a declared list is published as written", func(t *testing.T) {
+		dir := newStore(t)
+		setSeries(t, dir, []string{"TKT", "IDEA"})
+		values, enforced := allowlistOf(t, dir, "series")
+		if !enforced {
+			t.Error("series is enforced")
+		}
+		if strings.Join(values, " ") != "TKT IDEA" {
+			t.Errorf("series = %v, want TKT IDEA", values)
+		}
+	})
+
+	// The empty-list case is what separates series from the two allowlists
+	// above it. An empty labels list publishes [] with enforced false; an
+	// empty series list publishes [TKT] with enforced true.
+	t.Run("an empty list is not the empty answer", func(t *testing.T) {
+		dir := newStore(t)
+		setSeries(t, dir, nil)
+		values, enforced := allowlistOf(t, dir, "series")
+		if !enforced || strings.Join(values, " ") != "TKT" {
+			t.Errorf("series = %v enforced=%v, want [TKT] enforced", values, enforced)
+		}
+		labels, labelsEnforced := allowlistOf(t, dir, "labels")
+		if labelsEnforced || len(labels) != 0 {
+			t.Errorf("labels = %v enforced=%v, want [] unenforced", labels, labelsEnforced)
+		}
+	})
 }
 
 func TestConfigTakesNoArguments(t *testing.T) {

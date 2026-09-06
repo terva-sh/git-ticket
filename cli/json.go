@@ -196,9 +196,16 @@ type configEnvelope struct {
 	// Labels and Milestones are the advisory allowlists of plan 4.1.
 	Labels     allowlistJSON `json:"labels"`
 	Milestones allowlistJSON `json:"milestones"`
-	Actors     []actorJSON   `json:"actors"`
-	Defaults   defaultsJSON  `json:"defaults"`
-	Lock       lockJSON      `json:"lock"`
+	// Series is the ID prefixes this store declares, per plan 5.6. It uses the
+	// same object as the two above it and is the one whose Enforced is not
+	// derived from the length: 5.6 gives an empty `series` list the meaning
+	// [TKT] rather than "no opinion", so the effective list is never empty and
+	// the regime never varies. Values carries the effective list, which is why
+	// a store that has written no `series` key publishes ["TKT"] here.
+	Series   allowlistJSON `json:"series"`
+	Actors   []actorJSON   `json:"actors"`
+	Defaults defaultsJSON  `json:"defaults"`
+	Lock     lockJSON      `json:"lock"`
 	// Templates is the names in .tickets/templates/, sorted, per plan 4.2.
 	// A bare list rather than an allowlist object, because it carries no
 	// enforcement regime to disambiguate: a template is something you may

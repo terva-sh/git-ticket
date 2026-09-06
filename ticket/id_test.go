@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewIDShape(t *testing.T) {
-	id, err := NewID(referenceInstant, bytes.NewReader(bytes.Repeat([]byte{0xAB}, 10)))
+	id, err := NewID("", referenceInstant, bytes.NewReader(bytes.Repeat([]byte{0xAB}, 10)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,11 +33,11 @@ func TestNewIDShape(t *testing.T) {
 // chronological, which is half the reason for choosing ULIDs.
 func TestNewIDSortsByTime(t *testing.T) {
 	zeros := func() *bytes.Reader { return bytes.NewReader(make([]byte, 10)) }
-	early, err := NewID(referenceInstant, zeros())
+	early, err := NewID("", referenceInstant, zeros())
 	if err != nil {
 		t.Fatal(err)
 	}
-	late, err := NewID(referenceInstant.Add(time.Second), zeros())
+	late, err := NewID("", referenceInstant.Add(time.Second), zeros())
 	if err != nil {
 		t.Fatal(err)
 	}

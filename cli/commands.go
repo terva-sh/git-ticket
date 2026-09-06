@@ -1774,6 +1774,11 @@ func runConfig(ctx *cmdContext, args []string) error {
 
 	labels := allowlist(cfg.Labels)
 	milestones := allowlist(cfg.Milestones)
+	// Not through allowlist(): that derives Enforced from the length, and the
+	// effective series list is never empty. Per 10.6 this one is always
+	// enforced, and what is published is the effective list rather than the
+	// literal config, so a store declaring nothing reports ["TKT"].
+	series := allowlistJSON{Values: cfg.EffectiveSeries(), Enforced: true}
 
 	templates, err := s.Templates()
 	if err != nil {
@@ -1790,6 +1795,7 @@ func runConfig(ctx *cmdContext, args []string) error {
 			TicketSchema:  cfg.Schema,
 			Labels:        labels,
 			Milestones:    milestones,
+			Series:        series,
 			Actors:        actors,
 			Defaults: defaultsJSON{
 				Type:        cfg.Defaults.Type,
@@ -1807,6 +1813,7 @@ func runConfig(ctx *cmdContext, args []string) error {
 	fmt.Fprintf(ctx.out, "ticket schema %d\n\n", cfg.Schema)
 	fmt.Fprintf(ctx.out, "labels      %s\n", describeAllowlist(labels))
 	fmt.Fprintf(ctx.out, "milestones  %s\n", describeAllowlist(milestones))
+	fmt.Fprintf(ctx.out, "series      %s\n", strings.Join(series.Values, ", "))
 	if len(templates) == 0 {
 		fmt.Fprintf(ctx.out, "templates   none defined\n")
 	} else {

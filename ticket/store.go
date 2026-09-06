@@ -308,8 +308,13 @@ func (f file) id() string {
 	if f.Err != nil && f.Err.Ticket != "" {
 		return f.Err.Ticket
 	}
+	// Any well-formed ID, per plan 5.6, not only the series this store
+	// declares. An unparseable file in an undeclared series is exactly the one
+	// this fallback exists for: recognizing it gets a parse_error and then an
+	// unknown_series, while not recognizing it makes the file invisible, which
+	// is the quiet wrong answer 5.6 argues against at length.
 	base := strings.TrimSuffix(filepath.Base(f.Path), ".md")
-	if strings.HasPrefix(base, IDPrefix) && validULID(strings.TrimPrefix(base, IDPrefix)) {
+	if ValidID(base) {
 		return base
 	}
 	return ""

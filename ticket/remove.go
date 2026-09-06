@@ -87,7 +87,7 @@ func (s *Store) Remove(ctx context.Context, ref string, o RemoveOptions) (*Remov
 			ids = append(ids, f.Err.Ticket)
 		}
 	}
-	id, err := ResolveRef(ref, ids)
+	id, err := s.resolveRef(ref, ids)
 	if err != nil {
 		return nil, err
 	}

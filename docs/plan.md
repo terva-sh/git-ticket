@@ -868,7 +868,15 @@ has.
 
 The filename fallback follows. A file whose frontmatter is too broken to parse
 still yields an ID from its name, per section 8, and that fallback recognizes
-any series the store declares rather than `TKT` alone.
+any well-formed ID rather than `TKT` alone.
+
+Any well-formed ID, and not only a declared one. Checking the declaration here
+would make an unparseable file in an undeclared series yield no ID at all, which
+is to say the store would not see it as a ticket. That is the exact case the
+fallback exists for, and the store swallowing it is the quiet wrong answer this
+section argues against everywhere else. Recognizing it gets a `parse_error` now
+and an `unknown_series` once the file parses, which is two loud findings instead
+of one invisible file.
 
 #### Compatibility, which is the whole cost
 

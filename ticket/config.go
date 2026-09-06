@@ -12,12 +12,17 @@ import (
 // It cannot add a status, change a transition rule, or grant a consumer
 // authority it does not otherwise have.
 type Config struct {
-	Schema     int        `yaml:"schema"`
-	Actors     []Actor    `yaml:"actors"`
-	Labels     []string   `yaml:"labels"`
-	Milestones []string   `yaml:"milestones"`
-	Defaults   Defaults   `yaml:"defaults"`
-	Lock       LockConfig `yaml:"lock"`
+	Schema     int      `yaml:"schema"`
+	Actors     []Actor  `yaml:"actors"`
+	Labels     []string `yaml:"labels"`
+	Milestones []string `yaml:"milestones"`
+	// Series is the ID prefixes this store declares, per plan 5.6. Unlike the
+	// two allowlists above it, it is enforced rather than advisory, and an
+	// empty list means [TKT] rather than "no opinion". Read it through
+	// EffectiveSeries, never directly.
+	Series   []string   `yaml:"series"`
+	Defaults Defaults   `yaml:"defaults"`
+	Lock     LockConfig `yaml:"lock"`
 }
 
 // Defaults are the values a create uses when the caller names none.
@@ -71,6 +76,7 @@ func DefaultConfig() Config {
 		Actors:     []Actor{},
 		Labels:     []string{},
 		Milestones: []string{},
+		Series:     []string{},
 		Defaults:   Defaults{Type: "task", Priority: "normal"},
 		Lock:       LockConfig{Timeout: Duration(DefaultLockTimeout)},
 	}
@@ -110,6 +116,12 @@ func RenderConfig(c Config) []byte {
 	m.add("actors", actors)
 	m.addStringSeq("labels", c.Labels)
 	m.addStringSeq("milestones", c.Milestones)
+	// The literal list is rendered, not the effective one, so a store that has
+	// never declared a series keeps writing an empty list rather than growing a
+	// TKT entry it did not ask for.
+	if hasSeries(c.Schema) || len(c.Series) > 0 {
+		m.addStringSeq("series", c.Series)
+	}
 
 	d := &ymap{}
 	d.addString("type", c.Defaults.Type)
@@ -165,6 +177,33 @@ func (c Config) actorByID(id string) Actor {
 		}
 	}
 	return Actor{ID: id}
+}
+
+// EffectiveSeries is the series this store actually permits, per plan 5.6. An
+// empty `series` list means [TKT] rather than "none permitted", which is the
+// opposite of what an empty labels list means, so nothing outside this file
+// should read Config.Series directly.
+//
+// The result is never empty, which is what lets `config` publish it with
+// enforced always true, per 10.6.
+func (c Config) EffectiveSeries() []string {
+	if len(c.Series) == 0 {
+		return []string{DefaultSeries}
+	}
+	return append([]string{}, c.Series...)
+}
+
+// KnownSeries reports whether the store declares this prefix. It is the one
+// vocabulary check that gates a write rather than warning after it: a series
+// lives inside an ID, IDs are immutable per 5.6, and so a mistyped one is
+// repaired only by remove and a second create.
+func (c Config) KnownSeries(series string) bool {
+	for _, s := range c.EffectiveSeries() {
+		if s == series {
+			return true
+		}
+	}
+	return false
 }
 
 // KnownLabel reports whether the label is in the advisory allowlist. An empty

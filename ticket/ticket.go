@@ -38,6 +38,18 @@ const SchemaVersion = 2
 // carrying one still round-trips and check still reports it.
 func hasOrigin(schema int) bool { return schema >= 2 }
 
+// hasSeries is the same rule for the `series` key in config.yml, which 5.6
+// lists as the other half of what schema 2 adds.
+//
+// The argument is weaker here and the handling is looser to match. config.yml
+// has no unknown-field check, so an old reader ignores a `series` key rather
+// than erroring on it, and it also has no unknown-field preservation, so a
+// renderer that declined outright would delete a value somebody hand-wrote.
+// RenderConfig therefore emits the key at schema 2 or whenever the store has
+// actually declared one, which leaves a schema-1 store that never mentioned
+// series byte-identical after a rewrite.
+func hasSeries(schema int) bool { return schema >= 2 }
+
 // Status values, per plan 6.1.
 const (
 	StatusDraft      = "draft"

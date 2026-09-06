@@ -3232,13 +3232,29 @@ a tool description rather than restating it and drifting. What is undecided is
 whether every command becomes a tool, or only the ones an agent should reach
 for.
 
-**Backlog.md import and a local view** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`). When
-each is worth building. These are two questions with two triggers. Import waits
-for a real Backlog.md project somebody wants to move, and the count of tickets in
-it is the evidence, because an importer for a backlog nobody has is guesswork
-about a format read from the outside. The local view has its trigger written
-already in Phase 4, which is that the file and agent contracts have held through
-at least one real project. Neither is blocked on anything in this repository.
+**Backlog.md import and a local view** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`) is
+answered. Both halves are settled, the ticket is archived, and neither trigger
+stands.
+
+The local view shipped in v0.7.0 as `git ticket ui`, built under
+`TKT-01M1QBSD77HG0B1XYFDHS12EYZ`. Its Phase 4 trigger, that the file and agent
+contracts have held through at least one real project, was judged met when the
+view was built, and section 13 carries that decision with its carve-out.
+
+The import is declined. It waited for a real Backlog.md project somebody wants
+to move, and there is none. The relationship between the two projects is
+inspiration and not data: this one takes how Backlog.md solves problems it also
+has, and has no interest in reading its files. An importer moves data, so it
+answers a question nobody asked. A real migration need would be a new ticket
+with a live reason behind it, not this one reopened.
+
+The interface interest continues as `TKT-01M1W3RMKSHKK7Q21T7PCE885H`, which
+re-reads Backlog.md with this project's own view as the consumer. The 2026-09-02
+review in `docs/review-backlog-md.md` opened by declaring that terva draws the
+board and we do not, and its section C deferred every display question on that
+basis. v0.7.0 ended that premise. No web UI is in scope: terva builds one as a
+consumer of `ticket` and `cli` per 12.2, and a future git-ticket-web might host
+a standalone version of the same idea.
 
 **A merge driver for ticket files** (`TKT-01M1HE7KX06FY8W1GYXH9MXGBP`) is
 answered in 7.5. git-ticket ships one, and 7.5 holds the field rules and the

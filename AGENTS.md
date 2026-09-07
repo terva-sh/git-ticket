@@ -17,8 +17,11 @@ The store partitions by status into four directories, per plan section 4:
 `ticket/store.go` is the whole mapping, and `files()`, `Init`, `writeTicket`,
 `check`, and `relTarget` all read it. An unknown status falls through to
 `tickets/`. A misplaced file is `location_mismatch`, which `check --fix` repairs
-by moving it, and that is also how a store migrates: no schema bump, because a
-ticket file does not change when its path does.
+by moving it, and that is also how a store adopts the partition: no schema bump,
+because a ticket file does not change when its path does. That is not what
+`migrate` does, and the two are worth keeping apart now that both exist.
+`check --fix` moves files and leaves their content alone. `migrate` raises a
+store between schema levels and rewrites every ticket under the lock.
 
 `list` answers with open work, meaning every status except `done` and
 `archived`, per section 8. Naming a status brings it back and `--all` drops the
@@ -33,8 +36,12 @@ and `cli` carry `init`, `create`, `update`, `show`, `list`, `search`,
 and `instructions`, each in a human form and behind `--json`. Six more landed
 after Phase 2, taking the binary to 30: `plan`, `refs`, `remove`, `config`,
 `install-merge-driver`, and `merge-driver`. Phase 4's view work added `ui` and
-`self-update`, and `copy` (plan 12.7) makes it 33. Every JSON kind of section 10 has a test,
-ten with `self-update` per 10.7, and every write honours `--if-revision`.
+`self-update`, and `copy` (plan 12.7) makes it 33. Schema 2 brought `migrate`
+and `series`, and the shell scripts brought `completion`, so the binary now has
+36. Do not count them from this paragraph: `git ticket completion --dump` is
+the binary's own vocabulary and cannot go stale. Every JSON kind of section 10
+has a test, twelve of them now that `migrate-result` and `series` exist, and
+every write honours `--if-revision`.
 
 The TUI is Phase 4's view: `tui/` is the rendering stack, `tui/view` the
 application, and `git ticket ui` the entrypoint, wired through `Env.RunUI` so
@@ -61,7 +68,7 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.10.0, and `self-update` (plan 12.6, with the graded
+Releases run through v0.14.0, and `self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release
 binary applied v0.8.1 over the live GitHub API, check exit 10, apply exit 0,
 and the result was byte-identical (`cmp`) to the released binary. v0.9.0
@@ -78,6 +85,58 @@ pins them off and locks the key. v0.9.5 gives the detail view `t`, a picker
 over the ticket's parent, children, dependencies and dependents. v0.10.0 is
 templates on three surfaces: `create --template`, the `templates` key in
 `config`, and the picker behind the TUI's `n`.
+
+v0.11.0 promoted the abbreviation rule to library API as
+`ticket.ShortestUnique`, a minor because the `ticket` package gained an
+exported function even though no output moved. The three patches after it
+carry no Go change at all. v0.11.1 taught the justfile to build inside a
+worktree, v0.11.2 first published the container image, and v0.11.3 switched
+the image's `safe.directory` exception off rather than leaving it absent.
+
+v0.12.0 moved the format for the first time. Schema 2 gives `config.yml` a
+`series` list of ID prefixes and frontmatter an `origin`, so an ID is
+`SERIES-ULID` and a store that declares nothing has `[TKT]`, which is why
+every store written before it is already correct. The prefix is identity
+rather than decoration: `IDEA-01M1SH` matches its own series or nothing,
+while a bare ULID fragment still resolves across every series, so the
+commands people already type keep working. `series` lists, adds and removes a
+prefix and refuses a removal while tickets carry it, `create --series` files
+into one, `create --from ID` seeds a ticket and records `origin`, and
+`--ids series|store|full` chooses how a listing abbreviates. `check` gained
+`unknown_series` and `origin_missing`.
+
+v0.13.0 is `completion` for bash and zsh. `--install` writes the script where
+the shell looks, and `--dump` publishes the vocabulary both scripts read,
+deliberately not as a section 10 kind so it stays free to change with them.
+That release also stopped `just install` writing to GOBIN, and moved this
+repository's own store to schema 2, which is `migrate` proven against 93 real
+files rather than against a fixture.
+
+v0.14.0 answers terva's two handoffs in one release, so terva pins once.
+Schema 3 adds `claim.session`, beside `branch`, `worktree` and `commit`, and
+`claim --session` writes it. `Init` refuses a root whose base name is
+`.tickets` with the new code `invalid_root`, instead of quietly producing
+`.tickets/.tickets/`. `Finding.Verbose()` and `Report.Verbose()` publish a
+serialization carrying `Message`, which the wire form omits, and a reflection
+test fails when `Finding` gains a field the verbose type lacks.
+`docs/reply-terva-library-ergonomics.md` is the document the user carries
+back, and it holds the correction to terva's actor claim.
+
+Schema 3 is what the binary enforces, and `git ticket schema --json` reports
+it as `ticketSchema`. A store does not track that number, and this repository
+is the example: its own store sits at schema 2 under a v0.14.0 binary with
+`check --strict` green. `migration_incomplete` compares a ticket against the
+level its own `config.yml` declares, so it catches a half-finished `migrate`
+run and says nothing at all about a store that has not moved. Nothing nags and
+nothing converts on its own. A store moves when a person runs `git ticket
+migrate`, and staying behind is a legal state rather than a pending repair.
+
+The compatibility direction is a refusal rather than a wrong answer, and it
+was measured at both levels. v0.11.3 meeting a schema 2 store refuses `list`,
+`ready`, `show` and `check --strict`, and v0.13.0 meeting a schema 3 store
+refuses the same four, each exit 1 with `schema_unsupported`. So a consumer
+pins a floor and not a preference. `init` under v0.14.0 writes schema 3, and a
+v0.13.0 reader cannot open what it made.
 
 The list has one pattern for a display mode, set twice now by sort and
 color: a cycling key, the header naming the active mode, the `?` page
@@ -224,7 +283,7 @@ not the repository. `podman build .` at the root fails to find `git-ticket`, and
 that is the design. Build it locally by fetching the archive first:
 
 ```sh
-gh release download v0.11.2 -R terva-sh/git-ticket \
+gh release download v0.14.0 -R terva-sh/git-ticket \
   -p 'git-ticket_*_linux_amd64.tar.gz' -D /tmp/imgctx
 tar -xzf /tmp/imgctx/git-ticket_*.tar.gz -C /tmp/imgctx
 podman build -f Dockerfile -t git-ticket-test:local /tmp/imgctx
@@ -269,12 +328,15 @@ either. An anonymous `podman pull` of each tag is the stronger check, and it
 also catches a tag that was never pushed.
 
 The Go patch release inside `--version` is a provenance tell, because the three
-builders disagree. At v0.11.2 the GitHub runner produced `go1.25.0`, Forgejo's
-alpine produced `go1.25.12`, and this machine builds with `go1.26.2`, so the
+builders disagree. At v0.14.0 the GitHub runner produced `go1.25.0`, Forgejo's
+alpine produced `go1.25.5`, and this machine builds with `go1.26.2`, so the
 version string alone separated three possible origins and showed the image
 carried the GitHub-published binary rather than a rebuild. The exact numbers
 move as runners update, so compare the three at the time rather than trusting
-these.
+these. They do not only move forward. This file recorded `go1.25.12` for
+Forgejo at v0.11.2 and the v0.14.0 measurement is `go1.25.5`, and nobody has
+chased which reading is wrong. Read a mismatch as a reason to measure, not as
+evidence of a bad build.
 
 A fresh clone has `origin` alone. Add the mirror when you need it, which is at
 release time and not before:
@@ -996,9 +1058,23 @@ a published JSON envelope: nothing broke and no command appeared, but
 is a surface 12.4 covers. A new way to obtain the binary is not a new surface,
 which keeps v0.11.2 a patch on the v0.9.3 precedent even though it first
 published the container image: a distribution mechanism is not one of the
-interfaces 12.4 covers. Read
-what an earlier release decided with `git tag -l v0.7.0 -n99` before picking
-one.
+interfaces 12.4 covers, and v0.11.1 and v0.11.3 sit in the same bucket for the
+same reason, one a justfile recipe and the other the image's environment.
+v0.11.0 applies the new-surface half to the library instead of the CLI:
+`ticket.ShortestUnique` is one exported function, no output moved, and it is
+still a minor. v0.13.0 is the plain case, `completion` being a new command.
+v0.12.0 met the minor by four of these rules at once, a new command, a new
+envelope kind, a new `schema` key, and the first format level, which is worth
+reading when a single rule feels thin on its own. The format level is the one
+to be clear about, because it looks like it should be bigger than it is. 12.4
+puts "a new `schema` the reader also understands" among the minor changes and
+keeps "dropping support for a `schema` that used to parse" among the major
+ones, so raising a level is a minor and only refusing an old one would be a
+major. That is what makes v0.14.0 a minor too. The rule is 12.4 and not 12.5,
+which is the migration mechanism rather than the versioning policy, and the
+v0.14.0 tag message cites 12.5 for it in error.
+Read what an earlier release decided with `git tag -l v0.7.0 -n99` before
+picking one.
 
 An interface contract that 12.4 will cover, an exit status, a flag spelling, a
 JSON kind, is settled with the user before it ships, because re-shipping a

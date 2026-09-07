@@ -2,10 +2,24 @@ package ticket
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+// storeSlashPath is Ticket.Path in one spelling on every platform.
+//
+// Ticket.Path is a filesystem path, so it carries backslashes on Windows and a
+// test asking whether it contains "/done/" fails there against a file sitting
+// in exactly the right directory. That is what the first green Windows run
+// caught, and it is the whole failure: the store put the file where it belongs
+// and the assertion could not read it.
+//
+// The CLI needs none of this. relativeTo already returns filepath.ToSlash, so a
+// displayed path is slash-spelled on every platform and cli's own assertions
+// are right as written.
+func storeSlashPath(p string) string { return filepath.ToSlash(p) }
 
 // These tests hold Create to plan 6.2.1: a ticket may arrive done or
 // archived, backdated, and nothing else.
@@ -24,7 +38,7 @@ func TestCreateArrivesDone(t *testing.T) {
 	if tk.Status != StatusDone {
 		t.Fatalf("status = %q, want done", tk.Status)
 	}
-	if !strings.Contains(tk.Path, "/done/") {
+	if !strings.Contains(storeSlashPath(tk.Path), "/done/") {
 		t.Fatalf("path = %q, want it under done/", tk.Path)
 	}
 
@@ -61,7 +75,7 @@ func TestCreateArrivesArchived(t *testing.T) {
 		t.Fatalf("create --status archived: %v", err)
 	}
 	tk := res.Ticket
-	if tk.Status != StatusArchived || !strings.Contains(tk.Path, "/archive/") {
+	if tk.Status != StatusArchived || !strings.Contains(storeSlashPath(tk.Path), "/archive/") {
 		t.Fatalf("status %q at %q, want archived under archive/", tk.Status, tk.Path)
 	}
 	if tk.Archive == nil || tk.Archive.FromStatus == nil || *tk.Archive.FromStatus != StatusDraft {

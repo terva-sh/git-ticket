@@ -17,6 +17,18 @@ const (
 	mergeDriverName = "gitticket"
 	mergeDriverDesc = "git-ticket three-way merge"
 	attributesFile  = ".gitattributes"
+
+	// eolAttrValue pins ticket files to LF in the working tree, per plan 7.5.
+	//
+	// git converts text files to CRLF on a Windows checkout by default, plan
+	// 5.3 requires a ticket file to carry LF, and parse enforces it. Without
+	// this a store cloned on Windows fails to read at all: every file opens
+	// with "---\r" and comes back as parse_error, so list answers with nothing
+	// rather than with an error naming the cause.
+	//
+	// eol=lf implies text, and text is written anyway because a reader of the
+	// file should not have to know that.
+	eolAttrValue = "text eol=lf"
 )
 
 // runMergeDriver is what Git invokes for a ticket file, per plan 7.5.
@@ -129,13 +141,17 @@ func runInstallMergeDriver(ctx *cmdContext, args []string) error {
 		changed = append(changed, kv.key)
 	}
 
-	attrPath, added, err := ensureMergeAttribute(s)
+	// The merge line alone. This command's name is a promise, so it repairs
+	// the half it is named for and does not quietly add the eol line beside
+	// it. A store made before that line existed is plan 15's open question,
+	// not something to settle inside a command called install-merge-driver.
+	attrPath, added, err := ensureAttributes(s, []string{mergeAttrLine(s)})
 	if err != nil {
 		return err
 	}
 
 	var written []string
-	if added {
+	if len(added) > 0 {
 		written = append(written, attrPath)
 	}
 	if ctx.g.json {
@@ -155,7 +171,7 @@ func runInstallMergeDriver(ctx *cmdContext, args []string) error {
 	for _, k := range already {
 		fmt.Fprintf(ctx.out, "  already set %s\n", k)
 	}
-	if added {
+	if len(added) > 0 {
 		fmt.Fprintf(ctx.out, "  wrote %s\n", displayPath(s, attrPath))
 	} else {
 		fmt.Fprintf(ctx.out, "  already in %s\n", displayPath(s, attrPath))
@@ -196,27 +212,62 @@ func mergeAttrPattern(s *ticket.Store) string {
 	return filepath.ToSlash(displayPath(s, s.Path())) + "/**/*.md"
 }
 
-// ensureMergeAttribute appends the driver's `.gitattributes` entry if it is not
-// already there, and reports the path either way.
+// mergeAttrLine is the tracked half of the merge driver, per plan 7.5.
+func mergeAttrLine(s *ticket.Store) string {
+	return mergeAttrPattern(s) + " merge=" + mergeDriverName
+}
+
+// eolAttrLine keeps the store's files LF on every platform, per plan 7.5.
+func eolAttrLine(s *ticket.Store) string {
+	return mergeAttrPattern(s) + " " + eolAttrValue
+}
+
+// storeAttributeLines is what `init` writes into `.gitattributes`.
+//
+// The line endings come first because they decide whether the file can be read
+// at all, and the merge driver only matters once it can.
+//
+// Two lines rather than one combined `text eol=lf merge=gitticket`, because
+// ensureAttributes matches a whole line. A store written before either line
+// existed then gains whichever it lacks, where one combined line would match
+// neither and append a duplicate rule.
+func storeAttributeLines(s *ticket.Store) []string {
+	return []string{eolAttrLine(s), mergeAttrLine(s)}
+}
+
+// ensureAttributes appends each `.gitattributes` line that is not already
+// there, and reports the path and the lines it added.
 //
 // It appends rather than rewrites. The file belongs to the repository and not
-// to this tool, so whatever else is in it survives untouched.
-func ensureMergeAttribute(s *ticket.Store) (path string, added bool, err error) {
+// to this tool, so whatever else is in it survives untouched. A line already
+// present is left where it is, which is why a caller can ask for a line another
+// caller wrote.
+//
+// One write covers every missing line, so a caller asking for two does not see
+// the file half updated when the second write fails.
+func ensureAttributes(s *ticket.Store, want []string) (path string, added []string, err error) {
 	root := s.Root()
 	if root == "" {
-		return "", false, nil
+		return "", nil, nil
 	}
 	path = filepath.Join(root, attributesFile)
-	want := mergeAttrPattern(s) + " merge=" + mergeDriverName
 
 	current, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return "", false, err
+		return "", nil, err
 	}
+
+	have := map[string]bool{}
 	for _, line := range strings.Split(string(current), "\n") {
-		if strings.TrimSpace(line) == want {
-			return path, false, nil
+		have[strings.TrimSpace(line)] = true
+	}
+	for _, line := range want {
+		if !have[line] {
+			added = append(added, line)
 		}
+	}
+	if len(added) == 0 {
+		return path, nil, nil
 	}
 
 	var b strings.Builder
@@ -224,11 +275,13 @@ func ensureMergeAttribute(s *ticket.Store) (path string, added bool, err error) 
 	if len(current) > 0 && current[len(current)-1] != '\n' {
 		b.WriteString("\n")
 	}
-	b.WriteString(want + "\n")
-	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
-		return "", false, err
+	for _, line := range added {
+		b.WriteString(line + "\n")
 	}
-	return path, true, nil
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		return "", nil, err
+	}
+	return path, added, nil
 }
 
 // writeGit runs the one Git command in plan 7.4 that writes.

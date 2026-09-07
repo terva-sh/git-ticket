@@ -143,14 +143,15 @@ func runInit(ctx *cmdContext, args []string) error {
 		filepath.Join(s.Path(), "README.md"),
 	}
 
-	// Plan 7.5: the tracked half of the merge driver. The attribute does
-	// nothing until somebody runs install-merge-driver, so a repository that
-	// never wants one pays two lines, and every clone that does want one is
-	// spared having to know the pattern. It is skipped outside a repository,
-	// where there is no root to write it to.
-	if attrPath, added, err := ensureMergeAttribute(s); err != nil {
+	// Plan 7.5: the tracked attributes of a store. One pins LF, without which
+	// a clone on Windows cannot read its own tickets at all. The other is the
+	// merge driver's half, inert until somebody runs install-merge-driver, so
+	// a repository that never wants one pays a line and every clone that does
+	// want one is spared having to know the pattern. Both are skipped outside
+	// a repository, where there is no root to write them to.
+	if attrPath, added, err := ensureAttributes(s, storeAttributeLines(s)); err != nil {
 		return err
-	} else if added {
+	} else if len(added) > 0 {
 		written = append(written, attrPath)
 	}
 	var instructions instructionsAction

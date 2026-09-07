@@ -1275,16 +1275,46 @@ command they run rather than a paragraph they transcribe.
 
 `init` writes the `.gitattributes` entry. The attribute does nothing until
 somebody configures a driver by that name, so it costs a clone that never
-installs one two lines and a mention in a diff, and it saves every clone that
+installs one a line and a mention in a diff, and it saves every clone that
 does install one from having to know the pattern.
 
+`init` writes a second line into the same file, and it is not about merging.
+This section carries it because `.gitattributes` is one file with one writer,
+and splitting the description would leave neither half able to say what `init`
+actually produces.
+
+```
+.tickets/**/*.md text eol=lf
+.tickets/**/*.md merge=gitticket
+```
+
+The first line decides whether the store can be read at all. Git converts text
+files to CRLF on a Windows checkout by default, 5.3 requires a ticket file to
+carry LF, and `parse` enforces it. Without the attribute, a store cloned on
+Windows answers every read with `parse_error` because each file begins `---\r`,
+and `list` then reports nothing and names no cause. That is worse than an
+outright failure, and it is measured rather than predicted: it is what took the
+Windows CI lane red over roughly 30 fixtures at once. `eol=lf` implies `text`,
+and `text` is written anyway so that a reader of the file need not know that.
+
+Line endings come first because the merge driver only matters once the file can
+be read.
+
+Two lines rather than one combined `text eol=lf merge=gitticket`, because a
+write matches a whole line. A repository carrying the merge line from before
+this gains the eol line and keeps the one it has, where a combined rule would
+match neither and append a duplicate beside the original.
+
 `git ticket install-merge-driver` is the other half. It sets the two config keys
-in `.git/config`, adds the `.gitattributes` entry if `init` predates this or
-somebody removed it, and prints what it changed and what was already right. It
-names the running executable by its absolute path, because a driver line reading
-`git-ticket` fails the moment Git runs from a directory where that is not on
-`PATH`. Running it twice is not an error and the second run reports that there
-was nothing to do.
+in `.git/config`, adds the merge `.gitattributes` entry if `init` predates this
+or somebody removed it, and prints what it changed and what was already right.
+It writes the merge line alone and never the eol line, because the command's
+name is a promise about what it touches. Repairing a store that predates the eol
+line is a separate question, and section 15 holds it. It names the running
+executable by its absolute path, because a driver line reading `git-ticket`
+fails the moment Git runs from a directory where that is not on `PATH`. Running
+it twice is not an error and the second run reports that there was nothing to
+do.
 
 ## 8. Query surface
 
@@ -3290,6 +3320,25 @@ enums, the error codes and the finding codes, so an adapter can generate most of
 a tool description rather than restating it and drifting. What is undecided is
 whether every command becomes a tool, or only the ones an agent should reach
 for.
+
+**Repairing a store that predates the eol attribute**
+(`TKT-01M1X70GCG5RHGT0ZHVDC09D62`). 7.5 has `init` write
+`.tickets/**/*.md text eol=lf`, and a store created before that line carries the
+merge line alone. Nothing adds the other one. `install-merge-driver` declines
+on purpose, because its name is a promise about what it touches, so the repair
+is a manual line and a re-checkout by somebody who has worked out what is wrong.
+The symptom does not help them: `list` reports nothing.
+
+The trigger is a real report, meaning a store made before the line, cloned on
+Windows, listing nothing. The population is small and known today. This
+repository's own store predates the line and is covered by its repository-wide
+`* text=auto eol=lf`, and terva's store is the other, which
+`docs/reply-terva-windows-lock.md` already tells it about. `check --fix` is the
+obvious home for a repair and is the expensive one: every finding in section 11
+describes the store's own contents, and `.gitattributes` is at the repository
+root, so a finding about it would be the first of its kind and 11 would have to
+say what that category means. A flag on `install-merge-driver` is the cheap
+alternative. Do not pay for the first on the strength of reasoning alone.
 
 **Backlog.md import and a local view** (`TKT-01M1F7Z30Q3PZFS1Q7B0F715Z9`) is
 answered. Both halves are settled, the ticket is archived, and neither trigger

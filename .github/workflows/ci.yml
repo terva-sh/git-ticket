@@ -1,0 +1,79 @@
+# GitHub CI: the Windows lane.
+#
+# This exists because the store lock was broken on Windows for the whole life
+# of the project and nothing here could see it. ticket/lock_other.go was tagged
+# !unix, Windows matched it, and every mutation failed with lock_timeout while
+# this repository's CI stayed green. That CI is Forgejo `runs-on: docker`, and
+# the only GitHub workflow was release.yml on ubuntu, so no Windows machine had
+# ever run this code. terva's release gate found it instead, at the last step
+# of a release, which is the most expensive place to learn it.
+#
+# The Forgejo lane in .forgejo/workflows/ci.yml is still the gate that matters:
+# it runs on every pull request, with gofmt, vet, the race detector, and a check
+# over this repository's own ticket store. This one covers the axis that lane
+# cannot reach.
+#
+# Two traps, and the first is the inverse of the one AGENTS.md warns about.
+# Actions here resolve against GitHub, so the standard actions/* paths are
+# correct and the Actions-Mirrors paths that Forgejo needs are not. Do not carry
+# the Forgejo workaround into this file.
+#
+# The second is that Forgejo Actions also executes .github/workflows and reports
+# the same owner and name, and it has no windows-latest runner. The
+# github.server_url guard is what keeps this job on the mirror, and release.yml
+# guards its jobs the same way for the same reason.
+#
+# The trigger is a push of main plus a manual run. The mirror only receives main
+# at release time, per AGENTS.md, so this fires once per release rather than per
+# branch. That is late, and it is still before the tag: push main, read this
+# lane, then tag.
+name: ci
+
+# Nothing here writes to the repository.
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows
+    if: github.server_url == 'https://github.com'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # From go.mod, so the toolchain moves with the module and not with
+          # a version pinned in two places.
+          go-version-file: go.mod
+
+      - name: go build
+        # The whole tree, so every package is held to compiling on Windows and
+        # not only the one under test below.
+        run: go build ./...
+
+      - name: go vet
+        # vet compiles the test files too, which build alone does not.
+        run: go vet ./...
+
+      - name: go test (ticket)
+        # Scoped to the library on purpose. ticket/ is what an embedding host
+        # imports, it is where the lock lives, and its suite is the evidence
+        # that a mutation can take the store lock on Windows.
+        #
+        # cli/ and tui/ are not here yet because they are not Windows-clean:
+        # cli/copy_test.go execs /bin/sh, and the tui suite has never run on
+        # Windows at all. Widening this is a follow-up, and widening it while
+        # it is red would teach everyone to ignore the lane.
+        #
+        # No -race. On Windows the race detector wants a C toolchain, and the
+        # Forgejo lane already runs the whole suite under -race on every pull
+        # request. This lane is here for the platform, not for the detector.
+        run: go test ./ticket/...

@@ -199,6 +199,18 @@ CI never commits a repair. Run `just fix` and commit what it changed.
 11: the command performs no network access. It is not a requirement that the CI
 job run without network, which is why fetching `yaml.v3` from the proxy is fine.
 
+`.github/workflows/ci.yml` is the Windows lane, and it is a second lane rather
+than a copy of the first. It builds and vets the whole tree for Windows and runs
+`go test ./ticket/...`, behind the same `github.server_url` guard `release.yml`
+uses, because Forgejo Actions executes `.github/workflows` too and has no
+Windows runner. The test scope is narrow on purpose: `cli/copy_test.go` execs
+`/bin/sh` in two tests and the tui suite has never run on Windows, so a lane
+over the whole suite would arrive red and teach everyone to ignore it. It
+triggers on a push of `main` plus `workflow_dispatch`, and the mirror only
+receives `main` at release time, so it fires once per release. That adds a step
+to the release sequence rather than to a branch: push `main` to the mirror, read
+the Windows lane, then tag.
+
 Section 13 of the plan lists the phases and their exit criteria. Do not start a
 later phase before an earlier one meets its criteria.
 
@@ -224,9 +236,10 @@ a tag, and let a release carry the commits behind it.
 The reason is what a push publishes, not what it costs to run. A push to the
 mirror puts unfinished history in front of anyone reading the public repository,
 and `main` there is what a visitor takes for the project. Runners are not the
-argument: the mirror's only workflow is `.github/workflows/release.yml`, which
-triggers on `push` of a `v*` tag and nothing else, so a branch push starts no
-run at all. Pushing three docs commits took the mirror's run count from 2 to 2.
+argument: the mirror has two workflows, `release.yml` on `push` of a `v*` tag
+and `ci.yml` on `push` of `main` and `workflow_dispatch`, so a branch push
+starts no run at all. Pushing three docs commits took the mirror's run count
+from 2 to 2, measured when `release.yml` was the only one.
 A tag is what spends public capacity, and a tag is the thing worth spending it
 on.
 
@@ -957,6 +970,16 @@ A bare `go build ./cmd/git-ticket` in a worktree still fails, because nothing
 intercepts it. Go through `just`, or pass the flag yourself.
 `just install-release` needs neither, because it builds in a clone with a real
 `.git` directory, which is why it clones.
+
+A build tag is not tested by the platform you build on. `ticket/lock_other.go`
+carried `//go:build !unix` and failed every acquisition on purpose, Windows
+matched it, and every mutation there failed with `lock_timeout` from v0.11.3
+through v0.14.1 while the suite stayed green on linux and macOS. terva's release
+gate found it, which is the most expensive place to learn it.
+`TestOneLockImplementationPerPlatform` in `ticket/lock_platform_test.go` now
+asks the toolchain which lock file each target compiles, over windows, linux,
+darwin and plan9, so a partition that is not both exclusive and total fails the
+suite. A new platform-tagged file joins that test.
 
 GitHub does not fire a workflow for a tag pushed in the same operation that
 first adds the workflow file. `git push github main --follow-tags` carried

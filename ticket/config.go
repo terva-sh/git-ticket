@@ -88,10 +88,15 @@ func ParseConfig(data []byte) (Config, error) {
 	if err := yaml.Unmarshal(data, &c); err != nil {
 		return c, &Error{Code: CodeParseError, Message: "config.yml: " + yamlMessage(err), Err: err}
 	}
+	// The remedy is the opposite of every other schema refusal here. series.go
+	// and apply.go say to run migrate, because there the store is behind the
+	// reader. This fires when the store is ahead, where migrate and check --fix
+	// are both useless and only a newer binary helps. terva reported readers
+	// reaching for check --fix against a true sentence that named no next step.
 	if c.Schema > SchemaVersion {
 		return c, &Error{
 			Code:    CodeSchemaUnsupported,
-			Message: fmt.Sprintf("config.yml declares schema %d, this reader supports %d", c.Schema, SchemaVersion),
+			Message: fmt.Sprintf("config.yml declares schema %d, this reader supports %d; upgrade git-ticket to read it", c.Schema, SchemaVersion),
 			Field:   "schema",
 		}
 	}

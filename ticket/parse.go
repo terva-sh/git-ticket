@@ -118,10 +118,12 @@ func Parse(data []byte) (*Ticket, error) {
 		return nil, &Error{Code: CodeParseError, Message: "schema is not an integer", Ticket: t.ID, Field: "schema"}
 	}
 	t.Schema = n
+	// Same remedy as the config.yml refusal in config.go, and for the same
+	// reason: a file declaring a level above the reader is never a file problem.
 	if n > SchemaVersion {
 		return nil, &Error{
 			Code:    CodeSchemaUnsupported,
-			Message: fmt.Sprintf("ticket declares schema %d, this reader supports %d", n, SchemaVersion),
+			Message: fmt.Sprintf("ticket declares schema %d, this reader supports %d; upgrade git-ticket to read it", n, SchemaVersion),
 			Ticket:  t.ID,
 			Field:   "schema",
 			Details: map[string]string{"found": strconv.Itoa(n), "supported": strconv.Itoa(SchemaVersion)},

@@ -435,13 +435,39 @@ type ClaimTicket struct {
 	Force bool
 }
 
+// claimRemedy names the move that puts a ticket back into a status a claim can
+// hold, for each status that cannot. Stating the condition and stopping is what
+// terva reported against v0.14.0: the refusal was right and the reader still had
+// to find the next step in the source. Every refused status wants a different
+// answer, so one appended sentence would teach two of the three callers a step
+// that does not apply to them. An unrecognised status returns the empty string
+// and the message stays as it was, because a wrong remedy is worse than none.
+func claimRemedy(status string) string {
+	switch status {
+	case StatusDraft:
+		return "promote it with git ticket status ID ready first"
+	// The reason is not optional here and leaving it out earns a second
+	// refusal, invalid_field on status_reason. A remedy that lands the reader
+	// on another refusal has not done the job this function exists for.
+	case StatusDone:
+		return "reopen it with git ticket status ID in-progress --reason R first"
+	case StatusArchived:
+		return "restore it with git ticket unarchive ID first"
+	}
+	return ""
+}
+
 func (m ClaimTicket) apply(t *Ticket, env mutEnv) error {
 	switch t.Status {
 	case StatusReady, StatusInProgress, StatusBlocked, StatusReview:
 	default:
+		msg := "a ticket in " + t.Status + " cannot be claimed"
+		if remedy := claimRemedy(t.Status); remedy != "" {
+			msg += "; " + remedy
+		}
 		return &Error{
 			Code:    CodeValidationFailed,
-			Message: "a ticket in " + t.Status + " cannot be claimed",
+			Message: msg,
 			Ticket:  t.ID, Field: "claim",
 		}
 	}

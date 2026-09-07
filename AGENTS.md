@@ -68,7 +68,7 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.14.2, and `self-update` (plan 12.6, with the graded
+Releases run through v0.14.3, and `self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release
 binary applied v0.8.1 over the live GitHub API, check exit 10, apply exit 0,
 and the result was byte-identical (`cmp`) to the released binary. v0.9.0
@@ -135,9 +135,24 @@ That release added the Windows lane and the lane immediately found two more
 defects, which is the argument for it. `.gitattributes` now pins
 `* text=auto eol=lf`, and two assertions in `ticket/arrive_test.go` read
 `Ticket.Path` through `filepath.ToSlash` because a filesystem path is spelled
-with backslashes on Windows. Both are in Gotchas. One Windows defect stays open
-and is deliberately not in the tag: a user's own store still meets the CRLF
-conversion, which is TKT-01M1X4QT.
+with backslashes on Windows. Both are in Gotchas.
+
+v0.14.3 closes the Windows defect v0.14.2 deliberately left open. `init` writes
+`.tickets/**/*.md text eol=lf` beside the merge-driver line, so a store cloned
+on Windows can be read at all. `ensureAttributes` replaced
+`ensureMergeAttribute` and takes the lines it should append.
+`install-merge-driver` asks for the merge line alone, because its name is a
+promise about what it touches, and the repair that refusal leaves open is plan
+15's `TKT-01M1X70GCG5RHGT0ZHVDC09D62` with a trigger of a real report.
+
+`TestAStoreSurvivesACRLFClone` is how that was proven, and it is the pattern to
+copy for anything platform-shaped. It commits a store and clones it with
+`core.autocrlf=true`, which is the identical git mechanism Windows turns on by
+default rather than a stand-in, so it runs everywhere and needs no Windows
+runner. Its second subtest removes `.gitattributes` and requires the clone to
+fail, because without that control a green first half could mean the conversion
+never happened. A test for a platform behaviour that cannot fail is worth
+nothing, and the conversion is reachable from any platform.
 
 Schema 3 is what the binary enforces, and `git ticket schema --json` reports
 it as `ticketSchema`. A store does not track that number, and this repository

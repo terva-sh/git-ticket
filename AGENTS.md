@@ -981,6 +981,17 @@ asks the toolchain which lock file each target compiles, over windows, linux,
 darwin and plan9, so a partition that is not both exclusive and total fails the
 suite. A new platform-tagged file joins that test.
 
+`.gitattributes` pins `* text=auto eol=lf`, and that line is load-bearing
+rather than tidiness. git converts text files to CRLF on a Windows checkout by
+default, plan 5.3 requires a ticket file to carry LF, and `parse` refuses a file
+whose fence line is `---\r` with `parse_error: file does not start with a ---
+frontmatter fence`. Without the line the Windows lane went red on its first run
+over about 30 fixtures, and `corpus_test.go` named the cause exactly: "CRLF line
+endings, 5.3 requires LF". The line protects a checkout of this repository and
+nothing else. A user's own store meets the same conversion and the same refusal,
+which is TKT-01M1X4QT (Have init write an eol=lf .gitattributes line for Windows
+stores).
+
 GitHub does not fire a workflow for a tag pushed in the same operation that
 first adds the workflow file. `git push github main --follow-tags` carried
 `.github/workflows/release.yml` and `v0.5.1` together, and GitHub registered the
@@ -989,6 +1000,12 @@ tag on the mirror and pushing it alone fixed it, and the identical tag object
 came back. This is a first-release-only trap, so it will not recur while the
 file stays put, and it is written down because the evidence points the wrong
 way: every check says the setup is correct.
+
+That trap is narrower than it reads, and the Windows lane measured the other
+half. A push of `main` that first adds a workflow triggered on `push` of `main`
+does fire it: `17d0515` carried `.github/workflows/ci.yml` and started run
+34085691784 for that same push. So the tag case above is about the tag, not
+about adding a workflow file.
 
 What makes it findable is that the run count is zero rather than one. A job-level
 `if:` that evaluates false still creates a run and marks it skipped, so a guard

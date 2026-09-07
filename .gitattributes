@@ -1,1 +1,12 @@
+# Every file checks out in its committed form, because plan 5.3 requires a
+# ticket file to carry LF line endings and git converts to CRLF on Windows by
+# default. Without this line a Windows checkout rewrites every fixture, and
+# parse then refuses the file it just read: "file does not start with a ---
+# frontmatter fence". The Windows lane went red on exactly that, on the push
+# that added it, over 30 fixtures at once.
+#
+# This protects a checkout of this repository. It does nothing for a user's own
+# repository, whose .tickets/ has no such line unless somebody wrote one.
+* text=auto eol=lf
+
 .tickets/**/*.md merge=gitticket

@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-07T05:01:32Z
-updated_at: 2026-09-07T05:06:50Z
+updated_at: 2026-09-07T05:15:53Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -76,7 +76,7 @@ bug is caught here rather than at terva's release gate. It is guarded by
 - [x] go list reports exactly one lock implementation per target: lock_windows.go on windows, lock_unix.go on linux and darwin, lock_other.go on plan9
 - [x] GOOS=windows go build ./... and GOOS=windows go vet ./... both exit 0
 - [ ] .github/workflows/ci.yml runs the suite on windows-latest, guarded by github.server_url so Forgejo skips it
-- [ ] A Windows runner executes TestWorktreesShareOneLock green, proving both the granted and the contended branch
+- [x] A Windows runner executes TestWorktreesShareOneLock green, proving both the granted and the contended branch
 
 ## Notes
 
@@ -97,6 +97,16 @@ The handoff wrote: "I pass a zeroed `Overlapped` on a synchronous handle, so `ER
 The shipped code puts it in the fatal branch, which is the default case, and the comment says why. `os.OpenFile` never passes FILE_FLAG_OVERLAPPED, so the handle is synchronous and LockFileEx cannot queue asynchronously on it. Reaching ERROR_IO_PENDING therefore means an assumption in this file is wrong. Treating it as contention would spin the poll loop to its deadline and then report `another process holds the store lock`, which blames a holder that does not exist and hides the real condition. The fatal branch reports `lock_timeout: Overlapped I/O operation is in progress`, which names the condition and can be searched for.
 
 Both branches produce a failed write, so this is not a correctness difference. It is a difference in what the failure tells the reader.
+
+**agent:terva/mieli** at 2026-09-07T05:15:53Z
+
+Criterion 5 is now ticked, and this supersedes the part of the earlier note that assigned its evidence to the v0.14.2 verification. The evidence arrived sooner than expected, because the lane fired on the push of main that added it rather than waiting for a tag.
+
+GitHub Actions run 34085691784, job Windows, on 17d0515. `go build ./...` and `go vet ./...` passed. `go test ./ticket/...` failed, but not on the lock: TestWorktreesShareOneLock and TestOneLockImplementationPerPlatform are both absent from the failure list, and Go prints every failing test, so both passed on a real windows-latest runner. That is the granted branch and the contended branch of tryFlock exercised on the platform, which is what the criterion asked for.
+
+The run failed on CRLF instead. actions/checkout applies core.autocrlf=true on a Windows runner, this repository's .gitattributes carried only the merge-driver line, and about 30 fixtures arrived with CRLF. `corpus_test.go:51` named it exactly: "CRLF line endings, 5.3 requires LF". Fixed by `* text=auto eol=lf` in .gitattributes.
+
+That fix protects a checkout of this repository and nothing else. The same conversion breaks a user's own store on Windows, where every ticket file would fail to parse, and that defect has its own ticket.
 
 ## Summary
 

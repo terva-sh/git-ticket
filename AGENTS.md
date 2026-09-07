@@ -68,7 +68,7 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.14.0, and `self-update` (plan 12.6, with the graded
+Releases run through v0.14.2, and `self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release
 binary applied v0.8.1 over the live GitHub API, check exit 10, apply exit 0,
 and the result was byte-identical (`cmp`) to the released binary. v0.9.0
@@ -121,6 +121,23 @@ serialization carrying `Message`, which the wire form omits, and a reflection
 test fails when `Finding` gains a field the verbose type lacks.
 `docs/reply-terva-library-ergonomics.md` is the document the user carries
 back, and it holds the correction to terva's actor claim.
+
+v0.14.2 answers a third terva handoff, and it is the first release proven on
+Windows. The store lock never worked there: `lock_other.go` was tagged `!unix`,
+Windows matched it, and every mutation failed with `lock_timeout` while reads
+kept working. `ticket/lock_windows.go` takes the lock through `LockFileEx`, and
+`TestWorktreesShareOneLock` passed on a `windows-latest` runner, so this is
+measured rather than cross-compiled. A patch under 12.4: a bug fix with no
+exported API change and no schema move. `docs/reply-terva-windows-lock.md` is
+the document the user carries back.
+
+That release added the Windows lane and the lane immediately found two more
+defects, which is the argument for it. `.gitattributes` now pins
+`* text=auto eol=lf`, and two assertions in `ticket/arrive_test.go` read
+`Ticket.Path` through `filepath.ToSlash` because a filesystem path is spelled
+with backslashes on Windows. Both are in Gotchas. One Windows defect stays open
+and is deliberately not in the tag: a user's own store still meets the CRLF
+conversion, which is TKT-01M1X4QT.
 
 Schema 3 is what the binary enforces, and `git ticket schema --json` reports
 it as `ticketSchema`. A store does not track that number, and this repository
@@ -991,6 +1008,15 @@ endings, 5.3 requires LF". The line protects a checkout of this repository and
 nothing else. A user's own store meets the same conversion and the same refusal,
 which is TKT-01M1X4QT (Have init write an eol=lf .gitattributes line for Windows
 stores).
+
+A store path and a displayed path are spelled differently, and a test must know
+which it holds. `Ticket.Path` is a filesystem path, so Windows spells it with
+backslashes and `strings.Contains(tk.Path, "/done/")` fails against a file in
+exactly the right directory. That is what the first green Windows run caught, in
+`ticket/arrive_test.go`, which now compares through `storeSlashPath`. The CLI
+needs none of that: `relativeTo` in `cli/cli.go` returns `filepath.ToSlash`, so a
+displayed path is slash-spelled everywhere and `cli`'s own assertions are right
+as written. Normalizing those too would hide a real regression if that changed.
 
 GitHub does not fire a workflow for a tag pushed in the same operation that
 first adds the workflow file. `git push github main --follow-tags` carried

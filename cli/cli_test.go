@@ -172,6 +172,65 @@ func TestTopLevelHelp(t *testing.T) {
 	}
 }
 
+// TestInitRefusesAStoreDirectoryAsRoot covers the CLI half of invalid_root,
+// per plan 10. --store already resolves to the parent, so the reachable way in
+// is running init from inside a store, and that used to build .tickets/.tickets
+// without a word.
+func TestInitRefusesAStoreDirectoryAsRoot(t *testing.T) {
+	dir := newStore(t)
+	store := filepath.Join(dir, ".tickets")
+
+	got := runCLI(t, store, nil, "init", "--actor", "human:sothr")
+	if got.code == exitOK {
+		t.Fatalf("init inside a store succeeded: %s%s", got.stdout, got.stderr)
+	}
+	if !strings.Contains(got.stderr, "invalid_root") {
+		t.Errorf("stderr does not name the code: %s", got.stderr)
+	}
+	if _, err := os.Stat(filepath.Join(store, ".tickets")); !os.IsNotExist(err) {
+		t.Error("a nested store was created despite the refusal")
+	}
+}
+
+// TestClaimSessionReachesTheEnvelope is the CLI half of plan 6.4's session
+// field. Only a harness knows its own session id, so the flag exists for a host
+// that shells out instead of embedding the library.
+func TestClaimSessionReachesTheEnvelope(t *testing.T) {
+	dir := newStore(t)
+	id := createTicket(t, dir)["ticket"].(map[string]any)["id"].(string)
+
+	if got := runCLI(t, dir, nil, "status", id, "ready", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("status: %s%s", got.stdout, got.stderr)
+	}
+	const session = "01M1VXVWZQ8K3PYRFN20HCTE5D"
+	if got := runCLI(t, dir, nil, "claim", id, "--session", session,
+		"--actor", "agent:terva/session-4417"); got.code != exitOK {
+		t.Fatalf("claim: %s%s", got.stdout, got.stderr)
+	}
+
+	got := runCLI(t, dir, nil, "--json", "show", id)
+	if got.code != exitOK {
+		t.Fatalf("show: %s%s", got.stdout, got.stderr)
+	}
+	claim, ok := decode(t, got.stdout)["ticket"].(map[string]any)["claim"].(map[string]any)
+	if !ok {
+		t.Fatalf("no claim in the envelope: %s", got.stdout)
+	}
+	if claim["session"] != session {
+		t.Errorf("claim.session = %v, want %q", claim["session"], session)
+	}
+
+	// Releasing drops the block, so the session goes with it rather than
+	// outliving the claim it describes.
+	if got := runCLI(t, dir, nil, "release", id, "--actor", "agent:terva/session-4417"); got.code != exitOK {
+		t.Fatalf("release: %s%s", got.stdout, got.stderr)
+	}
+	after := runCLI(t, dir, nil, "--json", "show", id)
+	if c := decode(t, after.stdout)["ticket"].(map[string]any)["claim"]; c != nil {
+		t.Errorf("claim = %v after release, want null", c)
+	}
+}
+
 // newStore makes a directory with an initialized store in it.
 func newStore(t *testing.T) string {
 	t.Helper()

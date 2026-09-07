@@ -10,9 +10,9 @@ import (
 	"github.com/terva-sh/git-ticket/ticket"
 )
 
-// lowerSchema puts a store one level behind this binary. init writes the
-// current level, so the declaration is lowered first and the tickets are made
-// after, because create stamps what the store declares, per plan 12.5.
+// lowerSchema puts a store at schema 1. init writes the current level, so the
+// declaration is lowered first and the tickets are made after, because create
+// stamps what the store declares, per plan 12.5.
 func lowerSchema(t *testing.T, dir string) string {
 	t.Helper()
 	cfg := filepath.Join(dir, ".tickets", "config.yml")
@@ -21,7 +21,10 @@ func lowerSchema(t *testing.T, dir string) string {
 		t.Fatal(err)
 	}
 	now := fmt.Sprintf("schema: %d", ticket.SchemaVersion)
-	was := fmt.Sprintf("schema: %d", ticket.SchemaVersion-1)
+	// Schema 1, not one level behind. These tests migrate a store and assert on
+	// what the run reported, and a relative level stopped meaning "the oldest
+	// store" as soon as schema 3 existed.
+	was := "schema: 1"
 	out := strings.Replace(string(data), now, was, 1)
 	if out == string(data) {
 		t.Fatalf("config.yml does not declare %q:\n%s", now, data)
@@ -56,7 +59,8 @@ func TestMigrateEnvelope(t *testing.T) {
 	if env["kind"] != "migrate-result" {
 		t.Errorf("kind = %v, want migrate-result", env["kind"])
 	}
-	if from, want := env["from"], float64(ticket.SchemaVersion-1); from != want {
+	// 1, because lowerSchema puts the store there rather than one level back.
+	if from, want := env["from"], float64(1); from != want {
 		t.Errorf("from = %v, want %v", from, want)
 	}
 	if to, want := env["to"], float64(ticket.SchemaVersion); to != want {
@@ -150,7 +154,8 @@ func TestMigrateHumanOutputNamesWhatMoved(t *testing.T) {
 	if got.code != exitOK {
 		t.Fatalf("migrate failed: %s%s", got.stdout, got.stderr)
 	}
-	for _, want := range []string{"migrated schema 1 to 2", "config.yml", ".tickets/"} {
+	moved := fmt.Sprintf("migrated schema 1 to %d", ticket.SchemaVersion)
+	for _, want := range []string{moved, "config.yml", ".tickets/"} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("output does not mention %q:\n%s", want, got.stdout)
 		}
@@ -159,7 +164,7 @@ func TestMigrateHumanOutputNamesWhatMoved(t *testing.T) {
 	// The second run says so rather than printing nothing, because silence
 	// reads as a failure to a person who just asked for work to happen.
 	again := runCLI(t, dir, nil, "migrate")
-	if !strings.Contains(again.stdout, "already at schema 2") {
+	if !strings.Contains(again.stdout, fmt.Sprintf("already at schema %d", ticket.SchemaVersion)) {
 		t.Errorf("a second run said:\n%s", again.stdout)
 	}
 }

@@ -18,7 +18,29 @@ All three findings are accepted. They are filed as:
 - `TKT-01M1WP8P15GQGCDPWS1VMSRHJM` Publish a Finding serialization that
   carries Message
 
-They are drafts. Nothing is scheduled yet, and none of them is built.
+All three are built and shipped in v0.14.0, along with the session field from
+terva's second handoff. What follows records why each was accepted in the shape
+it was.
+
+## What moved since the first copy of this document
+
+If you have read an earlier copy, this is what changed. Everything else stands.
+
+All three findings are built rather than filed. v0.14.0 carries them.
+
+The second handoff, `handoff-git-ticket-session-on-claim.md`, is answered here
+too, in a section at the end. Its one request is built: `claim.session` exists
+at schema 3.
+
+The `Init` error code is `invalid_root`, not `nested_store`. The plan already
+spends "nested store" on a store deeper in the tree that discovery skips, and
+one phrase with two meanings in one document is worse than a longer name.
+
+One correction to the second handoff. The `x-` prefixed key you offered as a
+fallback would not have worked for the session, for a reason that is not in
+either document: `ReleaseClaim` sets the whole claim block to nil, so a
+top-level key survives the claim it describes. The measured detail is in that
+section.
 
 ## Read this part first: v0.11.3 cannot open a current store
 
@@ -62,9 +84,22 @@ supports 1 (field schema)
 ```
 
 So terva on v0.11.3 refuses any store a current git-ticket created, not only
-migrated ones. It should move to v0.13.0, and its tool layer should treat
+migrated ones. It should move to v0.14.0, and its tool layer should treat
 `schema_unsupported` as a user-actionable message naming `git ticket migrate`
 rather than as an internal error.
+
+That advice now applies to v0.13.0 as well, because v0.14.0 adds schema 3 for
+the session field. The shape of the problem is identical one level up: v0.13.0
+reads schema 1 and 2 and refuses schema 3, and `git ticket init` under v0.14.0
+writes schema 3. Pinning v0.14.0 is what makes the session field reachable and
+keeps terva able to open stores a current binary made.
+
+Nothing forces an existing store to move. The gate is `c.Schema >
+SchemaVersion`, so a v0.14.0 binary still reads schema 1 and schema 2 stores,
+and `check` compares a ticket against its own `config.yml` rather than against
+the binary, so a consistent schema-2 store stays quiet. A store moves when
+somebody runs `git ticket migrate`, and it has to move before a claim in it can
+carry a session.
 
 What else arrived since v0.11.3, in case it changes slice 3:
 
@@ -184,9 +219,60 @@ direction first.
 The most valuable single line in the report is the one about when doc
 comments get read. It decided finding 1 and it will decide others.
 
+## The second handoff: a session on the claim
+
+Built, as `claim.session` at schema 3, in the first shape you listed:
+`Session string` on `ClaimTicket` and `Session *string` on `Claim`. It renders
+after `commit`, it updates on a renewal the way branch and commit do, and
+releasing a claim drops it with the block. `git ticket claim --session` exists
+for a host that shells out, and the JSON envelope publishes `claim.session`,
+null below schema 3.
+
+Your reasoning for asking rather than squatting was right, and stronger than
+you put it. `promoteUnknown` does not merely collide: its `default` branch
+returns `no rule for promoting it to schema N`, so a squatted key becomes a
+refused migration for whoever migrates next.
+
+One correction. The `x-` namespace you offered as the weaker fallback would not
+have carried this field, and neither would a plain key inside the claim. Both
+fail, differently, and both were measured:
+
+`decodeClaim` has no `default` branch, so an unknown sub-key under `claim:` is
+silently dropped rather than preserved. A session id written inside the claim
+block does not survive the next write, so squatting there was never available.
+
+An unknown top-level key does round-trip, so `x-session:` would have survived.
+But `ReleaseClaim.apply` sets `t.Claim = nil`, so the claim block vanishes on
+release while a top-level key stays. The session id would outlive the claim it
+describes and point at nothing. That is the argument for a sub-key, and it is
+why the `x-` namespace stays an open question for a different request rather
+than the answer to this one.
+
+The level was not optional, for the same reason the sub-key was right. An older
+reader meeting `claim.session` drops it on the next write, silently, because
+`decodeClaim` ignores what it does not know. Under 12.4 a schema bump is an
+ordinary minor, so the cost is the migration and not a major version.
+
+### What we did not build, because you checked it
+
+Your section 3 is the most useful part of the second handoff, and it is
+recorded so nobody spends effort re-deriving it. `ExpiresIn` and `Force` are
+left as they are for swarm assignment, `Open`, `OpenOptions` and `Store.Root()`
+are left as they are for addressing more than one store, and `Store.Template`
+and `Store.Templates` already being in the library is noted rather than
+relitigated.
+
+`SetChecklistItem.Index` stays positional, and your observation that the
+revision precondition makes it safe is now on the record as the reason, rather
+than as something nobody examined. No stable item ids.
+
+Your correction about `SetChecklistItem` needed no action, and it is worth
+saying that correcting it cost less than the alternative. A gap we had recorded
+as real would have shaped the next design round.
+
 ## Versions
 
-Answered against git-ticket v0.13.0, commit `ab4a85e`. The report was written
-against v0.11.3 embedded from the module proxy. The probe that produced every
-measurement above was temporary and is not in the tree; the tickets carry its
-output.
+Answered against git-ticket v0.14.0. The first report was written against
+v0.11.3 and the second against v0.13.0, both embedded from the module proxy.
+The probes that produced every measurement above were temporary and are not in
+the tree; the tickets carry their output.

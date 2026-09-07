@@ -548,11 +548,23 @@ func TestCreateWritesTheStoreSchema(t *testing.T) {
 	if want := fmt.Sprintf("schema: %d\n", behind); !strings.Contains(string(data), want) {
 		t.Errorf("file does not carry %q:\n%s", want, data)
 	}
-	// And it carries no key that a later level introduced, per plan 5.6. This is
+
+	// And a file carries no key a later level introduced, per plan 5.6. This is
 	// the assertion that would have caught writing origin: null into a schema-1
 	// store, which is the drift 12.5 exists to prevent.
+	//
+	// Schema 1 by name rather than one level behind. The two were the same
+	// number while the maximum was 2, and schema 3 separated them: origin is
+	// correct in a schema-2 file, so the relative form stopped asserting
+	// anything the moment it was most needed.
+	s.config.Schema = 1
+	oldest := mustCreate(t, s, "Written into a schema-1 store")
+	data, err = os.ReadFile(oldest.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(string(data), "origin:") {
-		t.Errorf("a schema-%d file carries origin:\n%s", behind, data)
+		t.Errorf("a schema-1 file carries origin, which schema 2 introduced:\n%s", data)
 	}
 
 	// A store that declares nothing gets this reader's version. Without the
@@ -562,6 +574,93 @@ func TestCreateWritesTheStoreSchema(t *testing.T) {
 	zero := mustCreate(t, s, "Written where the store declares nothing")
 	if zero.Schema != SchemaVersion {
 		t.Errorf("schema = %d with nothing declared, want %d", zero.Schema, SchemaVersion)
+	}
+}
+
+// TestClaimRecordsTheSession covers the field schema 3 adds, per plan 6.4. It
+// is what turns a ticket into an index into transcript history, so the value
+// has to survive the file rather than only the returned struct.
+func TestClaimRecordsTheSession(t *testing.T) {
+	s := newTestStore(t)
+	tk := mustCreate(t, s, "Work a session should be able to find again")
+	mustApply(t, s, tk.ID, SetStatus{Status: StatusReady})
+
+	agent := Actor{ID: "agent:terva/session-4417", Name: "Mieli"}
+	const first = "01M1VXVWZQ8K3PYRFN20HCTE5D"
+	res, err := s.Apply(context.Background(), tk.ID,
+		ClaimTicket{Branch: "feat/tickets-to-tasks", Session: first},
+		ApplyOptions{Actor: agent})
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if got := res.Ticket.Claim.Session; got == nil || *got != first {
+		t.Fatalf("claim session = %v, want %q", got, first)
+	}
+
+	// Through the file and back, because the renderer is where the field set is
+	// chosen and a value that never reached disk would still satisfy the check
+	// above.
+	if got, want := fileLine(t, res.Ticket.Path, "  session:"), "  session: "+first; got != want {
+		t.Errorf("file says %q, want %q", got, want)
+	}
+	reread, err := s.Get(context.Background(), tk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reread.Claim.Session; got == nil || *got != first {
+		t.Errorf("session did not survive a read: %v", got)
+	}
+
+	// A renewal from a second session updates it, the way branch and commit
+	// update, per 6.4: it describes the claim being recorded now.
+	const second = "01M1WQ1PWA0TPQATQ66978AVC2"
+	res, err = s.Apply(context.Background(), tk.ID,
+		ClaimTicket{Branch: "feat/tickets-to-tasks", Session: second},
+		ApplyOptions{Actor: agent})
+	if err != nil {
+		t.Fatalf("renewal: %v", err)
+	}
+	if got := res.Ticket.Claim.Session; got == nil || *got != second {
+		t.Errorf("renewed session = %v, want %q", got, second)
+	}
+
+	// Releasing drops it with the rest of the block. That is the whole reason it
+	// is a claim sub-key: a top-level key would outlive the claim it describes
+	// and point at nothing.
+	res, err = s.Apply(context.Background(), tk.ID, ReleaseClaim{}, ApplyOptions{Actor: agent})
+	if err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	if res.Ticket.Claim != nil {
+		t.Errorf("claim survived release: %+v", res.Ticket.Claim)
+	}
+	if got, want := fileLine(t, res.Ticket.Path, "claim:"), "claim: null"; got != want {
+		t.Errorf("file says %q after release, want %q", got, want)
+	}
+}
+
+// TestClaimSessionDoesNotRenderBelowSchema3 is the gate 12.5 buys. Writing the
+// sub-key into an older store would hand a colleague's reader a key it drops on
+// its next write, and losing it quietly is the failure the level prevents.
+func TestClaimSessionDoesNotRenderBelowSchema3(t *testing.T) {
+	s := newTestStore(t)
+	s.config.Schema = 2
+	tk := mustCreate(t, s, "Claimed in a store one level behind")
+	mustApply(t, s, tk.ID, SetStatus{Status: StatusReady})
+
+	res, err := s.Apply(context.Background(), tk.ID,
+		ClaimTicket{Session: "01M1VXVWZQ8K3PYRFN20HCTE5D"},
+		ApplyOptions{Actor: Actor{ID: "agent:terva/session-4417", Name: "Mieli"}})
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+
+	data, err := os.ReadFile(res.Ticket.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "session:") {
+		t.Errorf("a schema-2 file carries session, which schema 3 introduced:\n%s", data)
 	}
 }
 

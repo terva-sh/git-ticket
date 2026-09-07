@@ -410,10 +410,15 @@ type actorJSON struct {
 }
 
 type claimJSON struct {
-	Actor     string  `json:"actor"`
-	Branch    *string `json:"branch"`
-	Worktree  *string `json:"worktree"`
-	Commit    *string `json:"commit"`
+	Actor    string  `json:"actor"`
+	Branch   *string `json:"branch"`
+	Worktree *string `json:"worktree"`
+	Commit   *string `json:"commit"`
+	// Session is null below schema 3, which is the level that defines it.
+	// It is published unconditionally, because a consumer reading null has to
+	// be able to tell an old store from a claim nobody attributed, and the
+	// ticket's own schema field is what says which.
+	Session   *string `json:"session"`
 	ClaimedAt *string `json:"claimedAt"`
 	ExpiresAt *string `json:"expiresAt"`
 }
@@ -541,6 +546,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 			Branch:    copyString(c.Branch),
 			Worktree:  copyString(c.Worktree),
 			Commit:    copyString(c.Commit),
+			Session:   copyString(c.Session),
 			ClaimedAt: timestamp(c.ClaimedAt),
 			ExpiresAt: timestamp(c.ExpiresAt),
 		}

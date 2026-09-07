@@ -379,6 +379,10 @@ func decodeClaim(n *yaml.Node) (*Claim, error) {
 			c.Worktree, err = optionalString(val, "claim.worktree")
 		case "commit":
 			c.Commit, err = optionalString(val, "claim.commit")
+		case "session":
+			// Accepted at every level. hasClaimSession gates the renderer
+			// alone, and its comment says why the two differ here.
+			c.Session, err = optionalString(val, "claim.session")
 		case "claimed_at":
 			c.ClaimedAt, err = decodeTimestamp(val, "claim.claimed_at")
 		case "expires_at":

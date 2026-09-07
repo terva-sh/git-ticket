@@ -191,6 +191,13 @@ func DiscoverWith(dir string, opts OpenOptions) (*Store, error) {
 // InitOptions configures a new store.
 type InitOptions struct {
 	// Actor is recorded in config.yml as the first known actor, when set.
+	//
+	// Leaving it unset is legitimate and nothing fails here. It means config.yml
+	// names no default actor, so every later write has to supply one of its own:
+	// a Create naming no actor is refused with invalid_field rather than
+	// attributed to somebody who did not ask for it. A store that several
+	// writers share wants precisely that, because a default would record all of
+	// them under one name.
 	Actor Actor
 	// Labels seeds the advisory label allowlist.
 	Labels []string
@@ -198,11 +205,26 @@ type InitOptions struct {
 }
 
 // Init creates a store under root and returns it. root is the repository root,
-// so the store lands at root/.tickets.
+// so the store lands at root/.tickets. Open is the asymmetric one and takes the
+// store directory itself, because that is what each is for:
+//
+//	Init(repoRoot, InitOptions{})       // creates repoRoot/.tickets
+//	Open(repoRoot + "/.tickets")        // opens it again later
+//
+// Passing the store path here is refused with invalid_root rather than
+// producing .tickets/.tickets, per plan 10.
 func Init(root string, opts InitOptions) (*Store, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, &Error{Code: CodeStoreNotFound, Message: err.Error(), Err: err}
+	}
+	// Nobody means .tickets/.tickets, and nothing later would say so: Init
+	// succeeds, and a Discover from inside the store finds the buried one and
+	// reports it as the store, so the first symptom is far from the cause.
+	if filepath.Base(abs) == StoreDirName {
+		return nil, codedError(CodeInvalidRoot,
+			"%s is a store directory, not a repository root; Init creates %s under the root it is given, so pass the parent (%s) or use Open to open this one",
+			abs, StoreDirName, filepath.Dir(abs))
 	}
 	path := filepath.Join(abs, StoreDirName)
 	if info, err := os.Stat(path); err == nil && info.IsDir() {

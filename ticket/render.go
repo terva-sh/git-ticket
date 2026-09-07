@@ -53,7 +53,7 @@ func renderFrontmatter(b *strings.Builder, t *Ticket) {
 	}
 	m.addString("blocks_on", blocksOn)
 	m.add("references", referencesNode(t.References))
-	m.add("claim", claimNode(t.Claim))
+	m.add("claim", claimNode(t.Claim, schema))
 	m.add("archive", archiveNode(t.Archive))
 	m.add("created_at", timestampNode(t.CreatedAt))
 	m.add("updated_at", timestampNode(t.UpdatedAt))
@@ -93,7 +93,7 @@ func referencesNode(refs []Reference) ynode {
 	return s
 }
 
-func claimNode(c *Claim) ynode {
+func claimNode(c *Claim, schema int) ynode {
 	if c == nil {
 		return yscalar{"null"}
 	}
@@ -102,6 +102,13 @@ func claimNode(c *Claim) ynode {
 	m.addStringPtr("branch", c.Branch)
 	m.addStringPtr("worktree", c.Worktree)
 	m.addStringPtr("commit", c.Commit)
+	// session follows the three fields that locate the work, per plan 6.4, and
+	// exists only at the schema that introduced it. Emitting it lower would put
+	// a sub-key in the file that an older reader silently drops on its next
+	// write, which is the loss 12.5 buys the level to prevent.
+	if hasClaimSession(schema) {
+		m.addStringPtr("session", c.Session)
+	}
 	m.addTimestamp("claimed_at", c.ClaimedAt)
 	m.addTimestamp("expires_at", c.ExpiresAt)
 	return m

@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M1WP8NZ79EC495EFYFJA44QX
 title: Refuse an Init whose root is itself a .tickets directory
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-07T01:03:34Z
-updated_at: 2026-09-07T01:03:56Z
+updated_at: 2026-09-07T01:33:28Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -76,8 +76,29 @@ v0.6.0. Confirmed with the user before filing.
 
 ## Acceptance criteria
 
-- [ ] Init refuses a root whose base name is .tickets, with a coded error that names the mistake
-- [ ] The new code joins the operational set in ticket/errors.go, and no plan section 11 code or fixture sidecar changes
-- [ ] A test runs terva's exact sequence: Init(root), then Init(root/.tickets), and asserts the refusal
-- [ ] The CLI path is checked too, so git ticket init inside a store does not create a nested one
-- [ ] It ships in a minor, per 12.4, because it refuses what previously succeeded
+- [x] Init refuses a root whose base name is .tickets, with a coded error that names the mistake
+- [x] The new code joins the operational set in ticket/errors.go, and no plan section 11 code or fixture sidecar changes
+- [x] A test runs terva's exact sequence: Init(root), then Init(root/.tickets), and asserts the refusal
+- [x] The CLI path is checked too, so git ticket init inside a store does not create a nested one
+- [x] It ships in a minor, per 12.4, because it refuses what previously succeeded
+
+## Summary
+
+Shipped in v0.14.0, from terva's first handoff.
+
+`Init` refuses a root whose base name is `.tickets` with `invalid_root`, naming
+the parent to pass instead. The code is `invalid_root` rather than
+`nested_store`, because the plan already spends "nested store" on a store deeper
+in the tree that discovery skips, and one phrase with two meanings is worse than
+a longer name. Plan section 10 defines it.
+
+`InitOptions.Actor` documents what leaving it unset costs: config.yml names no
+default actor, so every write must supply one. terva's proposed wording said the
+store refuses every write, which is false, and a store with no default actor is
+the correct shape for several writers.
+
+`FindingVerbose` and `ReportVerbose` carry `message` and `title` for a consumer
+showing a report to somebody. Finding's four-key contract is untouched and no
+fixture changed. A reflection test holds the verbose types to their originals,
+and a second test proves that check can fail, because relocating terva's shadow
+struct to this side of the boundary without a guard would only move the drift.

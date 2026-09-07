@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M1WP8P15GQGCDPWS1VMSRHJM
 title: Publish a Finding serialization that carries Message
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-07T01:03:34Z
-updated_at: 2026-09-07T01:03:56Z
+updated_at: 2026-09-07T01:33:28Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -80,7 +80,28 @@ ships in a minor.
 
 ## Acceptance criteria
 
-- [ ] An exported verbose serialization carries message beside the four contract keys
-- [ ] Finding.MarshalJSON still emits exactly code, file, ticket, field, and no fixture sidecar changes
-- [ ] A reflection test asserts the verbose type covers every exported field of Finding
-- [ ] Adding a field to Finding without extending the verbose type fails the suite, demonstrated by trying it
+- [x] An exported verbose serialization carries message beside the four contract keys
+- [x] Finding.MarshalJSON still emits exactly code, file, ticket, field, and no fixture sidecar changes
+- [x] A reflection test asserts the verbose type covers every exported field of Finding
+- [x] Adding a field to Finding without extending the verbose type fails the suite, demonstrated by trying it
+
+## Summary
+
+Shipped in v0.14.0, from terva's first handoff.
+
+`Init` refuses a root whose base name is `.tickets` with `invalid_root`, naming
+the parent to pass instead. The code is `invalid_root` rather than
+`nested_store`, because the plan already spends "nested store" on a store deeper
+in the tree that discovery skips, and one phrase with two meanings is worse than
+a longer name. Plan section 10 defines it.
+
+`InitOptions.Actor` documents what leaving it unset costs: config.yml names no
+default actor, so every write must supply one. terva's proposed wording said the
+store refuses every write, which is false, and a store with no default actor is
+the correct shape for several writers.
+
+`FindingVerbose` and `ReportVerbose` carry `message` and `title` for a consumer
+showing a report to somebody. Finding's four-key contract is untouched and no
+fixture changed. A reflection test holds the verbose types to their originals,
+and a second test proves that check can fail, because relocating terva's shadow
+struct to this side of the boundary without a guard would only move the drift.

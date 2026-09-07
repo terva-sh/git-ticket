@@ -421,6 +421,10 @@ type ClaimTicket struct {
 	Branch   string
 	Worktree string
 	Commit   string
+	// Session is the agent session doing the work, recorded at schema 3 and
+	// above. Only a harness knows its own session id, so nothing here derives
+	// it the way Branch and Commit are derived from git.
+	Session string
 	// ExpiresIn overrides the store default. Zero means the store default,
 	// and there is no default expiry, so a claim usually does not expire.
 	// Zero on a renewal keeps the expiry the live claim already carried.
@@ -464,6 +468,7 @@ func (m ClaimTicket) apply(t *Ticket, env mutEnv) error {
 	claim.Branch = optional(m.Branch)
 	claim.Worktree = optional(m.Worktree)
 	claim.Commit = optional(m.Commit)
+	claim.Session = optional(m.Session)
 
 	// claimed_at is the only record of when the work started, and renewing is
 	// not restarting.

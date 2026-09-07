@@ -2,19 +2,31 @@ package ticket
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// schema1Store returns a store one level behind this binary, which is what a
-// migration has to operate on. Init writes SchemaVersion, so the level is
-// lowered deliberately here rather than found.
+// schemaLine is what config.yml and a ticket file say at the current level.
+// Deriving it keeps these tests from being edited every time a level lands,
+// which is the churn schema 3 caused for the ones that spelled 2 out.
+func schemaLine(n int) string { return fmt.Sprintf("schema: %d", n) }
+
+// schema1Store returns a store at schema 1, which is what a migration has to
+// operate on. Init writes SchemaVersion, so the level is lowered deliberately
+// here rather than found.
+//
+// It pins 1 rather than SchemaVersion-1. The tests that use it care about what
+// schema 1 lacks, series and origin among it, and once schema 3 existed a
+// relative level stopped meaning that: one behind became 2, which has both, and
+// the refusals under test stopped firing while the tests still read as though
+// they covered them.
 func schema1Store(t *testing.T) *Store {
 	t.Helper()
 	s := newTestStore(t)
-	s.config.Schema = SchemaVersion - 1
+	s.config.Schema = 1
 	if err := os.WriteFile(filepath.Join(s.path, configFile), RenderConfig(s.config), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -87,8 +99,8 @@ func TestMigrateRaisesTheStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if res.From != SchemaVersion-1 || res.To != SchemaVersion {
-		t.Errorf("migrated %d to %d, want %d to %d", res.From, res.To, SchemaVersion-1, SchemaVersion)
+	if res.From != 1 || res.To != SchemaVersion {
+		t.Errorf("migrated %d to %d, want 1 to %d", res.From, res.To, SchemaVersion)
 	}
 	if !res.ConfigChanged {
 		t.Error("ConfigChanged is false on the run that raised the store")
@@ -100,11 +112,11 @@ func TestMigrateRaisesTheStore(t *testing.T) {
 		t.Errorf("skipped %d, want 0", res.Skipped)
 	}
 
-	if got, want := storeSchemaLine(t, s), "schema: 2"; got != want {
+	if got, want := storeSchemaLine(t, s), schemaLine(SchemaVersion); got != want {
 		t.Errorf("config.yml says %q, want %q", got, want)
 	}
 	for _, tk := range []*Ticket{a, b} {
-		if got, want := fileLine(t, tk.Path, "schema:"), "schema: 2"; got != want {
+		if got, want := fileLine(t, tk.Path, "schema:"), schemaLine(SchemaVersion); got != want {
 			t.Errorf("%s says %q, want %q", tk.ID, got, want)
 		}
 		// The field schema 2 adds is present and null, in the position 5.1
@@ -186,7 +198,7 @@ func TestMigrateWritesConfigBeforeTickets(t *testing.T) {
 	// The declaration moved even though the ticket did not. That is the point:
 	// an old reader now refuses the whole store loudly instead of reading it
 	// with this ticket silently missing.
-	if got, want := storeSchemaLine(t, s), "schema: 2"; got != want {
+	if got, want := storeSchemaLine(t, s), schemaLine(SchemaVersion); got != want {
 		t.Errorf("config.yml says %q, want %q: it was not written first", got, want)
 	}
 	if got, want := fileLine(t, a.Path, "schema:"), "schema: 1"; got != want {
@@ -195,7 +207,7 @@ func TestMigrateWritesConfigBeforeTickets(t *testing.T) {
 
 	// And the run is resumable in the sense that matters: the config is already
 	// where it belongs, so fixing the ticket and running again finishes the job.
-	if got, want := storeSchemaLine(t, s), "schema: 2"; got != want {
+	if got, want := storeSchemaLine(t, s), schemaLine(SchemaVersion); got != want {
 		t.Errorf("config.yml = %q, want %q", got, want)
 	}
 }
@@ -352,7 +364,7 @@ func TestMigrateDryRunWritesNothing(t *testing.T) {
 		t.Error("the plan does not include config.yml")
 	}
 
-	if got, want := storeSchemaLine(t, s), "schema: 1"; got != want {
+	if got, want := storeSchemaLine(t, s), schemaLine(1); got != want {
 		t.Errorf("config.yml says %q after a dry run, want %q", got, want)
 	}
 	after, err := os.ReadFile(a.Path)

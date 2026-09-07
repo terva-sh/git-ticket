@@ -24,7 +24,7 @@ import (
 // release under 12.4. A store does not move on its own: create stamps the
 // store's declared level rather than this constant, per 12.5, so upgrading a
 // binary migrates nothing.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // hasOrigin reports whether a ticket at this schema level carries the origin
 // field, per plan 5.6.
@@ -37,6 +37,18 @@ const SchemaVersion = 2
 // struct field at all, it is an unknown field, so a hand-edited schema-1 file
 // carrying one still round-trips and check still reports it.
 func hasOrigin(schema int) bool { return schema >= 2 }
+
+// hasClaimSession reports whether a claim at this schema level carries the
+// session field, per plan 6.4 and 12.5.
+//
+// Only the renderer consults this. The parser accepts the sub-key at every
+// level, and the difference from hasOrigin is the reason: an unknown top-level
+// key round-trips, so origin has to be refused above the level to keep it in
+// Unknown where it survives. A claim sub-key has no such refuge, because
+// decodeClaim parses a fixed set and drops the rest. Accepting it below the
+// level therefore loses nothing that was not already lost, and it keeps the
+// parser free of a dependency on frontmatter key order.
+func hasClaimSession(schema int) bool { return schema >= 3 }
 
 // hasSeries is the same rule for the `series` key in config.yml, which 5.6
 // lists as the other half of what schema 2 adds.
@@ -274,10 +286,15 @@ type Reference struct {
 // Claim records that an actor is working a ticket. It is metadata and not a
 // status, per plan 6.4.
 type Claim struct {
-	Actor     string
-	Branch    *string
-	Worktree  *string
-	Commit    *string
+	Actor    string
+	Branch   *string
+	Worktree *string
+	Commit   *string
+	// Session is the agent session that did the work, at schema 3 and above.
+	// The other fields say where the work happened in the repository; this one
+	// says where it happened in the record. It is free text, because only a
+	// harness knows the shape of its own session ids.
+	Session   *string
 	ClaimedAt *Timestamp
 	ExpiresAt *Timestamp
 }

@@ -3,6 +3,7 @@ package ticket
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -42,6 +43,35 @@ func TestInitCreatesAStore(t *testing.T) {
 
 	if _, err := Init(root, InitOptions{}); CodeOf(err) != CodeStoreExists {
 		t.Errorf("second init = %v, want %s", err, CodeStoreExists)
+	}
+}
+
+// TestInitRefusesAStoreDirectoryAsRoot runs the mistake terva reported: reading
+// Open's signature first, then passing the store path to Init. It used to build
+// .tickets/.tickets and say nothing, and the first symptom arrived somewhere
+// else entirely, when a Discover from inside the store found the buried one.
+func TestInitRefusesAStoreDirectoryAsRoot(t *testing.T) {
+	root := t.TempDir()
+	s, err := Init(root, InitOptions{Actor: testActor, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	_, err = Init(s.Path(), InitOptions{Actor: testActor, Now: fixedClock()})
+	if CodeOf(err) != CodeInvalidRoot {
+		t.Fatalf("init with the store path as root = %v, want %s", err, CodeInvalidRoot)
+	}
+	// The caller's next move is to pass the parent, so the message has to name
+	// it. A code alone would leave them guessing at the same signature twice.
+	if msg := err.Error(); !strings.Contains(msg, root) {
+		t.Errorf("message does not name the parent to use instead: %s", msg)
+	}
+	if _, statErr := os.Stat(filepath.Join(s.Path(), StoreDirName)); !os.IsNotExist(statErr) {
+		t.Error("a nested store was created despite the refusal")
+	}
+	// The store that was already there is untouched by the refusal.
+	if _, err := Open(s.Path()); err != nil {
+		t.Errorf("the real store no longer opens: %v", err)
 	}
 }
 

@@ -488,9 +488,14 @@ claim:
   branch: feat/token-refresh
   worktree: /Users/sothr/wt/token-refresh
   commit: a1b2c3d4e5f6
+  session: 01M1WQ1PWA0TPQATQ66978AVC2
   claimed_at: 2026-08-31T12:04:00Z
   expires_at: null
 ```
+
+`session` exists at schema 3 and above. Below that level it is not a field, and
+unlike an unknown top-level key it does not round-trip, because the claim block
+parses into a fixed set of sub-keys and drops what it does not know.
 
 The archive block, when a ticket is archived:
 
@@ -1072,6 +1077,30 @@ Renewal needs an explicit duration every time, because the stored claim keeps
 `claimed_at` and `expires_at` and never the duration between them. Extending a
 claim by the amount it was originally given is not implementable from what is on
 disk.
+
+`session` records which agent session did the work, and schema 3 adds it. Every
+other field on a claim says where the work happened in the repository. This one
+says where it happened in the record, which turns a ticket into an index into
+transcript history: given a ticket, an agent can find the session that worked it
+and read what was tried, what failed, and why the approach changed. None of that
+is in a diff.
+
+Only a harness can supply it, because only a harness knows its own session id,
+so the field is set through the library and the CLI flag exists for a host that
+shells out rather than embedding. It is free text and the library never parses
+it. A store whose sessions live somewhere this project cannot see is the normal
+case, so validating the shape would only refuse ids that are correct elsewhere.
+
+It follows branch, worktree, and commit for renewal too: it describes the claim
+being recorded now, so renewing from a second session updates it. Releasing a
+claim drops it with the rest of the block, which is the reason it is a claim
+sub-key rather than a top-level one. A top-level key would outlive the claim it
+describes and point at nothing.
+
+terva asked for this in its second handoff, having declined to squat an unknown
+key. It was right to decline: `promoteUnknown` refuses with no rule for promoting
+it when a later level defines a key a squatter already holds, so the cost of
+squatting lands on whoever migrates next.
 
 ## 7. Concurrency
 
@@ -1754,11 +1783,11 @@ at all is refused rather than warned.
 
 Stable codes, which callers may switch on:
 
-`store_not_found`, `store_exists`, `ticket_not_found`, `ambiguous_id`,
-`unknown_series`, `stale_revision`, `invalid_transition`, `invalid_field`,
-`dependency_missing`, `dependency_cycle`, `claim_conflict`, `ticket_referenced`,
-`ticket_touched`, `parse_error`, `merge_conflict`, `schema_unsupported`,
-`lock_timeout`, `validation_failed`, `usage`.
+`store_not_found`, `store_exists`, `invalid_root`, `ticket_not_found`,
+`ambiguous_id`, `unknown_series`, `stale_revision`, `invalid_transition`,
+`invalid_field`, `dependency_missing`, `dependency_cycle`, `claim_conflict`,
+`ticket_referenced`, `ticket_touched`, `parse_error`, `merge_conflict`,
+`schema_unsupported`, `lock_timeout`, `validation_failed`, `usage`.
 
 The last two are `remove`'s, per 9.1. They are their own codes rather than a
 `validation_failed` apiece because the repairs differ, so a caller that reads
@@ -1778,6 +1807,23 @@ only says some field was wrong. The templates precedent points the other way,
 where an unknown `--template` refuses as `invalid_field`, and the difference is
 that a template names a file while a series names a namespace that other
 tickets' IDs already live in.
+
+`invalid_root` is `Init`'s. It refuses a root that is itself a store directory,
+meaning a caller passed the store path where the repository root belongs and
+would have got `.tickets/.tickets`. The asymmetry that produces the mistake is
+real and stays: `Open` takes the store directory, `Init` takes the directory to
+create it under, because that is what each one is for.
+
+It is a refusal rather than a doc comment because the mistake is silent and
+durable. Nothing fails at `Init`, and a later `Discover` from inside the store
+finds the buried one and reports it as the store, so the first symptom appears
+far from the cause. terva lost a debugging round to exactly that and its report
+names the reason a comment would not have helped: a doc comment gets read after
+the tests fail, which is too late to prevent the failure.
+
+It joins the `invalid_*` family rather than extending `store_exists`, which
+asserts something different and false here, that a store already sits at the
+path `Init` was going to create. The message names the specifics.
 
 Every path in the envelope is relative to the repository root when the store
 sits inside one, and absolute otherwise. That covers `pathsChanged`, the `path`
@@ -3020,6 +3066,19 @@ declaring more than the reader supports does not parse at all.
 5.6 makes schema 2 exist, so the rest is built. The command, the method, the
 warning, and the fixtures that prove them landed with it, and the warning's code
 is `migration_incomplete`, registered in section 11.
+
+Schema 3 adds one field, `claim.session`, defined in 6.4. It is the first level
+that adds a sub-key rather than a top-level key, and the difference decides why
+it needs a level at all. An unknown top-level key round-trips, so a store could
+carry one for a while and lose nothing. An unknown claim sub-key does not: the
+block parses into a fixed set and drops the rest, so an older reader rewriting a
+schema-3 ticket would silently discard the session id. That is the quiet wrong
+answer 5.6 replaced with one loud refusal, and it is what the level buys.
+
+Nothing else changes at schema 3, and migration to it rewrites tickets without
+moving any value. A store on schema 2 is not obliged to move: `check` compares a
+ticket's schema against its own `config.yml` rather than against the binary's
+maximum, so a consistent schema-2 store stays quiet under a schema-3 binary.
 
 `check --fix` does not repair it. The repair is `migrate`, which rewrites every
 ticket in the store under the lock, and that is a different operation from the

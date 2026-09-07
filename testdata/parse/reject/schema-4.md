@@ -1,5 +1,5 @@
 ---
-schema: 3
+schema: 4
 id: TKT-01K3ZYYXB0QP32SG8GF99N5VXW
 title: Ticket written by a future major version
 type: task
@@ -38,5 +38,9 @@ it.
 
 This fixture is always one level above what the reader supports, so its number
 moves with `SchemaVersion`. It was `schema-2.md` until schema 2 shipped, per
-plan 5.6. Nothing else about it changes: the point is the policy refusal, not
-any particular number.
+plan 5.6, and `schema-3.md` until schema 3 shipped, per 12.5. Nothing else about
+it changes: the point is the policy refusal, not any particular number.
+
+One level above rather than a number far away, deliberately. The boundary is
+what the gate gets wrong, so a fixture sitting at `SchemaVersion + 1` fails an
+off-by-one where a `schema: 99` would sail past it and still look green.

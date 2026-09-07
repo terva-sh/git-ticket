@@ -10,6 +10,7 @@ import (
 const (
 	CodeStoreNotFound     = "store_not_found"
 	CodeStoreExists       = "store_exists"
+	CodeInvalidRoot       = "invalid_root"
 	CodeTicketNotFound    = "ticket_not_found"
 	CodeAmbiguousID       = "ambiguous_id"
 	CodeUnknownSeries     = "unknown_series"

@@ -1425,10 +1425,15 @@ func runClaim(ctx *cmdContext, args []string) error {
 	var (
 		expiresIn time.Duration
 		force     bool
+		session   string
 	)
 	rest, err := ctx.parseFlags("claim", args, func(fs *flag.FlagSet) {
 		fs.DurationVar(&expiresIn, "expires-in", 0, "how long the claim stands; the default is no expiry")
 		fs.BoolVar(&force, "force", false, "take a live claim held by another actor")
+		// Nothing derives this the way branch and commit come from git, per
+		// plan 6.4: only a harness knows its own session id. The flag is for a
+		// host that shells out rather than embedding the library.
+		fs.StringVar(&session, "session", "", "the agent session doing the work, recorded at schema 3 and above")
 	})
 	if err != nil {
 		return err
@@ -1448,6 +1453,7 @@ func runClaim(ctx *cmdContext, args []string) error {
 		Branch:    branch,
 		Worktree:  worktree,
 		Commit:    commit,
+		Session:   session,
 		ExpiresIn: expiresIn,
 		Force:     force,
 	})

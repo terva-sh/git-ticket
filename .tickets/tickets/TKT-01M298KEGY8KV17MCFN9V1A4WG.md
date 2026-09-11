@@ -29,7 +29,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T23:34:51Z
+updated_at: 2026-09-11T23:43:26Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -244,3 +244,43 @@ branch lands so the store write does not ride into this PR.
 Step 3, the typed `Change`. The kinds are enumerated in the implementation plan
 above. `reconcile` and `reconciled` in `cli/import.go` are still where the
 contribution left them, and `reconciled.Changes` is still `[]string` of English.
+
+**agent:terva/mieli** at 2026-09-11T23:43:26Z
+
+Step 3 is done, at `cec1dca`. Steps 4 through 6 remain.
+
+`ticket.Change` carries `Kind`, `Value` and `Count`. The eight kinds are a
+dropped label, milestone, due date, `blocks_on` and reference path, each
+checklist carried unticked, and the work record. `ChangeKinds()` lists them.
+
+`changeLine` in `cli/import.go` is where English lives from here on, and the
+wording did not move. The existing import tests are what prove that: they
+assert the exact sentences in both the preview and the adopt report, and they
+passed untouched.
+
+Two design points that are decisions rather than mechanics.
+
+The checklists got two kinds rather than one kind with a field naming which
+checklist. A consumer would have had to switch on that field anyway, so one
+kind per sentence keeps the renderer a plain switch.
+
+`changeLine` has a fallback for a kind it does not know, and
+`TestEveryChangeKindHasALine` keeps that fallback unreachable in this build.
+The pair is deliberate. An older binary meeting a newer library should say the
+kind badly rather than drop it, since a silent drop is the exact failure this
+vocabulary exists to prevent, while a kind added here and not given wording
+should fail the suite rather than reach a reader.
+
+`TestChangeLineHasNoTense` pins the property the `reconciled` doc comment
+claims: one wording serves the preview, which has filed nothing, and the
+report, which has. It is a string match over prose, so it is the test most
+likely to need adjusting when somebody rewords a line. That is the intended
+cost. "carried" is deliberately not in its word list, because it is doing
+adjective work in "2 carried, every box unchecked".
+
+### Where step 4 starts
+
+`reconcile` still lives in `cli/import.go` and still takes `cfg`, `root`,
+`incomingTicket`, `fromStore` and `actor`. It now returns typed changes, so
+moving it to `PlanImport` no longer drags a wording decision across the
+package boundary, which was the point of doing step 3 first.

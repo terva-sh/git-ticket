@@ -2611,6 +2611,8 @@ git ticket check  [--strict] [--fix [--dry-run]]
 git ticket archive ID [--reason R]
 git ticket unarchive ID
 git ticket remove ID [--force]   # delete a ticket filed by mistake, per 9.1
+git ticket export ID... [--out DIR]   # hand tickets to another store as patches, per 12.8
+git ticket import DIR [--adopt] [--from-store NAME]   # file what an export carries, per 12.8
 git ticket migrate [--to N] [--dry-run]
 git ticket instructions [--write]
 git ticket schema
@@ -3200,6 +3202,151 @@ that confirmed "copied via OSC 52" while a working tool sat on PATH would lie
 exactly when the terminal ignored it. The footer names the ticket, the byte
 count, and the path taken, and a host that wires no clipboard gets a footer
 saying so rather than a silent no-op.
+
+### 12.8 Export and import
+
+`git ticket export ID... --out DIR` writes a directory of mail-formatted
+patches, so a ticket can reach another project as a ticket rather than as prose
+somebody re-types. `git ticket import DIR` is the receiving half, for the one
+case git cannot serve on its own.
+
+An export is two files. `0000-cover-letter.txt` reads as a report: what this is,
+how to apply it, and every ticket's body in full. `0001-tickets.patch` adds the
+ticket files themselves. The receiver types `git am DIR/*.patch` and needs no
+git-ticket at all, because the patch adds ordinary Markdown files.
+
+The cover's extension is load-bearing. Named `.patch` it is swept into that
+glob, and `git am` stops on its empty diff and wants `--empty=drop`, which is
+git 2.34 or newer. Named `.txt` the glob never sees it, plain `git am` works on
+any git, and the cover still opens in an editor. One character, one fewer
+version floor, and it was found by testing rather than by reasoning.
+
+A ticket with no code change still carries a patch, the one adding its own file.
+A bare report and a code contribution are then the same artifact with different
+contents, so the receiver has one thing to do rather than two. Each file lands
+in the directory its status implies, chosen by `statusDir` at export time, so
+`location_mismatch` cannot fire on arrival.
+
+Neither command runs git. Export generates its diff rather than obtaining one,
+because a patch adding a new text file is the one diff simple enough to write
+out correctly: no rename detection, no context, one hunk header. The index line
+carries a real blob name, computed the way git computes it, so `git apply
+--3way` keeps its fallback, and a test checks that name against `git
+hash-object` rather than trusting the arithmetic. Import verifies the same name
+on the way in, so a truncated or hand-edited patch fails at the door instead of
+becoming a puzzling ticket later.
+
+There is no `--patch` flag. It would have to run `git format-patch`, which 7.4
+does not list, and admitting a row there is a decision that belongs to a
+maintainer rather than to a new command. Code composes in from outside instead:
+
+```sh
+git format-patch --start-number 2 -o DIR main..fix
+```
+
+Export owns numbers 0 and 1 and leaves the rest, so one `git am DIR/*.patch`
+applies the tickets and the code together. Section 15 records the question of
+admitting `format-patch`, and the trigger that would reopen it.
+
+Export warns about every parent and dependency naming a ticket it does not
+carry. `git am` applies a ticket file verbatim, so such an edge arrives pointing
+at nothing, and `parent_missing` and `dependency_missing` are errors. An
+artifact that applies without complaint and breaks the store afterwards is the
+worst shape a failure takes, and export is the last place a sender can still do
+something about it. It warns rather than refusing or stripping, because carrying
+the missing tickets is the sender's call and a silently dropped edge changes
+what a ticket says without saying so.
+
+#### What import is for
+
+Where the receiving store declares the incoming series, nothing new is needed:
+`git am` applies the export and the tickets are correct under their own IDs,
+which is what two clones of one project want. `import` exists for the case that
+fails. `unknown_series` is an error rather than a warning and the prefix sits
+inside an immutable ID, so the only repair is to file the ticket again under a
+series this store knows.
+
+It does not guess whether an export is your own project's work. `TKT` is the
+default series every store has, so two strangers share it and any inference from
+the series answers "same project" for the commonest case. The tool cannot know,
+so it asks: without `--adopt` nothing is written and both routes are named, and
+the preview offers `git am` as advice when the series matches rather than
+insisting on it.
+
+Preview is the default because an export is somebody else's content, and reading
+it is not the same as agreeing to it. `--adopt` is the sentence that says
+otherwise.
+
+#### What travels
+
+One rule: the statement of the work travels, and what the receiver never agreed
+to does not. Either way it is named, on the preview and again on the write,
+because a quiet loss costs the reader their trust in everything else the command
+said.
+
+Title, type, priority, description, implementation plan, acceptance criteria and
+definition of done are the work, and they travel. Both checklists land unticked:
+a tick is evidence about the sender's work and says nothing about whether this
+store has met the criterion, which is the argument that files every imported
+ticket as a draft in the first place.
+
+A label or milestone this store does not declare is dropped and named. Both are
+allowlisted vocabulary, so both are reconciled by one rule rather than two, and
+an empty allowlist carries everything because 4.1 says an empty allowlist
+permits everything. A reference whose path resolves to no file here loses the
+path and keeps the ref, since what the sender pointed at is still worth knowing.
+A due date does not travel, because a deadline is a commitment the receiver
+never made. This is the reconciliation `git am` structurally cannot do, and it is
+the clearest reason for import to exist beside it.
+
+The sender's summary, notes and comments travel whole, in one note that names
+the origin store and ticket and says that the actors and instants in it are the
+sender's and unverifiable here. On a handoff that record is the reasoning and
+the alternatives that were tried, and it is often worth more than the
+description. Filing each entry as a note of this store would restamp it with
+whoever ran import and invent an attribution.
+
+Status does not travel. Every imported ticket lands in `draft`, whatever it was
+at source, because promotion is where somebody weighs the work against what the
+sender cannot see. Provenance goes in references, `origin-ticket:` and with
+`--from-store` also `origin-store:`, and never in `origin`: `check` verifies
+`origin` against this store and an unresolvable one is an error, which is the
+guarantee that field exists to carry, while a reference is deliberately
+unverified, which is exactly what a foreign ID needs.
+
+Tickets are filed in dependency order so a parent exists before the child naming
+it, and the edges among the imported set are rewritten to the new IDs. An edge
+pointing outside the export is dropped and reported, because a dependency on an
+ID this store has never seen is `dependency_missing`, and dropping it is the
+only thing that leaves a store that passes `check`.
+
+#### What import does not do
+
+It applies nothing and moves nothing. An earlier design had it `git am` onto a
+scratch branch and restore the worktree after, with `--linger` to stay. 7.3 says
+a sync helper "must never silently push, merge, switch branches, or rewrite a
+worktree", and that design does three of the four. It is not a missing row in
+the 7.4 table; it is the category the table says does not join it. So tickets
+are written through the same locked, atomic path as every other write, and the
+result is left for an ordinary `git commit` by the person who asked for it.
+
+A consequence is that a partial failure is not atomic. If a create fails on the
+third of five tickets, import stops and names that ticket, and the first two are
+already filed. The scratch branch is what would have made it transactional, the
+store has no transaction to substitute, and validating everything up front would
+only catch the failures that are predictable, which is a weaker promise wearing
+the same clothes. Recovery is reading the output and removing what landed.
+
+A code patch sitting beside the tickets is somebody else's job: import names it
+and applies nothing, because `git am` is the tool for a patch and import is the
+tool for a ticket.
+
+#### Envelopes
+
+`export --json` publishes a `mutation-result` whose `pathsChanged` names the
+files written, with a null `ticket` because an export changes no ticket.
+`import` has no `--json` form yet. That is a gap rather than a decision, and
+section 15 records the question of what it should publish.
 
 ## 13. Phases
 
@@ -4050,6 +4197,62 @@ status except `ready` is its own reason and one added to 6.1 becomes a reason
 with no edit and no decision. That matters to **Custom statuses** above, which is
 still open: whatever it settles, the reason list follows rather than needing a
 migration of its own.
+
+**`format-patch` in the 7.4 table** (`TKT-01M294K49TH19Q5850WZBXXYF6`). Whether
+`export` grows a `--patch RANGE` flag, which needs a row for `format-patch`.
+Ruled against on 2026-09-11, and recorded rather than left silent because a
+reader of 12.8 will ask why the composition is not a flag.
+
+Two things were measured before the ruling. Forgetting `--start-number 2`
+produces two files numbered `0001`, and `git am *.patch` still applies both,
+exit 0, with only the commit order inverted, so the footgun the flag would close
+is mild. And `-o` beats `format.outputDirectory`, but `format.subjectPrefix` and
+`format.signature` shape the output even with `-o` given, so owning the call
+means owning a row of `-c format.x=` overrides that
+`TestGitCommandsAreReadOnly` would not protect, since it checks the command name
+and not the flags.
+
+The table earns its keep by being short, and by the sentence under it that every
+row but `config` only reads. That sentence already carries one exception. A
+second makes it a list, and a list of exceptions is a rule nobody checks. The
+asymmetry settles it: adding a row later is a minor under 12.4, and taking one
+back is a break.
+
+The trigger is a real report, meaning somebody who shipped an export that should
+have carried code and did not, or one that the numbering broke. Not a suspicion
+that they might. The discoverability half of the cost was paid instead, in
+`export --help`, in `cli/instructions.md`, and in the `format-patch` line export
+prints with the directory already filled in.
+
+**What `import --json` publishes** (`TKT-01M294KXFASNKBXT3YSH73WJJR`). `import`
+has no `--json` form, and 12.1 exempts only `ui` while 12.7 exempts `copy` with
+a reason. Neither argument stretches to cover this one, so it is a gap and not a
+decision.
+
+The crux is the map from each incoming ID to the ID this store minted. It is the
+one thing a caller cannot reconstruct afterwards, short of parsing
+`origin-ticket:` references back out to rebuild what the command already knew.
+The open question is whether that is a new section 10 kind or a stretch of
+`mutation-result`, which carries one ticket where an adopt produces many. Per
+12.4 an envelope is a surface, so it is settled with the user before it ships.
+
+The trigger has effectively fired already, since `import` exists and an agent is
+the caller it was built for. What holds it is the kind question, not the demand.
+
+**Assignees on an adopted ticket** (`TKT-01M294KXFXH51B1YD2V21ECNZ9`). Whether
+`import --adopt` should reconcile assignees the way it reconciles labels and
+milestones, or carry them as provenance.
+
+It carries them today, and that was left alone rather than decided, because the
+commit that fixed the rest of the reconciliation had no ruling to apply here and
+inventing one is what this section exists to prevent. Nothing forces the
+question: `check` does not validate assignees, so there is no finding either
+way, which is exactly what makes it easy to answer by reflex. There is also no
+allowlist to reconcile against, since `Config` has no `KnownActor` and `actors`
+in `config.yml` is the list a bare write is attributed from rather than a gate.
+
+The trigger is somebody meeting an adopted ticket assigned to a person who does
+not work on their project.
 
 ## 16. References
 

@@ -190,6 +190,65 @@ func TestExportComposesWithFormatPatch(t *testing.T) {
 	}
 }
 
+// TestExportSaysHowToAttachCode holds the one thing standing in for a --patch
+// flag. Plan 12.8 has export run no git, so code composes in from outside, and
+// section 15 records that the discoverability cost of composing was paid here
+// rather than by admitting format-patch to the 7.4 table.
+//
+// A sender who never learns to compose does not get an error. They ship an
+// export with no code in it and find out from the receiver, which is the failure
+// this text exists to prevent. So the line carries the real directory rather
+// than a placeholder, and it is printed beside the `git am` line every export
+// already prints.
+func TestExportSaysHowToAttachCode(t *testing.T) {
+	src, id := newExportSource(t, "A ticket")
+	out := filepath.Join(t.TempDir(), "out")
+	got := runCLI(t, src, nil, "export", id, "--out", out)
+	if got.code != exitOK {
+		t.Fatalf("export: %s%s", got.stdout, got.stderr)
+	}
+	// The directory is filled in, so the line can be run rather than edited.
+	want := "git format-patch --start-number 2 -o " + out
+	if !strings.Contains(got.stderr, want) {
+		t.Errorf("export did not say how to attach code.\nwant a line containing: %s\ngot:\n%s", want, got.stderr)
+	}
+	if !strings.Contains(got.stderr, "git am "+out) {
+		t.Errorf("export stopped naming how to apply it:\n%s", got.stderr)
+	}
+
+	// --help has to carry it too, because the flag list alone reads as though an
+	// export can only ever hold tickets.
+	help := runCLI(t, src, nil, "export", "--help")
+	if !strings.Contains(help.stdout, "format-patch --start-number 2") {
+		t.Errorf("export --help does not name the composition:\n%s", help.stdout)
+	}
+}
+
+// TestExportWarnsAboutEdgesUnderJSON keeps a warning from being swallowed by the
+// mode most likely to miss it. An edge naming a ticket the export does not carry
+// is parent_missing or dependency_missing on arrival, which are errors, and a
+// caller passing --json is the one least likely to be reading the artifact by
+// eye. Warnings go to stderr in both modes, as the actor warning already does.
+func TestExportWarnsAboutEdgesUnderJSON(t *testing.T) {
+	src, stays := newExportSource(t, "Ticket that travels")
+	behind := crossCreate(t, src, "Ticket left behind", "human:sothr")
+	if got := runCLI(t, src, nil, "link", stays, "--depends-on", behind, "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("link: %s%s", got.stdout, got.stderr)
+	}
+	out := filepath.Join(t.TempDir(), "out")
+	got := runCLI(t, src, nil, "--json", "export", stays, "--out", out)
+	if got.code != exitOK {
+		t.Fatalf("export --json: %s%s", got.stdout, got.stderr)
+	}
+	if !strings.Contains(got.stderr, behind) {
+		t.Errorf("--json swallowed the dangling edge warning:\n%s", got.stderr)
+	}
+	// And stdout stays one envelope, so the warning did not land in the JSON.
+	if !strings.HasPrefix(strings.TrimSpace(got.stdout), "{") {
+		t.Errorf("stdout is not a bare envelope:\n%s", got.stdout)
+	}
+}
+
 // TestExportRefusesANonEmptyDirectory keeps two exports from being mixed under
 // one set of numbers, where `git am *.patch` would apply both silently.
 func TestExportRefusesANonEmptyDirectory(t *testing.T) {

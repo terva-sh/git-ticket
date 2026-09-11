@@ -39,9 +39,9 @@ const exportCoverName = "0000-cover-letter.txt"
 
 // exportTicketPatch is the patch that carries the ticket files themselves.
 //
-// It is always written, even when --patch supplies code. A bare report and a
-// code contribution are then the same artifact with different contents, and the
-// receiving side has one thing to do rather than two.
+// It is always written, even when code patches are composed in beside it. A bare
+// report and a code contribution are then the same artifact with different
+// contents, and the receiving side has one thing to do rather than two.
 const exportTicketPatch = "0001-tickets.patch"
 
 // mboxFromLine opens every message. git's mailsplit needs it to find where one
@@ -115,6 +115,12 @@ func runExport(ctx *cmdContext, args []string) error {
 	}
 	written = append([]string{coverPath}, written...)
 
+	// Before the --json branch, because an edge that will not travel breaks the
+	// receiving store and a caller passing --json is the one least likely to be
+	// reading the artifact by eye. Warnings go to stderr in both modes, as the
+	// actor and heading warnings already do.
+	warnDanglingEdges(ctx, tickets)
+
 	if ctx.g.json {
 		writeJSON(ctx.out, mutationEnvelope{
 			SchemaVersion: schemaVersion,
@@ -128,8 +134,11 @@ func runExport(ctx *cmdContext, args []string) error {
 	for _, p := range written {
 		fmt.Fprintf(ctx.out, "  %s\n", filepath.Base(p))
 	}
-	warnDanglingEdges(ctx, tickets)
 	fmt.Fprintf(ctx.env.Stderr, "apply with: git am %s/*.patch\n", dir)
+	// The composition, with the directory already filled in. There is no --patch
+	// flag, per 12.8, so a sender who does not know to compose simply ships an
+	// export with no code in it and finds out from the receiver.
+	fmt.Fprintf(ctx.env.Stderr, "add code with: git format-patch --start-number 2 -o %s RANGE\n", dir)
 	return nil
 }
 

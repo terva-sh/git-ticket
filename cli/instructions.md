@@ -173,6 +173,41 @@ write is refused. The title is what a person reads instead of the ID, so it has
 to say what the work is and it has to fit on a line beside one.
 `git ticket schema` prints both numbers.
 
+### Handing work to another project
+
+When a ticket belongs to somebody else's repository, send it as a ticket rather
+than retyping it as prose. `git ticket export ID --out DIR` writes a directory
+holding a cover letter and a patch, and the receiver applies it with one
+`git am DIR/*.patch`. They need no git-ticket, because the patch adds ordinary
+Markdown files.
+
+Code travels beside the tickets. Export owns patch numbers 0 and 1 and leaves
+the rest, so git's own tool composes in:
+
+```sh
+git ticket export TKT-01M1PQ7T --out ./handoff
+git format-patch --start-number 2 -o ./handoff main..fix
+```
+
+Read the warnings export prints. A parent or dependency naming a ticket the
+export does not carry arrives pointing at nothing, which is an error in the
+receiving store, and export names each one while you can still decide to carry
+those tickets too.
+
+Coming the other way, `git ticket import DIR` files what an export carries. It
+is for a ticket whose series this store does not declare, which is the case
+`git am` cannot serve; when the series matches, `git am` is the better route and
+the preview says so. Preview is the default and writes nothing, and `--adopt`
+is what writes. Add `--from-store NAME` so the provenance records where the work
+came from.
+
+An adopted ticket is filed afresh under this store's series, lands in `draft`
+whatever it was at source, and carries the sender's notes and summary as one
+note. What this store never agreed to does not travel: an undeclared label or
+milestone, a reference path that resolves to nothing here, a due date, and the
+ticks on the acceptance criteria. Each is named on the way past, so read that
+output rather than assuming everything arrived.
+
 ### Naming a ticket in what you write
 
 When you mention a ticket in prose, put its title beside the ID the first time:

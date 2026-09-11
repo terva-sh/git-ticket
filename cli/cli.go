@@ -554,6 +554,33 @@ func writeCommandUsage(w io.Writer, name string, fs *flag.FlagSet) {
 		fmt.Fprintf(tw, "  %s\t%s\n", spec, f.Usage)
 	})
 	tw.Flush()
+	if extra := commandEpilogue(name); extra != "" {
+		fmt.Fprintf(w, "\n%s", extra)
+	}
+}
+
+// commandEpilogue is the paragraph a few commands print under their flags,
+// where the flag list alone would leave a reader with the wrong idea.
+//
+// A lookup rather than a field on command, because the dispatch table is written
+// as unkeyed literals: a fifth field would have to be spelled out on all of them
+// to teach one command a sentence.
+func commandEpilogue(name string) string {
+	switch name {
+	case "export":
+		// Without this the flag list reads as though an export can only ever
+		// carry tickets. There is no --patch flag, per plan 12.8, so the only
+		// way a reader learns that code travels too is being told here.
+		return `Code travels beside the tickets by composing git's own tool in. export owns
+patch numbers 0 and 1 and leaves the rest:
+
+    git ticket export ID --out DIR
+    git format-patch --start-number 2 -o DIR main..fix
+
+One ` + "`git am DIR/*.patch`" + ` then applies the tickets and the code together.
+`
+	}
+	return ""
 }
 
 func writeUsage(w io.Writer) {

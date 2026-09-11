@@ -702,6 +702,31 @@ func checklistSection(items []string) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
+// ChecklistItems reads the text of each item out of a rendered checklist
+// section, dropping the box and whether it was ticked.
+//
+// It is the inverse of checklistSection, and it lives beside it for the reason
+// ShortestUnique lives beside ResolveRef: a renderer and its parser that sit in
+// different packages drift into disagreeing about one format. The box is
+// deliberately not reported. The caller that needed this, import, seeds a fresh
+// ticket, and a criterion the sender ticked is evidence about the sender's work
+// rather than about the receiver's.
+//
+// A line that is not an item is skipped rather than refused, because a
+// hand-edited section may carry prose between the boxes and losing the items
+// over it would be the worse answer.
+func ChecklistItems(section string) []string {
+	var out []string
+	for _, line := range strings.Split(section, "\n") {
+		if m := checkItem.FindStringSubmatch(strings.TrimSpace(line)); m != nil {
+			if text := strings.TrimSpace(m[2]); text != "" {
+				out = append(out, text)
+			}
+		}
+	}
+	return out
+}
+
 // SetChecklistItem checks or unchecks item Index, counting from one in the
 // order the items appear.
 type SetChecklistItem struct {

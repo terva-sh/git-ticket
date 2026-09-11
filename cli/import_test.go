@@ -273,14 +273,14 @@ func TestImportReportsDroppedEdges(t *testing.T) {
 
 	dest := newGitStore(t)
 	preview := runCLI(t, dest, nil, "import", dir)
-	if !strings.Contains(preview.stdout, "would drop dependency "+behind) {
+	if !strings.Contains(preview.stdout, "dependency "+behind+": not carried") {
 		t.Errorf("the preview did not warn about the dropped edge:\n%s", preview.stdout)
 	}
 	got := runCLI(t, dest, nil, "import", dir, "--adopt", "--actor", "human:sothr")
 	if got.code != exitOK {
 		t.Fatalf("import --adopt: %s%s", got.stdout, got.stderr)
 	}
-	if !strings.Contains(got.stderr, "dropped dependency") {
+	if !strings.Contains(got.stderr, "dependency "+behind+" not carried") {
 		t.Errorf("stderr = %q, want the dropped edge named", got.stderr)
 	}
 	// Dropping it is what leaves a store that passes.
@@ -383,10 +383,10 @@ func TestImportDropsVocabularyThisStoreDoesNotShare(t *testing.T) {
 	}
 
 	preview := runCLI(t, dest, nil, "import", dir)
-	if !strings.Contains(preview.stdout, "would drop labels: sender-only") {
+	if !strings.Contains(preview.stdout, `label "sender-only": not carried`) {
 		t.Errorf("preview did not warn about the foreign label:\n%s", preview.stdout)
 	}
-	if !strings.Contains(preview.stdout, "would drop the path on doc:sender") {
+	if !strings.Contains(preview.stdout, "reference doc:sender: the path is not carried") {
 		t.Errorf("preview did not warn about the unresolvable path:\n%s", preview.stdout)
 	}
 
@@ -394,7 +394,7 @@ func TestImportDropsVocabularyThisStoreDoesNotShare(t *testing.T) {
 	if adopt.code != exitOK {
 		t.Fatalf("import --adopt: %s%s", adopt.stdout, adopt.stderr)
 	}
-	if !strings.Contains(adopt.stderr, "dropped label") {
+	if !strings.Contains(adopt.stderr, `label "sender-only": not carried`) {
 		t.Errorf("stderr did not name the dropped label:\n%s", adopt.stderr)
 	}
 
@@ -421,5 +421,171 @@ func TestImportDropsVocabularyThisStoreDoesNotShare(t *testing.T) {
 	}
 	if !kept {
 		t.Error("the reference itself was dropped; only its path should have been")
+	}
+}
+
+// TestAdoptCarriesTheStatementOfTheWork is the regression for the defect the
+// bootstrap delivery shipped with: adopt filed a ticket from Title, Type,
+// Priority, Labels, Assignees, Description and ImplementationPlan, and every
+// other thing a ticket says went on the floor without a word.
+//
+// Measured against the five tickets of that delivery, whose own APPLYING.md told
+// the receiver to adopt them: 24 checkbox lines in, 0 out, and every Notes and
+// Summary section with them. `git am` was lossless and --adopt was not, which
+// inverts the argument for import existing beside it.
+//
+// The rule this asserts is the one reconcile is built on. The statement of the
+// work travels. What the receiver never agreed to does not, and is named.
+func TestAdoptCarriesTheStatementOfTheWork(t *testing.T) {
+	src := newGitStore(t)
+	if got := runCLI(t, src, nil, "series", "add", "LIVE", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("series add: %s%s", got.stdout, got.stderr)
+	}
+	created := decode(t, runCLI(t, src, nil, "--json", "create",
+		"--title", "A defect worth carrying",
+		"--description", "The repro is here.",
+		"--series", "LIVE", "--actor", "human:sothr").stdout)
+	id, _ := created["ticket"].(map[string]any)["id"].(string)
+	if id == "" {
+		t.Fatal("create returned no id")
+	}
+	run := func(args ...string) {
+		t.Helper()
+		if got := runCLI(t, src, nil, append(args, "--actor", "human:sothr")...); got.code != exitOK {
+			t.Fatalf("%v: %s%s", args, got.stdout, got.stderr)
+		}
+	}
+	run("ac", id, "--add", "the first criterion")
+	run("ac", id, "--add", "the second criterion")
+	// Ticked at the origin, which is the sender's evidence about the sender's
+	// work and says nothing about this store.
+	run("ac", id, "--check", "1")
+	run("dod", id, "--add", "the suite is green")
+	run("note", id, "the root cause was a symlinked path")
+	run("summary", id, "where this one landed in the end")
+	run("update", id, "--milestone", "sender-roadmap", "--due-on", "2026-12-01")
+
+	exportGit(t, src, "add", "-A")
+	exportGit(t, src, "commit", "-qm", "store")
+	dir := filepath.Join(t.TempDir(), "out")
+	if got := runCLI(t, src, nil, "export", id, "--out", dir); got.code != exitOK {
+		t.Fatalf("export: %s%s", got.stdout, got.stderr)
+	}
+
+	// The receiving store declares a milestone list of its own. Without one the
+	// allowlist is empty, plan 4.1 says an empty allowlist permits everything,
+	// and the sender's milestone would rightly travel. That is the same reason
+	// the label case seeds an allowlist before asserting a label is refused.
+	dest := newGitStore(t)
+	declareMilestone(t, dest, "receiver-roadmap")
+	adopt := runCLI(t, dest, nil, "import", dir, "--adopt",
+		"--from-store", "flywheel/ledger", "--actor", "human:sothr")
+	if adopt.code != exitOK {
+		t.Fatalf("import --adopt: %s%s", adopt.stdout, adopt.stderr)
+	}
+
+	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
+	if len(rows) != 1 {
+		t.Fatalf("want one adopted ticket, got %d", len(rows))
+	}
+	full := decode(t, runCLI(t, dest, nil, "--json", "show", rows[0]["id"].(string)).stdout)
+	tk, _ := full["ticket"].(map[string]any)
+
+	// The checklists arrive whole, and every box arrives empty.
+	lists, _ := tk["checklists"].(map[string]any)
+	for _, tc := range []struct {
+		field string
+		want  []string
+	}{
+		{"acceptanceCriteria", []string{"the first criterion", "the second criterion"}},
+		{"definitionOfDone", []string{"the suite is green"}},
+	} {
+		items, _ := lists[tc.field].([]any)
+		if len(items) != len(tc.want) {
+			t.Errorf("%s: %d items, want %d", tc.field, len(items), len(tc.want))
+			continue
+		}
+		for i, want := range tc.want {
+			item, _ := items[i].(map[string]any)
+			if item["text"] != want {
+				t.Errorf("%s[%d] = %v, want %q", tc.field, i, item["text"], want)
+			}
+			if item["checked"] != false {
+				t.Errorf("%s[%d] arrived ticked; the sender's evidence is not this store's", tc.field, i)
+			}
+		}
+	}
+
+	// The sending store's work record travels whole, in one note that says where
+	// it came from rather than restamping it with whoever ran import.
+	body, _ := tk["body"].(map[string]any)
+	notes, _ := body["notes"].(string)
+	for _, want := range []string{
+		"the root cause was a symlinked path",
+		"where this one landed in the end",
+		"flywheel/ledger",
+		id,
+	} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("the carried work record does not mention %q:\n%s", want, notes)
+		}
+	}
+
+	// What the receiver never agreed to does not travel, and is named on the way
+	// past rather than dropped in silence.
+	if tk["milestone"] != nil {
+		t.Errorf("milestone = %v, want none: this store does not declare it", tk["milestone"])
+	}
+	if tk["dueOn"] != nil {
+		t.Errorf("dueOn = %v, want none: a deadline this store never agreed to", tk["dueOn"])
+	}
+	for _, want := range []string{
+		`milestone "sender-roadmap": not carried`,
+		"due date 2026-12-01: not carried",
+		"acceptance criteria: 2 carried, every box unchecked",
+		"summary, notes and comments: carried as one note",
+	} {
+		if !strings.Contains(adopt.stderr, want) {
+			t.Errorf("adopt did not report %q:\n%s", want, adopt.stderr)
+		}
+	}
+
+	// The preview has to promise exactly what the write then does, which is why
+	// both read one reconciliation rather than each working it out.
+	second := newGitStore(t)
+	declareMilestone(t, second, "receiver-roadmap")
+	preview := runCLI(t, second, nil, "import", dir)
+	for _, want := range []string{
+		`milestone "sender-roadmap": not carried`,
+		"due date 2026-12-01: not carried",
+		"acceptance criteria: 2 carried, every box unchecked",
+	} {
+		if !strings.Contains(preview.stdout, want) {
+			t.Errorf("the preview did not promise %q:\n%s", want, preview.stdout)
+		}
+	}
+
+	if res := runCLI(t, dest, nil, "check", "--strict"); res.code != exitOK {
+		t.Errorf("check --strict after adopt: %s%s", res.stdout, res.stderr)
+	}
+}
+
+// declareMilestone gives a store a milestone allowlist holding one name, so that
+// every other milestone is outside it. An empty allowlist permits everything per
+// plan 4.1, so a test about refusing a foreign milestone has to seed one or it
+// asserts nothing.
+func declareMilestone(t *testing.T, store, name string) {
+	t.Helper()
+	path := filepath.Join(store, ".tickets", "config.yml")
+	cfg, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := strings.Replace(string(cfg), "milestones: []", "milestones:\n  - "+name, 1)
+	if out == string(cfg) {
+		t.Fatalf("config.yml has no empty milestones list to seed:\n%s", cfg)
+	}
+	if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

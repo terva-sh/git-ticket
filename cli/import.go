@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
 	"github.com/terva-sh/git-ticket/ticket"
 )
@@ -36,6 +34,12 @@ import (
 // would do three of those four. Tickets are written through the same locked,
 // atomic path every other write uses, and the result is staged for an ordinary
 // `git commit` by the person who asked for it.
+//
+// What is left in this file is the command: flags, wording, and exit status.
+// The reconciliation itself is ticket.PlanImport and ticket.ApplyImport, so a
+// host that is not a terminal reaches it without building argv, and the preview
+// renders the same answer the write carries out rather than deriving a second
+// one.
 
 // runImport adopts the tickets an export carries into this store.
 func runImport(ctx *cmdContext, args []string) error {
@@ -55,225 +59,53 @@ func runImport(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
+	dir := rest[0]
 
-	incoming, err := readExportTickets(rest[0])
+	patch, err := readExportPatch(dir)
 	if err != nil {
 		return err
 	}
-	if len(incoming) == 0 {
-		return fmt.Errorf("%s carries no tickets; it may be a patch series rather than an export", rest[0])
+
+	// The zero actor for a preview, because it files nothing and asking for the
+	// real one warns on stderr about a store that declares no default.
+	actor := ticket.Actor{}
+	if adopt {
+		actor = ctx.actor(s)
 	}
 
-	ordered, err := importOrder(incoming)
+	plan, err := s.PlanImport(context.Background(), ticket.ImportOptions{
+		Patch:     patch,
+		FromStore: fromStore,
+		Actor:     actor,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", filepath.Join(dir, exportTicketPatch), err)
+	}
+	if len(plan.Tickets) == 0 {
+		return fmt.Errorf("%s carries no tickets; it may be a patch series rather than an export", dir)
 	}
 
 	if !adopt {
-		return importPreview(ctx, s, rest[0], ordered, fromStore)
+		return importPreview(ctx, s, dir, plan)
 	}
-	return importAdopt(ctx, s, ordered, fromStore)
+	return importAdopt(ctx, s, plan)
 }
 
-// incomingTicket is one ticket read out of an export.
-type incomingTicket struct {
-	Ticket *ticket.Ticket
-	// Path is where it sat in the sending store, which is the only thing that
-	// says what its status was without trusting the frontmatter twice.
-	Path string
-}
-
-// readExportTickets reads the ticket files an export carries.
+// readExportPatch reads the ticket patch an export carries.
 //
-// It parses the export's own patch rather than any patch: the format is this
-// project's, produced by the command next door, and a general patch parser is a
-// large thing to own for no gain. A file that is not in that shape is refused by
-// name rather than guessed at.
-func readExportTickets(dir string) ([]incomingTicket, error) {
+// The error names the file the command expects, because the likeliest way to
+// arrive here is pointing import at a directory of patches that is not an
+// export at all.
+func readExportPatch(dir string) (string, error) {
 	patch := filepath.Join(dir, exportTicketPatch)
 	data, err := os.ReadFile(patch)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("no %s in %s; import takes a directory written by export", exportTicketPatch, dir)
+			return "", fmt.Errorf("no %s in %s; import takes a directory written by export", exportTicketPatch, dir)
 		}
-		return nil, err
+		return "", err
 	}
-	files, err := ticket.ParseAddedFiles(string(data))
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", patch, err)
-	}
-	var out []incomingTicket
-	for _, f := range files {
-		t, err := ticket.Parse([]byte(f.Body))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %s: %w", patch, f.Path, err)
-		}
-		out = append(out, incomingTicket{Ticket: t, Path: f.Path})
-	}
-	return out, nil
-}
-
-// importOrder puts a ticket after everything it points at, so that a dependency
-// or a parent inside the same export is already filed, and its new ID is known,
-// by the time the ticket naming it is written.
-//
-// Edges to tickets outside the export are not ordering constraints; they are
-// dropped at write time and reported, since a reminted store cannot resolve them.
-func importOrder(in []incomingTicket) ([]incomingTicket, error) {
-	byID := make(map[string]incomingTicket, len(in))
-	for _, t := range in {
-		byID[t.Ticket.ID] = t
-	}
-	var ordered []incomingTicket
-	state := make(map[string]int) // 0 unseen, 1 visiting, 2 done
-	var visit func(string) error
-	visit = func(id string) error {
-		switch state[id] {
-		case 2:
-			return nil
-		case 1:
-			return fmt.Errorf("the export contains a dependency cycle at %s", id)
-		}
-		state[id] = 1
-		cur := byID[id]
-		edges := append([]string{}, cur.Ticket.Dependencies...)
-		if cur.Ticket.Parent != nil && *cur.Ticket.Parent != "" {
-			edges = append(edges, *cur.Ticket.Parent)
-		}
-		sort.Strings(edges)
-		for _, e := range edges {
-			if _, ok := byID[e]; ok {
-				if err := visit(e); err != nil {
-					return err
-				}
-			}
-		}
-		state[id] = 2
-		ordered = append(ordered, cur)
-		return nil
-	}
-	ids := make([]string, 0, len(byID))
-	for id := range byID {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		if err := visit(id); err != nil {
-			return nil, err
-		}
-	}
-	return ordered, nil
-}
-
-// reconciled is what adopting one incoming ticket would do to it: the fields to
-// file it with, the work record to carry, the references to attach, and every
-// change this store imposes on the way in.
-//
-// Preview and adopt both read this rather than each working it out. They
-// duplicated the label rule once already, and a preview that promises one thing
-// while the write does another is worse than showing nothing at all.
-type reconciled struct {
-	Create ticket.CreateOptions
-	// Record is the sending store's summary, notes and comments gathered into
-	// one note, or empty when it carried none.
-	Record string
-	// Refs are the sender's references with an unresolvable path stripped,
-	// followed by the provenance ones.
-	Refs []ticket.AddReference
-	// Changes names what this store imposed, as values. changeLine is where
-	// they become sentences, and it gives them no tense, so one wording serves
-	// the preview and the write. Two tenses would be two wordings to keep in
-	// step.
-	Changes []ticket.Change
-}
-
-// reconcile decides how one incoming ticket becomes a ticket of this store.
-//
-// One rule runs through it: the statement of the work travels, and what the
-// receiver never agreed to does not. Title, type, priority, description, plan
-// and both checklists are the work. A label or milestone this store does not
-// declare, a reference path that resolves to nothing here, and a deadline
-// somebody else set are not. Each of those is named rather than dropped in
-// silence, because a quiet loss is the failure that costs the reader their trust
-// in everything else the command said.
-//
-// The checklists arrive with the sender's boxes ticked and land unticked. A tick
-// is evidence about the sender's work, and it says nothing about whether this
-// store has met the criterion. That is the same argument that files every
-// imported ticket as a draft.
-func reconcile(cfg ticket.Config, root string, in incomingTicket, fromStore string, actor ticket.Actor) reconciled {
-	t := in.Ticket
-	var r reconciled
-
-	labels, droppedLabels := keepKnownLabels(cfg, t.Labels)
-	for _, l := range droppedLabels {
-		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeLabelDropped, Value: l})
-	}
-
-	r.Create = ticket.CreateOptions{
-		Title:              t.Title,
-		Type:               t.Type,
-		Priority:           t.Priority,
-		Labels:             labels,
-		Assignees:          t.Assignees,
-		Description:        t.Body.Description,
-		ImplementationPlan: t.Body.ImplementationPlan,
-		AcceptanceCriteria: ticket.ChecklistItems(t.Body.AcceptanceCriteria),
-		DefinitionOfDone:   ticket.ChecklistItems(t.Body.DefinitionOfDone),
-		Actor:              actor,
-	}
-	if n := len(r.Create.AcceptanceCriteria); n > 0 {
-		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeAcceptanceCriteriaUnchecked, Count: n})
-	}
-	if n := len(r.Create.DefinitionOfDone); n > 0 {
-		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeDefinitionOfDoneUnchecked, Count: n})
-	}
-
-	// A milestone is an allowlisted vocabulary exactly as a label is, so it is
-	// reconciled the same way rather than by a second rule.
-	if t.Milestone != nil && *t.Milestone != "" {
-		if cfg.KnownMilestone(*t.Milestone) {
-			m := *t.Milestone
-			r.Create.Milestone = &m
-		} else {
-			r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeMilestoneDropped, Value: *t.Milestone})
-		}
-	}
-	if t.DueOn != nil && *t.DueOn != "" {
-		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeDueOnDropped, Value: *t.DueOn})
-	}
-	// blocks_on gates a ticket on edges that mostly did not survive the remint,
-	// so it is left at the default. Saying so costs one line and only appears
-	// when the sender set it to something.
-	if t.BlocksOn != "" && t.BlocksOn != ticket.BlocksOnNone {
-		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeBlocksOnDropped, Value: string(t.BlocksOn)})
-	}
-
-	for _, ref := range t.References {
-		keep := ticket.AddReference{Ref: ref.Ref, Path: ref.Path}
-		if keep.Path != nil && *keep.Path != "" && !repoHasPath(root, *keep.Path) {
-			// The reference survives without its path. What the sender pointed
-			// at is still worth knowing, and only the path is the thing that
-			// resolves to nothing here.
-			r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeReferencePathDropped, Value: keep.Ref})
-			keep.Path = nil
-		}
-		r.Refs = append(r.Refs, keep)
-	}
-
-	// Provenance is a reference and never origin. `origin` is checked against
-	// this store and an unresolvable one is an error, which is the guarantee it
-	// exists to carry; a reference is deliberately not checked, which is exactly
-	// what a foreign ID needs.
-	r.Refs = append(r.Refs, ticket.AddReference{Ref: "origin-ticket:" + t.ID})
-	if fromStore != "" {
-		r.Refs = append(r.Refs, ticket.AddReference{Ref: "origin-store:" + fromStore})
-	}
-
-	if r.Record = originRecord(t, fromStore); r.Record != "" {
-		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeWorkRecordCarried})
-	}
-	return r
+	return string(data), nil
 }
 
 // changeLine is the CLI's voice for one reconciliation change.
@@ -311,72 +143,36 @@ func changeLine(c ticket.Change) string {
 	return fmt.Sprintf("%s: reported by the library, which this build does not have wording for", c.Kind)
 }
 
-// originRecord gathers the sending store's work record into one note.
-//
-// This is the reasoning, the alternatives that were tried, and what the sender
-// concluded. On a handoff it is often worth more than the description. Filing
-// each entry as a note of this store would restamp it with whoever ran import
-// and with the instant they ran it, which invents an attribution; dropping the
-// lot loses the most valuable half of the ticket. So it travels whole, in one
-// note that says where it came from and declines to vouch for it.
-//
-// The headings are ### rather than ##, because parse splits a section on a line
-// beginning "## " and this text is going inside one. The carried text cannot
-// contain such a line itself: had it done so, parse would have made it a section
-// of the sender's ticket and it would not be in Notes to be carried.
-func originRecord(t *ticket.Ticket, fromStore string) string {
-	blocks := []struct{ title, body string }{
-		{"Summary at the origin", t.Body.Summary},
-		{"Notes at the origin", t.Body.Notes},
-		{"Comments at the origin", t.Body.Comments},
-	}
-	var b strings.Builder
-	for _, blk := range blocks {
-		if strings.TrimSpace(blk.body) == "" {
-			continue
-		}
-		fmt.Fprintf(&b, "\n### %s\n\n%s\n", blk.title, strings.TrimSpace(blk.body))
-	}
-	if b.Len() == 0 {
-		return ""
-	}
-	where := "another store"
-	if fromStore != "" {
-		where = fromStore
-	}
-	return fmt.Sprintf("The work record this ticket arrived with, from %s as %s.\n"+
-		"The actors and the instants below are the sending store's, and nothing here\n"+
-		"can verify either of them.\n%s", where, t.ID, b.String())
-}
-
 // importPreview says what would happen and writes nothing.
 //
 // This is the default because an export is somebody else's content, and a
 // command that ingests it without showing its hand first asks for trust it has
 // not earned. --adopt is the sentence that grants it.
-func importPreview(ctx *cmdContext, s *ticket.Store, dir string, in []incomingTicket, fromStore string) error {
+//
+// It renders the plan and decides nothing. That is the guarantee the preview is
+// making: what it shows is what --adopt will carry out, because both read the
+// same ImportPlan rather than each working the answer out.
+func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.ImportPlan) error {
 	cfg := s.Config()
 	shared := 0
-	for _, t := range in {
-		if series, _ := ticket.SplitID(t.Ticket.ID); cfg.KnownSeries(series) {
+	for _, pt := range plan.Tickets {
+		if series, _ := ticket.SplitID(pt.Incoming.ID); cfg.KnownSeries(series) {
 			shared++
 		}
 	}
 
-	fmt.Fprintf(ctx.out, "%s carries %s\n\n", dir, plural(len(in), "ticket"))
-	for _, t := range in {
-		fmt.Fprintf(ctx.out, "  %s  %s\n", t.Ticket.ID, t.Ticket.Title)
-		// The zero actor, because a preview files nothing and asking for the
-		// real one warns on stderr about a store that declares no default.
-		for _, c := range reconcile(cfg, s.Root(), t, fromStore, ticket.Actor{}).Changes {
+	fmt.Fprintf(ctx.out, "%s carries %s\n\n", dir, plural(len(plan.Tickets), "ticket"))
+	for _, pt := range plan.Tickets {
+		fmt.Fprintf(ctx.out, "  %s  %s\n", pt.Incoming.ID, pt.Incoming.Title)
+		for _, c := range pt.Changes {
 			fmt.Fprintf(ctx.out, "    %s\n", changeLine(c))
 		}
-		for _, d := range importDroppedEdges(t, in) {
+		for _, d := range pt.DroppedEdges {
 			fmt.Fprintf(ctx.out, "    %s: not carried, this export does not include it\n", d)
 		}
 	}
 
-	fmt.Fprintf(ctx.out, "\nNothing written. --adopt files all %s afresh under this store's series.\n", plural(len(in), "ticket"))
+	fmt.Fprintf(ctx.out, "\nNothing written. --adopt files all %s afresh under this store's series.\n", plural(len(plan.Tickets), "ticket"))
 	// Advice, not a verdict. Whether this export is your own project's work is
 	// something only you know: the series cannot say, because TKT is the default
 	// every store has and two strangers share it by default.
@@ -391,80 +187,33 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, in []incomingTi
 	return nil
 }
 
-// importAdopt files each ticket afresh, rewriting the edges among them to the
-// IDs this store just minted and reconciling the vocabulary it does not share.
-func importAdopt(ctx *cmdContext, s *ticket.Store, in []incomingTicket, fromStore string) error {
-	cfg := s.Config()
-	actor := ctx.actor(s)
-	remap := make(map[string]string, len(in))
-	var filed []string
-	for _, t := range in {
-		r := reconcile(cfg, s.Root(), t, fromStore, actor)
-		for _, d := range t.Ticket.Dependencies {
-			if to, ok := remap[d]; ok {
-				r.Create.Dependencies = append(r.Create.Dependencies, to)
-			}
-		}
-		if t.Ticket.Parent != nil {
-			if to, ok := remap[*t.Ticket.Parent]; ok {
-				p := to
-				r.Create.Parent = &p
-			}
-		}
-		res, err := s.Create(context.Background(), r.Create)
-		if err != nil {
-			return fmt.Errorf("filing %s (%s): %w", t.Ticket.Title, t.Ticket.ID, err)
-		}
-		remap[t.Ticket.ID] = res.Ticket.ID
-		filed = append(filed, res.Ticket.ID)
-
-		for _, ref := range r.Refs {
-			if _, err := ctx.applyTo(s, res.Ticket.ID, ref); err != nil {
-				return fmt.Errorf("carrying reference %s to %s: %w", ref.Ref, res.Ticket.ID, err)
-			}
-		}
-		if r.Record != "" {
-			if _, err := ctx.applyTo(s, res.Ticket.ID, ticket.AppendNote{Text: r.Record}); err != nil {
-				return fmt.Errorf("carrying the work record to %s: %w", res.Ticket.ID, err)
-			}
-		}
-		for _, c := range r.Changes {
-			fmt.Fprintf(ctx.env.Stderr, "  %s: %s\n", res.Ticket.ID, changeLine(c))
-		}
-	}
-
-	for i, t := range in {
-		fmt.Fprintf(ctx.out, "%s  <- %s  %s\n", filed[i], t.Ticket.ID, t.Ticket.Title)
-		for _, dropped := range importDroppedEdges(t, in) {
-			fmt.Fprintf(ctx.env.Stderr, "  %s: %s not carried, this export does not include it\n", filed[i], dropped)
-		}
-	}
-	fmt.Fprintf(ctx.env.Stderr, "%s filed as draft. Review, then commit.\n", plural(len(filed), "ticket"))
-	return nil
-}
-
-// importDroppedEdges names the dependencies and parent an incoming ticket points
-// at that the export does not carry.
+// importAdopt files the plan and reports what landed.
 //
-// They cannot survive a remint: the ID they name belongs to another store, and
-// a dependency on a ticket that does not exist here is dependency_missing, an
-// error. Dropping them is the only thing that leaves a valid store, so the
-// command's duty is to be loud about it rather than to avoid it.
-func importDroppedEdges(t incomingTicket, in []incomingTicket) []string {
-	present := make(map[string]bool, len(in))
-	for _, o := range in {
-		present[o.Ticket.ID] = true
+// The write is one library call, so the edge rewriting and the ordering are not
+// this file's business. What is left here is the report, and its subject is the
+// ID this store minted, which is the one thing the sender's copy cannot tell
+// the reader.
+func importAdopt(ctx *cmdContext, s *ticket.Store, plan *ticket.ImportPlan) error {
+	res, err := s.ApplyImport(context.Background(), plan)
+	if err != nil {
+		return err
 	}
-	var dropped []string
-	for _, d := range t.Ticket.Dependencies {
-		if !present[d] {
-			dropped = append(dropped, "dependency "+d)
+
+	for i, pt := range plan.Tickets {
+		for _, c := range pt.Changes {
+			fmt.Fprintf(ctx.env.Stderr, "  %s: %s\n", res.Filed[i].ID, changeLine(c))
 		}
 	}
-	if t.Ticket.Parent != nil && *t.Ticket.Parent != "" && !present[*t.Ticket.Parent] {
-		dropped = append(dropped, "parent "+*t.Ticket.Parent)
+
+	for i, pt := range plan.Tickets {
+		filed := res.Filed[i]
+		fmt.Fprintf(ctx.out, "%s  <- %s  %s\n", filed.ID, pt.Incoming.ID, pt.Incoming.Title)
+		for _, dropped := range pt.DroppedEdges {
+			fmt.Fprintf(ctx.env.Stderr, "  %s: %s not carried, this export does not include it\n", filed.ID, dropped)
+		}
 	}
-	return dropped
+	fmt.Fprintf(ctx.env.Stderr, "%s filed as draft. Review, then commit.\n", plural(len(res.Filed), "ticket"))
+	return nil
 }
 
 // importOtherPatches names the code patches an export carries beside its
@@ -481,32 +230,4 @@ func importOtherPatches(dir string) []string {
 		}
 	}
 	return out
-}
-
-// keepKnownLabels splits a ticket's labels into the ones this store declares and
-// the ones it does not.
-//
-// A label outside the allowlist is label_unknown, a warning, and a receiver
-// whose CI runs check --strict fails on warnings. Carrying a sender's vocabulary
-// into a store that never agreed to it is not a kindness, so the unknown ones
-// are dropped and named. This is the reconciliation git am cannot do, and the
-// clearest argument for import existing beside it.
-func keepKnownLabels(cfg ticket.Config, labels []string) (keep, dropped []string) {
-	for _, l := range labels {
-		if cfg.KnownLabel(l) {
-			keep = append(keep, l)
-			continue
-		}
-		dropped = append(dropped, l)
-	}
-	return keep, dropped
-}
-
-// repoHasPath reports whether a reference's repository-relative path exists here.
-func repoHasPath(root, rel string) bool {
-	if root == "" {
-		return false
-	}
-	_, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
-	return err == nil
 }

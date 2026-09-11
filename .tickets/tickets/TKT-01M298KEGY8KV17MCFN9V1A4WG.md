@@ -29,7 +29,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T23:22:22Z
+updated_at: 2026-09-11T23:26:08Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -159,3 +159,34 @@ byte-identical.
 **agent:terva/mieli** at 2026-09-11T23:22:18Z
 
 draft to ready: The user directed this work to start now that the ticket body repair has merged.
+
+**agent:terva/mieli** at 2026-09-11T23:26:08Z
+
+Step 1 of the plan is done, on `refactor/interchange-library` at `5656c0b`.
+
+`cli/testdata/export-before-image/` holds the pinned artifact, a cover letter
+and a one-patch series carrying two tickets from the `clean` fixture.
+`TestExportMatchesThePinnedBeforeImage` compares the bytes.
+
+Three inputs had to be held still, and only two were already handled. `runCLI`
+pins the clock to `referenceInstant`. The fixture supplies IDs and timestamps a
+person wrote, instead of ULIDs minted during the run. The third would have
+silently broken this on another machine: `exportIdentity` asks git for
+`user.name` and `user.email`, so the `From:` header carries whoever ran the
+suite unless the repository sets its own. `newFixtureStore` sets it to
+`Pinned Sender <pinned@example.com>`.
+
+No `-update` flag, deliberately. The bytes are evidence from before the move,
+and a flag that rewrites them turns a failed comparison into a formality.
+
+Falsification was run rather than assumed: changing one byte of the pinned
+cover letter turns the test red, restoring it turns it green.
+
+One cosmetic defect is pinned as-is. In the patch body the status column does
+not align, because `blocked` is seven characters and `review` is six and both
+are followed by two spaces. Fixing it during the move would make the artifact
+differ for a reason unrelated to the move. It is worth a separate ticket after
+this lands.
+
+The criterion stays unticked. Half of it is evidence that cannot exist yet: the
+after-image comparison needs the move to have happened.

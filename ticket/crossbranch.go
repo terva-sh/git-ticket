@@ -79,16 +79,42 @@ type treeEntry struct {
 
 // storePathspec is the store directory relative to the repository root, which
 // is the form ls-tree takes as a pathspec.
+//
+// Both paths are resolved first, because they arrive in different name spaces.
+// Root() is `git rev-parse --show-toplevel` and git resolves symlinks; the store
+// path is whatever the caller opened, and Open does not resolve it. Taking Rel
+// of two spellings of one directory produced a pathspec of ../.. , ls-tree
+// matched nothing against it, and the cross-branch query answered with the
+// working tree alone and reported no error at all. That is TKT-01M2938X37, and
+// a silently halved answer is the worst shape a failure takes here.
+//
+// A plain EvalSymlinks does the job, rather than the cli package's evalExisting,
+// because both directories exist: OpenWith stats the store before it returns
+// one, and a root git has just named is a root git can see. A resolution that
+// fails is left as it was, since the unresolved spelling is what this used
+// before and is correct whenever no symlink stands in the way.
 func (s *Store) storePathspec() string {
-	root := s.Root()
+	root := resolveSymlinks(s.Root())
 	if root == "" {
 		return ""
 	}
-	rel, err := filepath.Rel(root, s.path)
+	rel, err := filepath.Rel(root, resolveSymlinks(s.path))
 	if err != nil {
 		return ""
 	}
 	return filepath.ToSlash(rel)
+}
+
+// resolveSymlinks answers with path as it stands once every symlink in front of
+// it is followed, or with path itself when that cannot be done.
+func resolveSymlinks(path string) string {
+	if path == "" {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return path
 }
 
 // treeAt lists the ticket files on one ref.

@@ -2809,6 +2809,9 @@ func (s *Store) Check(ctx context.Context) (*Report, error)
 func (s *Store) Fix(ctx context.Context, o FixOptions) (*FixResult, error)
 func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOptions) (*Result, error)
 
+func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, error)
+func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, error)
+
 type ApplyOptions struct {
     IfRevision string // empty means no precondition
     Actor      Actor
@@ -2822,6 +2825,17 @@ type Result struct {
 
 `Mutation` is a typed set of operations rather than a struct of pointers, so
 "set the title to empty" and "do not touch the title" cannot be confused.
+
+The interchange of 12.8 is library work and not command work. The wire format,
+the reconciliation rule, and the write loop live here; a command decides flags,
+wording and exit status. The division is not tidiness. `import` reports which
+ID this store minted for each arriving ticket, and that map is the one thing a
+host cannot reconstruct from an exit code and English prose, so a host that
+could only build argv could not use the feature at all.
+
+That is also why the reconciliation reports typed `Change` values rather than
+sentences. The wording belongs to whoever is speaking, and a host with its own
+voice, or a different language, cannot use a preformatted English string.
 
 A second package, `github.com/terva-sh/git-ticket/cli`, exports the whole
 command surface for a host that wants the commands rather than the library:
@@ -3336,6 +3350,39 @@ already filed. The scratch branch is what would have made it transactional, the
 store has no transaction to substitute, and validating everything up front would
 only catch the failures that are predictable, which is a weaker promise wearing
 the same clothes. Recovery is reading the output and removing what landed.
+
+#### Where the interchange lives
+
+In `ticket`, not in `cli`. The library owns the wire format, the reconciliation
+rule, and the write loop; the command owns flags, wording and exit status.
+
+The pair is plan and apply:
+
+```go
+func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, error)
+func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, error)
+```
+
+That is the library-shaped version of the preview-then-adopt split a person
+sees, and it is one answer rather than two. The preview renders the plan the
+write consumes, so the two cannot disagree. They had already begun to, over
+labels, while the reconciliation lived in one place and the preview worked it
+out again.
+
+`PlanImport` takes the patch as bytes rather than a directory, so an import can
+arrive off a wire, and so the decision is testable with no filesystem. Writing
+the artifact to disk is the command's choice, not the library's.
+
+`ImportResult` pairs the ID each ticket arrived with against the one this store
+minted. That map is the single thing a caller cannot reconstruct, and it is the
+reason this is library work: `import` has no `--json` form, so a host holding
+only an exit code and English prose could not use the feature at all.
+
+The changes a reconciliation reports are typed `Change` values carrying a kind
+and a subject, never preformatted sentences. A host renders them in its own
+voice, and `ChangeKinds` lists every kind so a host can prove it renders all of
+them. A kind nobody prints is a loss the reader never hears about, which is the
+failure the whole vocabulary exists to prevent.
 
 A code patch sitting beside the tickets is somebody else's job: import names it
 and applies nothing, because `git am` is the tool for a patch and import is the

@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Pinned Sender <pinned@example.com>
+Date: Wed, 30 Sep 2026 00:00:00 +0000
+Subject: [PATCH 0/1] Tickets: 2 from another store
+
+This is a git-ticket export: one or more tickets, and the patches that
+carry them.
+
+    git am *.patch
+
+Nothing here needs git-ticket. The patches add ordinary Markdown files, so
+a repository that runs git-ticket gains real tickets and one that does not
+gains readable text in a directory.
+
+This file is not part of the series. It is named .txt so the glob above
+skips it, since a cover letter has no diff to apply.
+
+Numbers 0 and 1 are this export's. A sender attaching code uses
+`git format-patch --start-number 2 -o <this directory> <range>`, and the
+one command above still applies the whole of it.
+
+------------------------------------------------------------------------
+TKT-01K3ZZ67Q0PT427VFD1F4WFWSH  [spike, blocked, normal]
+
+Can the daemon survive a provider outage
+
+## Description
+
+Status `blocked`, type `spike`.
+
+## Notes
+
+Blocked 2026-09-02: the staging provider account is suspended, so there is no
+way to produce the outage this spike has to observe.
+
+This is the pair 6.2 requires. `status_reason` carries the current reason, which
+a query can read back, and this note carries the history, which survives the
+transition that clears the field.
+
+------------------------------------------------------------------------
+TKT-01K3ZZ82A0YPGSE71EY0N5NCH6  [epic, review, high]
+
+Ship the token refresh work
+
+## Description
+
+Status `review`, type `epic`. Both labels are in the allowlist and the
+milestone is set, so this ticket also covers the non-null `milestone` path.
+
+## Acceptance criteria
+
+- [x] Refresh happens before expiry
+- [x] A failed refresh does not log the token
+

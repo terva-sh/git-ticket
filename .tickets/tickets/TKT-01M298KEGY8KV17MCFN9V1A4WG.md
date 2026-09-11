@@ -3,8 +3,8 @@ schema: 2
 id: TKT-01M298KEGY8KV17MCFN9V1A4WG
 title: Move the export and import interchange into the ticket library
 type: chore
-status: draft
-status_reason: null
+status: ready
+status_reason: The user directed this work to start now that the ticket body repair has merged.
 priority: high
 due_on: null
 labels:
@@ -20,16 +20,22 @@ references:
     path: docs/plan.md
   - ref: plan:12.8
     path: docs/plan.md
-claim: null
+claim:
+  actor: agent:terva/mieli
+  branch: refactor/interchange-library
+  worktree: null
+  commit: null
+  claimed_at: 2026-09-11T23:22:22Z
+  expires_at: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T23:06:09Z
+updated_at: 2026-09-11T23:22:22Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
   id: agent:terva/mieli
-  name: ""
+  name: Mieli
 extensions: {}
 ---
 
@@ -147,3 +153,9 @@ refactor moved no output.
 Do not fold `export --since` or `create --file` into this. Both depend on it and
 both are separately reviewable; a move that also adds features cannot be proven
 byte-identical.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-11T23:22:18Z
+
+draft to ready: The user directed this work to start now that the ticket body repair has merged.

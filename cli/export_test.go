@@ -261,3 +261,31 @@ func TestBlobSHAMatchesGit(t *testing.T) {
 		t.Errorf("blobSHA = %s, want %s", got, want)
 	}
 }
+
+// TestExportWarnsAboutEdgesThatWillNotTravel covers the failure the bootstrap
+// delivery found: `git am` applies a ticket verbatim, so a parent or dependency
+// naming a ticket outside the export arrives pointing at nothing, and both are
+// errors rather than warnings. The artifact applies without complaint and leaves
+// the receiving store broken, so the warning has to happen while the sender can
+// still act on it.
+func TestExportWarnsAboutEdgesThatWillNotTravel(t *testing.T) {
+	src, kept := newExportSource(t, "Ticket that travels")
+	left := crossCreate(t, src, "Ticket left behind", "human:sothr")
+	if got := runCLI(t, src, nil, "link", kept, "--depends-on", left, "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("link: %s%s", got.stdout, got.stderr)
+	}
+	exportGit(t, src, "add", "-A")
+	exportGit(t, src, "commit", "-qm", "second")
+
+	out := filepath.Join(t.TempDir(), "out")
+	got := runCLI(t, src, nil, "export", kept, "--out", out)
+	if got.code != exitOK {
+		t.Fatalf("export: %s%s", got.stdout, got.stderr)
+	}
+	if !strings.Contains(got.stderr, left) {
+		t.Errorf("stderr did not name the edge that will not travel:\n%s", got.stderr)
+	}
+	if !strings.Contains(got.stderr, "git ticket import") {
+		t.Errorf("stderr did not name the way out:\n%s", got.stderr)
+	}
+}

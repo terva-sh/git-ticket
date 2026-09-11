@@ -128,8 +128,47 @@ func runExport(ctx *cmdContext, args []string) error {
 	for _, p := range written {
 		fmt.Fprintf(ctx.out, "  %s\n", filepath.Base(p))
 	}
+	warnDanglingEdges(ctx, tickets)
 	fmt.Fprintf(ctx.env.Stderr, "apply with: git am %s/*.patch\n", dir)
 	return nil
+}
+
+// warnDanglingEdges names the parents and dependencies that will not travel.
+//
+// `git am` applies a ticket file verbatim, so an edge naming a ticket outside
+// the export arrives pointing at nothing, and parent_missing and
+// dependency_missing are errors rather than warnings. The receiving store is
+// then broken by an artifact that applied without complaint, which is the worst
+// shape a failure can take.
+//
+// Export cannot fix this. Including the missing tickets is the sender's call,
+// and stripping the edges would quietly change what the ticket says. So it says
+// so, at the moment the sender can still do something about it.
+func warnDanglingEdges(ctx *cmdContext, tickets []*ticket.Ticket) {
+	inSet := make(map[string]bool, len(tickets))
+	for _, t := range tickets {
+		inSet[t.ID] = true
+	}
+	var lines []string
+	for _, t := range tickets {
+		for _, d := range t.Dependencies {
+			if !inSet[d] {
+				lines = append(lines, fmt.Sprintf("  %s depends on %s", t.ID, d))
+			}
+		}
+		if t.Parent != nil && *t.Parent != "" && !inSet[*t.Parent] {
+			lines = append(lines, fmt.Sprintf("  %s is parented to %s", t.ID, *t.Parent))
+		}
+	}
+	if len(lines) == 0 {
+		return
+	}
+	fmt.Fprintf(ctx.env.Stderr,
+		"warning: %s naming a ticket this export does not carry:\n%s\n",
+		plural(len(lines), "edge"), strings.Join(lines, "\n"))
+	fmt.Fprintf(ctx.env.Stderr,
+		"  Applied with `git am` these are parent_missing and dependency_missing, which are errors.\n"+
+			"  Export those tickets too, or have the receiver use `git ticket import`, which drops what it cannot resolve.\n")
 }
 
 // exportDirIsFree refuses a directory that already holds something.

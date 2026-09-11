@@ -286,3 +286,28 @@ func TestImportNeedsAnExportDirectory(t *testing.T) {
 		t.Errorf("stderr = %q, want it to name what was missing", got.stderr)
 	}
 }
+
+// TestImportPointsAtTheCodePatchesItWillNotApply covers the boundary with the
+// other half of a handoff. An export can carry code beside its tickets, import
+// does not apply code, and saying nothing would leave the receiver believing the
+// whole thing had arrived.
+func TestImportPointsAtTheCodePatchesItWillNotApply(t *testing.T) {
+	dir, _ := newForeignExport(t, "A foreign ticket")
+	// A code patch, numbered the way format-patch would place it beside an export.
+	extra := filepath.Join(dir, "0002-Some-code-change.patch")
+	if err := os.WriteFile(extra, []byte("From 0000 Mon Sep 17 00:00:00 2001\nSubject: [PATCH] code\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dest := newGitStore(t)
+	got := runCLI(t, dest, nil, "import", dir)
+	if got.code != exitOK {
+		t.Fatalf("import: %s%s", got.stdout, got.stderr)
+	}
+	if !strings.Contains(got.stderr, "does not apply") {
+		t.Errorf("stderr = %q, want it to say the code is not import's job", got.stderr)
+	}
+	if !strings.Contains(got.stderr, "git am") {
+		t.Errorf("stderr = %q, want it to name the tool that does apply it", got.stderr)
+	}
+}

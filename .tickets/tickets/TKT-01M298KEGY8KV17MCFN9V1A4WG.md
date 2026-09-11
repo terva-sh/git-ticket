@@ -3,8 +3,8 @@ schema: 2
 id: TKT-01M298KEGY8KV17MCFN9V1A4WG
 title: Move the export and import interchange into the ticket library
 type: chore
-status: ready
-status_reason: The user directed this work to start now that the ticket body repair has merged.
+status: in-progress
+status_reason: null
 priority: high
 due_on: null
 labels:
@@ -29,7 +29,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T23:26:08Z
+updated_at: 2026-09-11T23:34:51Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -190,3 +190,57 @@ this lands.
 
 The criterion stays unticked. Half of it is evidence that cannot exist yet: the
 after-image comparison needs the move to have happened.
+
+**agent:terva/mieli** at 2026-09-11T23:34:45Z
+
+Step 2 is done, on `refactor/interchange-library` at `16728ae`, pushed to
+`origin`. Steps 3 through 6 are untouched.
+
+`ticket/interchange.go` holds the wire format: `BlobSHA`, `AddedFileHunk`,
+`MboxMessage`, `MboxFromLine`, and `ParseAddedFiles` over an `AddedFile{Path,
+Body}`. `cli/export.go` and `cli/import.go` call it and shed 151 lines between
+them.
+
+`TestExportMatchesThePinnedBeforeImage` passes unchanged, which is the claim
+this step had to support.
+
+Two decisions a reviewer should see rather than infer.
+
+One signature did not move verbatim. `addedFileDiff` took a `*strings.Builder`
+and returned a count, and `AddedFileHunk` returns the hunk and the count
+instead. A Builder parameter is fine as an internal convenience and poor as
+public API. The before-image is what made changing it safe, which is the
+argument for pinning it first.
+
+The seam sits at the hunk rather than at the whole patch, because the plan on
+this ticket puts the cosmetic `plusBar` in `cli`. So `exportTicketFiles` still
+renders the diffstat and calls the library for each hunk. If step 4 moves the
+stat, `plusBar` goes with it and that ruling should be revisited in the open
+rather than drifted past.
+
+### A defect this step found and did not fix
+
+`AddedFileHunk` writes git's `\ No newline at end of file` marker and hashes
+the bytes as they are. `ParseAddedFiles` skips the marker and appends a newline
+to every line it reads, so it rebuilds a file one byte longer, hashes that, and
+returns "does not match its blob name; the patch has been altered or
+truncated". Export writes an artifact its own import refuses, and the error
+accuses the sender of altering something nobody touched.
+
+It predates this move: both halves are the contribution's code, copied
+verbatim. It is latent because `Render` always ends a ticket file with a
+newline, so nothing the store writes takes this path. A hand-authored file
+would, which matters once `create --file` (TKT-01M298MJ0) exists.
+
+`TestAFileWithNoTrailingNewlineDoesNotRoundTrip` pins the behaviour and says in
+its own failure message what to do when it starts passing. The fix needs a
+decision between honouring the marker on the way in and refusing such a file on
+the way out, and changing the wire format inside a move that must be
+byte-identical is the wrong moment. It wants its own ticket, filed after this
+branch lands so the store write does not ride into this PR.
+
+### Where the next session starts
+
+Step 3, the typed `Change`. The kinds are enumerated in the implementation plan
+above. `reconcile` and `reconciled` in `cli/import.go` are still where the
+contribution left them, and `reconciled.Changes` is still `[]string` of English.

@@ -95,11 +95,28 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.14.3. `main` is ahead of the last tag and unreleased:
-it carries `export` and `import` (plan 12.8) and the `storePathspec` symlink
-fix. Two new commands and one new exported library function,
-`ticket.ChecklistItems`, make the next tag a minor under 12.4 by the
-new-surface rule of v0.7.0 and v0.11.0, so v0.15.0.
+Releases run through v0.15.0, which is the interchange pair of plan 12.8:
+`export` and `import`, plus `ticket.ChecklistItems` and the `storePathspec`
+symlink fix. A minor under 12.4 by the new-surface rule of v0.7.0 and v0.11.0,
+two new commands and one new exported function, nothing broken and no schema
+move.
+
+Its verification is the pattern to copy for a feature release, because a green
+job proves only that the job was green. The linux_amd64 archive was downloaded
+from the mirror, checked against `checksums.txt`, and run: `v0.15.0
+(68697f44fcdb, go1.25.0)`, 38 commands. Then the feature, in the shipped binary
+rather than in a working tree: a `LIVE` ticket with a ticked criterion and a
+note exported from one store and adopted into another, arriving with the
+criterion unticked, the work record carried, and `check --strict` clean. All
+three image tags pulled anonymously to one digest. The Windows lane was read
+green on `68697f4` before the tag, which is the order the release sequence
+wants.
+
+One trap in that run, which cost a minute and reads like a broken image. `podman
+run IMAGE --version` fails with "executable file `--version` not found". The
+image has no entrypoint and its `CMD` is `sh`, by the ruling below that an
+entrypoint hook is the wrong mechanism, so the binary is named explicitly:
+`podman run IMAGE git-ticket --version`.
 
 `self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release

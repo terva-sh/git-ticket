@@ -15,17 +15,21 @@ parent: null
 origin: null
 dependencies: []
 blocks_on: none
-references: []
+references:
+  - ref: plan:12.2
+    path: docs/plan.md
+  - ref: plan:12.8
+    path: docs/plan.md
 claim: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T22:14:54Z
+updated_at: 2026-09-11T23:06:09Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
   id: agent:terva/mieli
-  name: Mieli
+  name: ""
 extensions: {}
 ---
 
@@ -105,8 +109,17 @@ The verification is cheap and strong. An export is deterministic given a fixed
 clock and identity, so generate the artifacts before and after and compare them
 byte for byte. That is the before-image technique PR #135 used to prove a
 refactor moved no output.
-</description>
-<parameter name="acceptance_criteria">["ticket exports Export, PlanImport and ApplyImport, and the interchange domain lives in the ticket package", "Export returns the artifact as bytes; writing a directory is the CLI's decision", "The reconciliation is computed once and rendered twice: PlanImport answers, and the CLI preview prints that answer rather than deriving its own", "Changes are typed values carrying a kind and a value, not preformatted English", "cli/export.go and cli/import.go hold flags, printing and exit status only", "An export generated before and after the move is byte-identical under a fixed clock and identity", "Plan 12.2 and 12.8 say the library owns the interchange and the CLI renders it", "A handoff document for terva describes the new API, with its code compiled against the published module"]
+
+## Acceptance criteria
+
+- [ ] ticket exports Export, PlanImport and ApplyImport, and the interchange domain lives in the ticket package
+- [ ] Export returns the artifact as bytes; writing a directory is the CLI's decision
+- [ ] The reconciliation is computed once and rendered twice: PlanImport answers, and the CLI preview prints that answer rather than deriving its own
+- [ ] Changes are typed values carrying a kind and a value, not preformatted English
+- [ ] cli/export.go and cli/import.go hold flags, printing and exit status only
+- [ ] An export generated before and after the move is byte-identical under a fixed clock and identity
+- [ ] Plan 12.2 and 12.8 say the library owns the interchange and the CLI renders it
+- [ ] A handoff document for terva describes the new API, with its code compiled against the published module
 
 ## Implementation plan
 
@@ -134,5 +147,3 @@ refactor moved no output.
 Do not fold `export --since` or `create --file` into this. Both depend on it and
 both are separately reviewable; a move that also adds features cannot be proven
 byte-identical.
-</implementation_plan>
-<parameter name="references">[{"ref": "plan:12.2", "path": "docs/plan.md"}, {"ref": "plan:12.8", "path": "docs/plan.md"}]

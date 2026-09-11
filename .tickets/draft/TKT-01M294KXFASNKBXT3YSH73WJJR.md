@@ -23,13 +23,13 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-11T21:05:15Z
-updated_at: 2026-09-11T21:05:15Z
+updated_at: 2026-09-11T23:06:09Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
   id: agent:terva/mieli
-  name: Mieli
+  name: ""
 extensions: {}
 ---
 
@@ -66,5 +66,11 @@ already makes by publishing a null ticket. A new kind costs a row in 10, the
 
 Per 12.4 a published envelope is a surface, so this is settled with the user
 before it ships rather than after.
-</description>
-<parameter name="acceptance_criteria">["The kind question is settled: a new section 10 kind, or mutation-result reused, with the reason recorded", "The ID mapping is published in whatever shape is chosen, because it is the one thing a caller cannot reconstruct", "Preview and adopt both have a --json form, and the reconciliation notices are in it rather than on stderr alone", "Section 10 and the kinds list carry it, with a test in envelopekinds_test.go", "12.8's Envelopes paragraph stops calling this a gap"]
+
+## Acceptance criteria
+
+- [ ] The kind question is settled: a new section 10 kind, or mutation-result reused, with the reason recorded
+- [ ] The ID mapping is published in whatever shape is chosen, because it is the one thing a caller cannot reconstruct
+- [ ] Preview and adopt both have a --json form, and the reconciliation notices are in it rather than on stderr alone
+- [ ] Section 10 and the kinds list carry it, with a test in envelopekinds_test.go
+- [ ] 12.8's Envelopes paragraph stops calling this a gap

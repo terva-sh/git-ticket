@@ -26,13 +26,13 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-11T21:04:49Z
-updated_at: 2026-09-11T21:04:49Z
+updated_at: 2026-09-11T23:06:08Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
   id: agent:terva/mieli
-  name: Mieli
+  name: ""
 extensions: {}
 ---
 
@@ -81,5 +81,9 @@ The discoverability gap is the real cost of composing, and it is closed without
 a table row: `export --help` and the block in `cli/instructions.md` name the
 composition, and export prints the exact `format-patch` line with the directory
 filled in beside the `git am` line it already printed.
-</description>
-<parameter name="acceptance_criteria">["A real report exists of somebody shipping an export that should have carried code and did not, or one broken by the numbering", "The format.* neutralization is settled: which keys are overridden, and how a test holds the override list", "12.4 is re-read, since admitting the row is a minor and removing it later is a break"]
+
+## Acceptance criteria
+
+- [ ] A real report exists of somebody shipping an export that should have carried code and did not, or one broken by the numbering
+- [ ] The format.* neutralization is settled: which keys are overridden, and how a test holds the override list
+- [ ] 12.4 is re-read, since admitting the row is a minor and removing it later is a break

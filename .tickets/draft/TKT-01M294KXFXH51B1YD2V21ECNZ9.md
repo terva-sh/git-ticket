@@ -23,13 +23,13 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-11T21:05:15Z
-updated_at: 2026-09-11T21:05:15Z
+updated_at: 2026-09-11T23:06:09Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
   id: agent:terva/mieli
-  name: Mieli
+  name: ""
 extensions: {}
 ---
 
@@ -64,5 +64,9 @@ work at the origin, which is the argument for carrying it.
 Deliberately not invented in the commit that fixed the rest. The trigger is
 somebody meeting a real adopted ticket assigned to a person who does not work
 here.
-</description>
-<parameter name="acceptance_criteria">["Decided whether an assignee is vocabulary the receiver must declare, or provenance that travels", "If it is vocabulary, what it is reconciled against, given that config.actors is an attribution list and not a gate", "12.8's What travels section says which it is"]
+
+## Acceptance criteria
+
+- [ ] Decided whether an assignee is vocabulary the receiver must declare, or provenance that travels
+- [ ] If it is vocabulary, what it is reconciled against, given that config.actors is an attribution list and not a gate
+- [ ] 12.8's What travels section says which it is

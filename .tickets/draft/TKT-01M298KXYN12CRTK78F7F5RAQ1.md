@@ -23,13 +23,13 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-11T22:15:10Z
-updated_at: 2026-09-11T22:15:10Z
+updated_at: 2026-09-11T23:06:09Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
   id: agent:terva/mieli
-  name: Mieli
+  name: ""
 extensions: {}
 ---
 
@@ -89,5 +89,12 @@ Whether `--since` selects or merely proposes. Exporting every ticket a branch
 touched is wrong often enough that a flag which silently does it will send the
 wrong thing. Printing the set for the sender to confirm, or taking IDs to
 exclude, are both plausible, and the choice is a CLI contract under 12.4.
-</description>
-<parameter name="acceptance_criteria">["The ticket package answers which tickets a ref adds relative to another, using ls-tree alone", "export --since REF exports that set without a shell pipeline", "The three-dot and two-dot range trap is gone from the documented workflow, or explained where a reader meets it", "Settled and recorded: whether --since selects outright or proposes a set the sender confirms", "Plan 12.8's \"neither command runs git\" sentence is reworded to be about reads rather than a count", "A test drives a real branch that adds two tickets and exports one of them"]
+
+## Acceptance criteria
+
+- [ ] The ticket package answers which tickets a ref adds relative to another, using ls-tree alone
+- [ ] export --since REF exports that set without a shell pipeline
+- [ ] The three-dot and two-dot range trap is gone from the documented workflow, or explained where a reader meets it
+- [ ] Settled and recorded: whether --since selects outright or proposes a set the sender confirms
+- [ ] Plan 12.8's "neither command runs git" sentence is reworded to be about reads rather than a count
+- [ ] A test drives a real branch that adds two tickets and exports one of them

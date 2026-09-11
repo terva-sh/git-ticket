@@ -23,13 +23,13 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-11T22:15:31Z
-updated_at: 2026-09-11T22:15:31Z
+updated_at: 2026-09-11T23:06:09Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
   id: agent:terva/mieli
-  name: Mieli
+  name: ""
 extensions: {}
 ---
 
@@ -86,5 +86,12 @@ says a backport states status and created instant explicitly, and 4.2 says the
 template loader seeds neither. A document that carries `status: done` should
 probably be refused rather than quietly filed as a draft, but that is a decision
 and not an assumption.
-</description>
-<parameter name="acceptance_criteria">["A ticket written as a Markdown document is filed in one command, with its checklists and sections intact", "The leniency of plan 4.2 is preserved: unrecognised keys are ignored rather than refused", "Settled and recorded: one flag taking a name or a path, or two flags for two intents", "Settled and recorded: what a document carrying a status or a created instant does, given 4.2 and 6.2.1 disagree about who states those", "Explicit flags still win over the document, as they already win over a template", "The path is a library capability the CLI calls, not logic that lives in cli/"]
+
+## Acceptance criteria
+
+- [ ] A ticket written as a Markdown document is filed in one command, with its checklists and sections intact
+- [ ] The leniency of plan 4.2 is preserved: unrecognised keys are ignored rather than refused
+- [ ] Settled and recorded: one flag taking a name or a path, or two flags for two intents
+- [ ] Settled and recorded: what a document carrying a status or a created instant does, given 4.2 and 6.2.1 disagree about who states those
+- [ ] Explicit flags still win over the document, as they already win over a template
+- [ ] The path is a library capability the CLI calls, not logic that lives in cli/

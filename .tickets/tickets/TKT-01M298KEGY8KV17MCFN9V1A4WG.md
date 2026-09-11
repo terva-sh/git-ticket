@@ -29,7 +29,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T23:53:12Z
+updated_at: 2026-09-11T23:57:13Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -336,3 +336,49 @@ the export artifact. The import side is guarded by the existing CLI tests
 asserting exact wording, which is weaker, and the new library tests, which are
 about the API rather than the output. If step 6 or a later change wants the
 same confidence for import, the preview output is what to pin.
+
+**agent:terva/mieli** at 2026-09-11T23:57:13Z
+
+Step 6 is done at `617a646`, and with it every step of the implementation plan.
+The ticket is not done, and the gap is mine.
+
+The plan's six steps and the eight acceptance criteria do not describe the same
+work. The steps move the wire format and then the whole import side. Nothing in
+them builds `Store.Export`, and three criteria ask for it:
+
+- "ticket exports Export, PlanImport and ApplyImport". There is no
+  `ticket.Export`. `PlanImport` and `ApplyImport` exist.
+- "Export returns the artifact as bytes; writing a directory is the CLI's
+  decision". Not built.
+- "cli/export.go and cli/import.go hold flags, printing and exit status only".
+  `cli/import.go` does, at 233 lines. `cli/export.go` is 320 and still holds
+  `exportSubject`, `exportCommitBody`, `exportTicketFiles` and `exportCover`,
+  which compose the artifact and are not presentation.
+
+The five that do hold: the reconciliation is computed once and rendered twice,
+changes are typed, the export is byte-identical across the move, plan 12.2 and
+12.8 say the library owns the interchange, and the handoff exists with compiled
+code.
+
+I should have caught this when I claimed the ticket and read both lists
+together. Writing the plan's step 2 as "move the wire format" rather than "build
+`Store.Export`" is what hid it, and every step after that was import work, so
+nothing brought me back to the export half.
+
+The criteria are the ask and they stand as written. What is left is one more
+step of the same shape as step 4, on the other side:
+
+`Store.Export(ctx, ExportOptions) (*Export, error)` returning the cover letter
+and the patch as bytes. `exportTicketFiles`, `exportSubject`, `exportCommitBody`
+and `exportCover` move, and `plusBar` goes with the diffstat, which retires the
+ruling in this ticket's description that put it in `cli`. What stays is
+`runExport`, `exportDirIsFree`, `warnDanglingEdges`, and `exportIdentity`, the
+last because it reaches git through `cli`'s own `readGit`.
+
+The before-image is already in place for exactly this, and it is the reason that
+step is cheap: it proves the bytes did not move, which is the only hard part.
+
+The eighth criterion is the separate case of evidence that cannot exist yet. The
+handoff's example compiles, but against this tree through a `replace`, because
+no release carries `PlanImport`. Compiling it without the `replace` belongs to
+the verification run of the release that ships this.

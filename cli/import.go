@@ -180,10 +180,11 @@ type reconciled struct {
 	// Refs are the sender's references with an unresolvable path stripped,
 	// followed by the provenance ones.
 	Refs []ticket.AddReference
-	// Changes names what this store imposed. Each reads as "subject: what
-	// happens" and carries no tense, so one wording serves the preview and the
-	// write. Two tenses would be two wordings to keep in step.
-	Changes []string
+	// Changes names what this store imposed, as values. changeLine is where
+	// they become sentences, and it gives them no tense, so one wording serves
+	// the preview and the write. Two tenses would be two wordings to keep in
+	// step.
+	Changes []ticket.Change
 }
 
 // reconcile decides how one incoming ticket becomes a ticket of this store.
@@ -206,7 +207,7 @@ func reconcile(cfg ticket.Config, root string, in incomingTicket, fromStore stri
 
 	labels, droppedLabels := keepKnownLabels(cfg, t.Labels)
 	for _, l := range droppedLabels {
-		r.Changes = append(r.Changes, fmt.Sprintf("label %q: not carried, this store does not declare it", l))
+		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeLabelDropped, Value: l})
 	}
 
 	r.Create = ticket.CreateOptions{
@@ -222,10 +223,10 @@ func reconcile(cfg ticket.Config, root string, in incomingTicket, fromStore stri
 		Actor:              actor,
 	}
 	if n := len(r.Create.AcceptanceCriteria); n > 0 {
-		r.Changes = append(r.Changes, fmt.Sprintf("acceptance criteria: %d carried, every box unchecked", n))
+		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeAcceptanceCriteriaUnchecked, Count: n})
 	}
 	if n := len(r.Create.DefinitionOfDone); n > 0 {
-		r.Changes = append(r.Changes, fmt.Sprintf("definition of done: %d carried, every box unchecked", n))
+		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeDefinitionOfDoneUnchecked, Count: n})
 	}
 
 	// A milestone is an allowlisted vocabulary exactly as a label is, so it is
@@ -235,17 +236,17 @@ func reconcile(cfg ticket.Config, root string, in incomingTicket, fromStore stri
 			m := *t.Milestone
 			r.Create.Milestone = &m
 		} else {
-			r.Changes = append(r.Changes, fmt.Sprintf("milestone %q: not carried, this store does not declare it", *t.Milestone))
+			r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeMilestoneDropped, Value: *t.Milestone})
 		}
 	}
 	if t.DueOn != nil && *t.DueOn != "" {
-		r.Changes = append(r.Changes, fmt.Sprintf("due date %s: not carried, this store has not agreed to it", *t.DueOn))
+		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeDueOnDropped, Value: *t.DueOn})
 	}
 	// blocks_on gates a ticket on edges that mostly did not survive the remint,
 	// so it is left at the default. Saying so costs one line and only appears
 	// when the sender set it to something.
 	if t.BlocksOn != "" && t.BlocksOn != ticket.BlocksOnNone {
-		r.Changes = append(r.Changes, fmt.Sprintf("blocks_on %s: not carried, the edges it gates on do not all travel", t.BlocksOn))
+		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeBlocksOnDropped, Value: string(t.BlocksOn)})
 	}
 
 	for _, ref := range t.References {
@@ -254,7 +255,7 @@ func reconcile(cfg ticket.Config, root string, in incomingTicket, fromStore stri
 			// The reference survives without its path. What the sender pointed
 			// at is still worth knowing, and only the path is the thing that
 			// resolves to nothing here.
-			r.Changes = append(r.Changes, fmt.Sprintf("reference %s: the path is not carried, no such file in this repository", keep.Ref))
+			r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeReferencePathDropped, Value: keep.Ref})
 			keep.Path = nil
 		}
 		r.Refs = append(r.Refs, keep)
@@ -270,9 +271,44 @@ func reconcile(cfg ticket.Config, root string, in incomingTicket, fromStore stri
 	}
 
 	if r.Record = originRecord(t, fromStore); r.Record != "" {
-		r.Changes = append(r.Changes, "summary, notes and comments: carried as one note naming the origin")
+		r.Changes = append(r.Changes, ticket.Change{Kind: ticket.ChangeWorkRecordCarried})
 	}
 	return r
+}
+
+// changeLine is the CLI's voice for one reconciliation change.
+//
+// The library reports what happened and this decides how to say it. Each line
+// reads as "subject: what happens" and carries no tense, so the preview and the
+// write share one wording. Two tenses would be two wordings to keep in step.
+//
+// An unknown kind still prints. A library that grows a kind this binary has not
+// learned would otherwise drop it in silence, which is the exact failure the
+// change vocabulary exists to prevent, and TestEveryChangeKindHasALine keeps
+// that fallback unreachable in this build.
+func changeLine(c ticket.Change) string {
+	switch c.Kind {
+	case ticket.ChangeLabelDropped:
+		return fmt.Sprintf("label %q: not carried, this store does not declare it", c.Value)
+	case ticket.ChangeMilestoneDropped:
+		return fmt.Sprintf("milestone %q: not carried, this store does not declare it", c.Value)
+	case ticket.ChangeDueOnDropped:
+		return fmt.Sprintf("due date %s: not carried, this store has not agreed to it", c.Value)
+	case ticket.ChangeBlocksOnDropped:
+		return fmt.Sprintf("blocks_on %s: not carried, the edges it gates on do not all travel", c.Value)
+	case ticket.ChangeReferencePathDropped:
+		return fmt.Sprintf("reference %s: the path is not carried, no such file in this repository", c.Value)
+	case ticket.ChangeAcceptanceCriteriaUnchecked:
+		return fmt.Sprintf("acceptance criteria: %d carried, every box unchecked", c.Count)
+	case ticket.ChangeDefinitionOfDoneUnchecked:
+		return fmt.Sprintf("definition of done: %d carried, every box unchecked", c.Count)
+	case ticket.ChangeWorkRecordCarried:
+		return "summary, notes and comments: carried as one note naming the origin"
+	}
+	if c.Value != "" {
+		return fmt.Sprintf("%s %s: reported by the library, which this build does not have wording for", c.Kind, c.Value)
+	}
+	return fmt.Sprintf("%s: reported by the library, which this build does not have wording for", c.Kind)
 }
 
 // originRecord gathers the sending store's work record into one note.
@@ -333,7 +369,7 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, in []incomingTi
 		// The zero actor, because a preview files nothing and asking for the
 		// real one warns on stderr about a store that declares no default.
 		for _, c := range reconcile(cfg, s.Root(), t, fromStore, ticket.Actor{}).Changes {
-			fmt.Fprintf(ctx.out, "    %s\n", c)
+			fmt.Fprintf(ctx.out, "    %s\n", changeLine(c))
 		}
 		for _, d := range importDroppedEdges(t, in) {
 			fmt.Fprintf(ctx.out, "    %s: not carried, this export does not include it\n", d)
@@ -393,7 +429,7 @@ func importAdopt(ctx *cmdContext, s *ticket.Store, in []incomingTicket, fromStor
 			}
 		}
 		for _, c := range r.Changes {
-			fmt.Fprintf(ctx.env.Stderr, "  %s: %s\n", res.Ticket.ID, c)
+			fmt.Fprintf(ctx.env.Stderr, "  %s: %s\n", res.Ticket.ID, changeLine(c))
 		}
 	}
 

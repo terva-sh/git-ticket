@@ -26,6 +26,72 @@ import (
 // and is not read as one.
 const MboxFromLine = "From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001"
 
+// ChangeKind names one thing a receiving store imposes on an incoming ticket.
+//
+// The rule these describe is the interchange rule: the statement of the work
+// travels, and what the receiver never agreed to does not. Every kind here is
+// the second half of that, and each exists so the loss is named rather than
+// silent. The contribution that brought import arrived dropping half of this in
+// silence, with check clean and exit 0, which is why naming them is not
+// decoration.
+type ChangeKind string
+
+const (
+	// ChangeLabelDropped carries the label in Value.
+	ChangeLabelDropped ChangeKind = "label_dropped"
+	// ChangeMilestoneDropped carries the milestone in Value.
+	ChangeMilestoneDropped ChangeKind = "milestone_dropped"
+	// ChangeDueOnDropped carries the date in Value.
+	ChangeDueOnDropped ChangeKind = "due_on_dropped"
+	// ChangeBlocksOnDropped carries the sender's blocks_on value in Value.
+	ChangeBlocksOnDropped ChangeKind = "blocks_on_dropped"
+	// ChangeReferencePathDropped carries the reference in Value. The reference
+	// itself survives, and only its path is dropped.
+	ChangeReferencePathDropped ChangeKind = "reference_path_dropped"
+	// ChangeAcceptanceCriteriaUnchecked carries the item count in Count.
+	ChangeAcceptanceCriteriaUnchecked ChangeKind = "acceptance_criteria_unchecked"
+	// ChangeDefinitionOfDoneUnchecked carries the item count in Count.
+	ChangeDefinitionOfDoneUnchecked ChangeKind = "definition_of_done_unchecked"
+	// ChangeWorkRecordCarried reports that the sender's summary, notes and
+	// comments arrived as one note. It carries neither a value nor a count.
+	ChangeWorkRecordCarried ChangeKind = "work_record_carried"
+)
+
+// ChangeKinds is every kind, in the order a report reads best.
+//
+// It exists so a caller can prove it renders all of them. A kind a host never
+// prints is a loss the reader never hears about, which is the failure this
+// vocabulary exists to prevent.
+func ChangeKinds() []ChangeKind {
+	return []ChangeKind{
+		ChangeLabelDropped,
+		ChangeMilestoneDropped,
+		ChangeDueOnDropped,
+		ChangeBlocksOnDropped,
+		ChangeReferencePathDropped,
+		ChangeAcceptanceCriteriaUnchecked,
+		ChangeDefinitionOfDoneUnchecked,
+		ChangeWorkRecordCarried,
+	}
+}
+
+// Change is one thing the receiving store imposed, as a value rather than as a
+// sentence.
+//
+// The wording belongs to whoever is speaking. A CLI has its own voice, a web UI
+// has another, and a host in a different language has a third, so a preformatted
+// English string is the one form none of them can use.
+type Change struct {
+	Kind ChangeKind
+	// Value is the subject of the change: the label, the milestone, the date,
+	// the blocks_on value, or the reference. It is empty for the kinds that have
+	// no subject.
+	Value string
+	// Count is how many items the change covers, for the checklist kinds. It is
+	// zero elsewhere.
+	Count int
+}
+
 // AddedFile is one added file, going out or coming back.
 type AddedFile struct {
 	// Path is slash-spelled and relative to the repository root, which is the

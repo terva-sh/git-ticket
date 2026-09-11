@@ -98,90 +98,17 @@ func readExportTickets(dir string) ([]incomingTicket, error) {
 		}
 		return nil, err
 	}
-	files, err := parseNewFileHunks(string(data))
+	files, err := ticket.ParseAddedFiles(string(data))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", patch, err)
 	}
 	var out []incomingTicket
 	for _, f := range files {
-		t, err := ticket.Parse([]byte(f.body))
+		t, err := ticket.Parse([]byte(f.Body))
 		if err != nil {
-			return nil, fmt.Errorf("%s: %s: %w", patch, f.path, err)
+			return nil, fmt.Errorf("%s: %s: %w", patch, f.Path, err)
 		}
-		out = append(out, incomingTicket{Ticket: t, Path: f.path})
-	}
-	return out, nil
-}
-
-// newFile is one added file recovered from a patch.
-type newFile struct {
-	path string
-	body string
-}
-
-// parseNewFileHunks recovers added files from the export's patch.
-//
-// Every hunk an export writes adds a whole new file, so there is no context to
-// track and no deletion to apply: the body is the plus-prefixed lines with the
-// prefix removed. The blob name on the index line is checked against the body
-// that comes out, which is what turns a truncated or hand-edited patch into an
-// error here rather than a puzzling ticket later.
-func parseNewFileHunks(patch string) ([]newFile, error) {
-	var out []newFile
-	lines := strings.Split(patch, "\n")
-	for i := 0; i < len(lines); i++ {
-		if !strings.HasPrefix(lines[i], "diff --git ") {
-			continue
-		}
-		var path, want string
-		var body strings.Builder
-		newFileSeen := false
-		for i++; i < len(lines); i++ {
-			l := lines[i]
-			switch {
-			case l == "new file mode 100644":
-				newFileSeen = true
-			case strings.HasPrefix(l, "index ") && strings.Contains(l, ".."):
-				want = strings.TrimSpace(l[strings.Index(l, "..")+2:])
-			case strings.HasPrefix(l, "+++ b/"):
-				path = strings.TrimPrefix(l, "+++ b/")
-			case strings.HasPrefix(l, "@@"):
-				// The hunk body runs to the next diff, the signature, or the end.
-				for i++; i < len(lines); i++ {
-					l := lines[i]
-					if strings.HasPrefix(l, "diff --git ") || l == "-- " {
-						i--
-						break
-					}
-					if strings.HasPrefix(l, "+") {
-						body.WriteString(l[1:] + "\n")
-						continue
-					}
-					if strings.HasPrefix(l, "\\ No newline") {
-						continue
-					}
-					if strings.TrimSpace(l) == "" {
-						continue
-					}
-					i--
-					break
-				}
-			}
-			if path != "" && body.Len() > 0 {
-				break
-			}
-		}
-		if !newFileSeen || path == "" {
-			continue
-		}
-		got := blobSHA([]byte(body.String()))
-		if want != "" && got != want {
-			return nil, fmt.Errorf("%s does not match its blob name (%s, expected %s); the patch has been altered or truncated", path, got[:12], want[:12])
-		}
-		out = append(out, newFile{path: path, body: body.String()})
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("no added files found")
+		out = append(out, incomingTicket{Ticket: t, Path: f.Path})
 	}
 	return out, nil
 }

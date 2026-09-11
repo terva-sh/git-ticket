@@ -305,21 +305,8 @@ func TestExportJSONReportsWhatItWrote(t *testing.T) {
 	}
 }
 
-// TestBlobSHAMatchesGit checks the index line against git's own hashing. A wrong
-// blob name still applies, but it takes away the object git needs for a --3way
-// fallback, and the failure would only appear on a patch that conflicts.
-func TestBlobSHAMatchesGit(t *testing.T) {
-	dir := newGitStore(t)
-	body := []byte("---\nid: TKT-1\n---\n\n## Description\n\nhi\n")
-	path := filepath.Join(dir, "probe.md")
-	if err := os.WriteFile(path, body, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	want := strings.TrimSpace(exportGit(t, dir, "hash-object", path))
-	if got := blobSHA(body); got != want {
-		t.Errorf("blobSHA = %s, want %s", got, want)
-	}
-}
+// The blob name check moved to the ticket package with BlobSHA itself, as
+// TestBlobSHAMatchesGit in ticket/interchange_test.go.
 
 // TestExportWarnsAboutEdgesThatWillNotTravel covers the failure the bootstrap
 // delivery found: `git am` applies a ticket verbatim, so a parent or dependency

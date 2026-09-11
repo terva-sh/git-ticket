@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"crypto/sha1"
 	"flag"
 	"fmt"
 	"os"
@@ -43,13 +42,6 @@ const exportCoverName = "0000-cover-letter.txt"
 // report and a code contribution are then the same artifact with different
 // contents, and the receiving side has one thing to do rather than two.
 const exportTicketPatch = "0001-tickets.patch"
-
-// mboxFromLine opens every message. git's mailsplit needs it to find where one
-// message ends and the next begins, and the value is conventional: format-patch
-// writes the commit it came from, and a synthesised message has none, so this is
-// zeroes. The date is the fixed one git itself writes, which is not a timestamp
-// and is not read as one.
-const mboxFromLine = "From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001"
 
 // runExport writes an export directory for one or more tickets.
 func runExport(ctx *cmdContext, args []string) error {
@@ -104,7 +96,7 @@ func runExport(ctx *cmdContext, args []string) error {
 		return err
 	}
 	ticketPath := filepath.Join(dir, exportTicketPatch)
-	if err := os.WriteFile(ticketPath, []byte(mboxMessage(who, when, exportSubject(tickets), exportCommitBody(tickets), body)), 0o644); err != nil {
+	if err := os.WriteFile(ticketPath, []byte(ticket.MboxMessage(who, when, exportSubject(tickets), exportCommitBody(tickets), body)), 0o644); err != nil {
 		return err
 	}
 	written = append(written, ticketPath)
@@ -253,7 +245,8 @@ func exportTicketFiles(s *ticket.Store, tickets []*ticket.Ticket) (string, error
 			rel = r
 		}
 		rel = filepath.ToSlash(rel)
-		n := addedFileDiff(&diff, rel, data)
+		hunk, n := ticket.AddedFileHunk(rel, data)
+		diff.WriteString(hunk)
 		adds += n
 		fmt.Fprintf(&stat, " %s | %d %s\n", rel, n, strings.Repeat("+", plusBar(n)))
 	}
@@ -272,43 +265,6 @@ func exportTicketFiles(s *ticket.Store, tickets []*ticket.Ticket) (string, error
 	return b.String(), nil
 }
 
-// addedFileDiff writes one new-file hunk and returns the line count.
-//
-// A file with no trailing newline gets git's own marker, because a patch that
-// silently adds one changes the blob and the index line then disagrees with what
-// applies.
-func addedFileDiff(b *strings.Builder, rel string, data []byte) int {
-	lines := strings.Split(string(data), "\n")
-	trailing := len(lines) > 0 && lines[len(lines)-1] == ""
-	if trailing {
-		lines = lines[:len(lines)-1]
-	}
-	fmt.Fprintf(b, "diff --git a/%s b/%s\n", rel, rel)
-	b.WriteString("new file mode 100644\n")
-	fmt.Fprintf(b, "index 0000000000000000000000000000000000000000..%s\n", blobSHA(data))
-	b.WriteString("--- /dev/null\n")
-	fmt.Fprintf(b, "+++ b/%s\n", rel)
-	fmt.Fprintf(b, "@@ -0,0 +1,%d @@\n", len(lines))
-	for _, l := range lines {
-		b.WriteString("+" + l + "\n")
-	}
-	if !trailing {
-		b.WriteString("\\ No newline at end of file\n")
-	}
-	return len(lines)
-}
-
-// blobSHA is the object name git would give this content. Computing it here
-// keeps the index line honest without asking git to hash anything, and an honest
-// index line is what lets `git apply --3way` fall back on the object store.
-func blobSHA(data []byte) string {
-	h := sha1.New()
-	fmt.Fprintf(h, "blob %d", len(data))
-	h.Write([]byte{0})
-	h.Write(data)
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
 // plusBar is the width of a diffstat's bar. Real diffstat scales to the widest
 // file in the set; this is cosmetic text in a patch nothing parses, so it is
 // clamped instead of scaled.
@@ -322,30 +278,12 @@ func plusBar(n int) int {
 	return n
 }
 
-// mboxMessage wraps a subject, a body and a diff as one mail message.
-func mboxMessage(who string, when time.Time, subject, body, diff string) string {
-	var b strings.Builder
-	b.WriteString(mboxFromLine + "\n")
-	fmt.Fprintf(&b, "From: %s\n", who)
-	fmt.Fprintf(&b, "Date: %s\n", when.Format(time.RFC1123Z))
-	fmt.Fprintf(&b, "Subject: [PATCH] %s\n", strings.ReplaceAll(subject, "\n", " "))
-	b.WriteString("\n")
-	b.WriteString(body)
-	if !strings.HasSuffix(body, "\n") {
-		b.WriteString("\n")
-	}
-	b.WriteString("---\n")
-	b.WriteString(diff)
-	b.WriteString("-- \ngit-ticket\n\n")
-	return b.String()
-}
-
 // exportCover is the report half: what this is, how to apply it, and what it
 // carries. It is written for somebody who has never run git-ticket, because the
 // first person to receive one of these will not have it.
 func exportCover(who string, when time.Time, tickets []*ticket.Ticket, patches int) string {
 	var b strings.Builder
-	b.WriteString(mboxFromLine + "\n")
+	b.WriteString(ticket.MboxFromLine + "\n")
 	fmt.Fprintf(&b, "From: %s\n", who)
 	fmt.Fprintf(&b, "Date: %s\n", when.Format(time.RFC1123Z))
 	fmt.Fprintf(&b, "Subject: [PATCH 0/%d] %s\n", patches, exportSubject(tickets))

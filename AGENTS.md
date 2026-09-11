@@ -37,11 +37,38 @@ and `instructions`, each in a human form and behind `--json`. Six more landed
 after Phase 2, taking the binary to 30: `plan`, `refs`, `remove`, `config`,
 `install-merge-driver`, and `merge-driver`. Phase 4's view work added `ui` and
 `self-update`, and `copy` (plan 12.7) makes it 33. Schema 2 brought `migrate`
-and `series`, and the shell scripts brought `completion`, so the binary now has
-36. Do not count them from this paragraph: `git ticket completion --dump` is
-the binary's own vocabulary and cannot go stale. Every JSON kind of section 10
-has a test, twelve of them now that `migrate-result` and `series` exist, and
-every write honours `--if-revision`.
+and `series`, the shell scripts brought `completion`, and the interchange pair
+of plan 12.8 brought `export` and `import`, so the binary now has 38. Do not
+count them from this paragraph: `git ticket completion --dump` is the binary's
+own vocabulary and cannot go stale. Every JSON kind of section 10 has a test,
+twelve of them now that `migrate-result` and `series` exist, and every write
+honours `--if-revision`. Two commands have no `--json` form. `merge-driver` is
+invoked by git itself, so an envelope would have no reader, and `ui` and `copy`
+both refuse the flag with a reason 12.7 records. `import` is the one that lacks
+it for no reason at all, and plan 15 carries the question of what it should
+publish.
+
+`export` and `import` hand a ticket to another project as a ticket, per plan
+12.8. `export` writes a cover letter and a patch that adds the ticket files, so
+`git am DIR/*.patch` lands them in a repository that has never heard of
+git-ticket. Neither command runs git at all: export generates the diff, blob
+name included, and a test checks that name against `git hash-object`. There is
+no `--patch` flag, because it would need a `format-patch` row in the 7.4 table,
+so code composes in from outside and export owns patch numbers 0 and 1 to leave
+room for it. That ruling and its trigger are in section 15 under
+`TKT-01M294K49T`, along with the measurement that decided it: forgetting
+`--start-number 2` is harmless, so the flag buys less than the table's brevity
+costs.
+
+One rule governs what `import --adopt` carries, and the whole of `reconcile` in
+`cli/import.go` is that rule: the statement of the work travels, and what the
+receiver never agreed to does not, and either way it is named. An undeclared
+label or milestone, a reference path that resolves to nothing here, a due date,
+and the ticks on the checklists all stay behind. Preview and adopt read one
+`reconciled` rather than each working it out, because they had already drifted
+apart over labels. The contribution arrived dropping acceptance criteria,
+notes, comments, summary, milestone and due date in silence, with `check` clean
+and exit 0, which is why the reporting half of that rule is not decoration.
 
 The TUI is Phase 4's view: `tui/` is the rendering stack, `tui/view` the
 application, and `git ticket ui` the entrypoint, wired through `Env.RunUI` so
@@ -68,7 +95,13 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.14.3, and `self-update` (plan 12.6, with the graded
+Releases run through v0.14.3. `main` is ahead of the last tag and unreleased:
+it carries `export` and `import` (plan 12.8) and the `storePathspec` symlink
+fix. Two new commands and one new exported library function,
+`ticket.ChecklistItems`, make the next tag a minor under 12.4 by the
+new-surface rule of v0.7.0 and v0.11.0, so v0.15.0.
+
+`self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release
 binary applied v0.8.1 over the live GitHub API, check exit 10, apply exit 0,
 and the result was byte-identical (`cmp`) to the released binary. v0.9.0
@@ -853,6 +886,19 @@ A path printed to a person goes through `displayPath`, never `filepath.Rel`
 alone. On macOS a temporary directory is reached through `/var`, a symlink to
 `/private/var`, so `git rev-parse --show-toplevel` answers in one name space and
 the store path is in another. `displayPath` retries through `EvalSymlinks`.
+
+That split is not only a display problem, and reading it as one is how it got
+missed for a release. `storePathspec` in `ticket/crossbranch.go` took
+`filepath.Rel` of the same two name spaces to build an `ls-tree` pathspec,
+which came out as a string of `../..`, matched nothing, and made every
+cross-branch query answer with the working tree alone: exit 0, no finding, half
+the store gone. Anywhere `Root()` meets a path the caller supplied, resolve
+both first. It reached this repository as a macOS-only test failure to be
+worked around with `TMPDIR`, and it reproduces on Linux through any symlinked
+path, so read a report like that as understated rather than platform-specific.
+`resolveSymlinks` is the helper, and it is deliberately not `evalExisting`:
+that one walks up to the first existing parent because a mutation reports a
+path it has just deleted, and both paths here always exist.
 
 The library takes canonical IDs; the CLI turns what a person typed into one.
 Plan 5.5 says any command taking an ID accepts a unique prefix, so anything

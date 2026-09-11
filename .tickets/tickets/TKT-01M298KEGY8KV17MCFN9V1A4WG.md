@@ -29,7 +29,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T23:43:26Z
+updated_at: 2026-09-11T23:53:12Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -284,3 +284,55 @@ adjective work in "2 carried, every box unchecked".
 `incomingTicket`, `fromStore` and `actor`. It now returns typed changes, so
 moving it to `PlanImport` no longer drags a wording decision across the
 package boundary, which was the point of doing step 3 first.
+
+**agent:terva/mieli** at 2026-09-11T23:53:12Z
+
+Step 4 is done at `1bc2eef`, and step 5 came with it. Steps 6 remains: the
+plan text and the terva handoff.
+
+Step 5 could not be left behind. `PlanImport` cannot order an export without
+`importOrder` and cannot reconcile without `keepKnownLabels`, so splitting them
+would have meant a commit that does not build.
+
+`ticket.PlanImport` decides and writes nothing. `ticket.ApplyImport` carries
+out exactly what the plan says. `reconcile`, `importOrder`, `keepKnownLabels`,
+`repoHasPath`, `originRecord` and `importDroppedEdges` all moved.
+`cli/import.go` lost 411 lines and is now flags, wording and exit status.
+
+Nothing a person sees moved. The import tests assert the exact preview and
+adopt wording and passed untouched, and so did the export before-image.
+
+### Decisions in this step
+
+`PlanImport` takes the patch as bytes rather than a directory. That is what
+lets an import arrive off a wire, and it makes the library testable with no
+filesystem. The CLI keeps `readExportPatch` because the error naming
+`0001-tickets.patch` is about pointing the command at the wrong directory,
+which is a CLI concern.
+
+`ImportResult` carries `FromID` beside `ID`. The map from an arriving ID to the
+minted one is the single thing a caller cannot reconstruct, and its absence was
+the concrete argument in this ticket's description.
+
+The preview renders `plan.Tickets` and derives nothing. That is what closes the
+drift this ticket names: preview and adopt had already diverged over labels
+once.
+
+### Two behaviour changes, both on paths that were already wrong
+
+`--if-revision` no longer reaches the writes an import makes. It was being
+passed to mutations on tickets created moments earlier, so it could only ever
+fail. The library takes no revision precondition here.
+
+A failed import no longer prints the changes for tickets it had already filed,
+because the report now runs after the write rather than inside it. The error
+still names the ticket that failed. This is a loss of information on the error
+path and it is worth a second opinion.
+
+### On the before-image
+
+It has now held across three steps. Worth saying plainly: it only ever proved
+the export artifact. The import side is guarded by the existing CLI tests
+asserting exact wording, which is weaker, and the new library tests, which are
+about the API rather than the output. If step 6 or a later change wants the
+same confidence for import, the preview output is what to pin.

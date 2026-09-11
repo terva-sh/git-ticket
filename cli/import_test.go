@@ -59,8 +59,8 @@ func TestImportPreviewWritesNothing(t *testing.T) {
 	if got.code != exitOK {
 		t.Fatalf("import: %s%s", got.stdout, got.stderr)
 	}
-	if !strings.Contains(got.stdout, "remint") {
-		t.Errorf("preview did not say it would remint:\n%s", got.stdout)
+	if !strings.Contains(got.stdout, "--adopt") {
+		t.Errorf("preview did not name the flag that writes:\n%s", got.stdout)
 	}
 	if !strings.Contains(got.stdout, ids[0]) {
 		t.Errorf("preview did not name the incoming ticket:\n%s", got.stdout)
@@ -111,9 +111,9 @@ func TestImportRemintsAndKeepsTheEdges(t *testing.T) {
 	}
 
 	dest := newGitStore(t)
-	if got := runCLI(t, dest, nil, "import", dir, "--apply",
+	if got := runCLI(t, dest, nil, "import", dir, "--adopt",
 		"--from-store", "terva-sh/elsewhere", "--actor", "human:sothr"); got.code != exitOK {
-		t.Fatalf("import --apply: %s%s", got.stdout, got.stderr)
+		t.Fatalf("import --adopt: %s%s", got.stdout, got.stderr)
 	}
 
 	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
@@ -170,25 +170,40 @@ func TestImportRemintsAndKeepsTheEdges(t *testing.T) {
 	}
 }
 
-// TestImportRefusesASeriesThisStoreKnows keeps import from quietly filing a
-// second copy of a ticket that `git am` would have placed correctly, under its
-// own name.
-func TestImportRefusesASeriesThisStoreKnows(t *testing.T) {
+// TestImportAdoptsDespiteASharedSeries is the correction this file exists to
+// carry. An earlier version refused when the receiving store already declared
+// the incoming series, on the theory that a shared series meant a shared
+// project. It does not: TKT is the default every store has, so two strangers
+// share it by default and the refusal fired hardest on the case import was
+// built for. The tool no longer guesses. It advises in the preview and adopts
+// when told to.
+func TestImportAdoptsDespiteASharedSeries(t *testing.T) {
 	src, id := newExportSource(t, "An ordinary TKT ticket")
 	dir := filepath.Join(t.TempDir(), "out")
 	if got := runCLI(t, src, nil, "export", id, "--out", dir); got.code != exitOK {
 		t.Fatalf("export: %s%s", got.stdout, got.stderr)
 	}
 	dest := newGitStore(t)
-	got := runCLI(t, dest, nil, "import", dir, "--apply", "--actor", "human:sothr")
-	if got.code == exitOK {
-		t.Fatal("import filed a duplicate of a ticket git am would have placed")
+
+	// The preview offers git am as the better route without insisting on it.
+	preview := runCLI(t, dest, nil, "import", dir)
+	if !strings.Contains(preview.stdout, "git am") {
+		t.Errorf("preview did not offer git am for a shared series:\n%s", preview.stdout)
 	}
-	if !strings.Contains(got.stderr, "git am") {
-		t.Errorf("stderr = %q, want it to name the right tool", got.stderr)
+
+	got := runCLI(t, dest, nil, "import", dir, "--adopt", "--actor", "human:sothr")
+	if got.code != exitOK {
+		t.Fatalf("import --adopt refused a shared series: %s%s", got.stdout, got.stderr)
 	}
-	if list := runCLI(t, dest, nil, "list", "--all"); strings.Contains(list.stdout, "An ordinary TKT ticket") {
-		t.Error("the refusal still wrote a ticket")
+	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
+	if len(rows) != 1 {
+		t.Fatalf("filed %d tickets, want 1", len(rows))
+	}
+	if newID, _ := rows[0]["id"].(string); newID == id {
+		t.Error("adopt kept the original ID; it should mint a fresh one")
+	}
+	if res := runCLI(t, dest, nil, "check", "--strict"); res.code != exitOK {
+		t.Errorf("check after adopt: %s%s", res.stdout, res.stderr)
 	}
 }
 
@@ -258,12 +273,12 @@ func TestImportReportsDroppedEdges(t *testing.T) {
 
 	dest := newGitStore(t)
 	preview := runCLI(t, dest, nil, "import", dir)
-	if !strings.Contains(preview.stdout, "drops dependency "+behind) {
+	if !strings.Contains(preview.stdout, "would drop dependency "+behind) {
 		t.Errorf("the preview did not warn about the dropped edge:\n%s", preview.stdout)
 	}
-	got := runCLI(t, dest, nil, "import", dir, "--apply", "--actor", "human:sothr")
+	got := runCLI(t, dest, nil, "import", dir, "--adopt", "--actor", "human:sothr")
 	if got.code != exitOK {
-		t.Fatalf("import --apply: %s%s", got.stdout, got.stderr)
+		t.Fatalf("import --adopt: %s%s", got.stdout, got.stderr)
 	}
 	if !strings.Contains(got.stderr, "dropped dependency") {
 		t.Errorf("stderr = %q, want the dropped edge named", got.stderr)
@@ -309,5 +324,102 @@ func TestImportPointsAtTheCodePatchesItWillNotApply(t *testing.T) {
 	}
 	if !strings.Contains(got.stderr, "git am") {
 		t.Errorf("stderr = %q, want it to name the tool that does apply it", got.stderr)
+	}
+}
+
+// TestImportDropsVocabularyThisStoreDoesNotShare is the fix for what the
+// bootstrap delivery found. A sender's labels and reference paths are theirs,
+// not the receiver's: an undeclared label is label_unknown and a path that does
+// not resolve is reference_path_unresolved, both warnings, and a receiver whose
+// CI runs check --strict fails on warnings.
+//
+// Carrying somebody's vocabulary into a store that never agreed to it is not a
+// kindness. Dropping it is the reconciliation git am structurally cannot do.
+func TestImportDropsVocabularyThisStoreDoesNotShare(t *testing.T) {
+	src := newGitStore(t)
+	if got := runCLI(t, src, nil, "series", "add", "LIVE", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("series add: %s%s", got.stdout, got.stderr)
+	}
+	got := runCLI(t, src, nil, "--json", "create", "--title", "Carries a foreign vocabulary",
+		"--series", "LIVE", "--label", "sender-only", "--actor", "human:sothr")
+	if got.code != exitOK {
+		t.Fatalf("create: %s%s", got.stdout, got.stderr)
+	}
+	var env struct {
+		Ticket struct {
+			ID string `json:"id"`
+		} `json:"ticket"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	id := env.Ticket.ID
+	// A reference to a file that exists here and will not exist there.
+	if err := os.WriteFile(filepath.Join(src, "SENDER.md"), []byte("only here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := runCLI(t, src, nil, "link", id, "--ref", "doc:sender", "--path", "SENDER.md",
+		"--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("link: %s%s", got.stdout, got.stderr)
+	}
+	exportGit(t, src, "add", "-A")
+	exportGit(t, src, "commit", "-qm", "store")
+	dir := filepath.Join(t.TempDir(), "out")
+	if got := runCLI(t, src, nil, "export", id, "--out", dir); got.code != exitOK {
+		t.Fatalf("export: %s%s", got.stdout, got.stderr)
+	}
+
+	// A receiving store with its own allowlist, which does not include the
+	// sender's label, and without the file the reference points at.
+	dest := newGitStore(t)
+	cfgPath := filepath.Join(dest, ".tickets", "config.yml")
+	cfg, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, []byte(strings.Replace(string(cfg),
+		"labels: []", "labels:\n  - receiver-only", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	preview := runCLI(t, dest, nil, "import", dir)
+	if !strings.Contains(preview.stdout, "would drop labels: sender-only") {
+		t.Errorf("preview did not warn about the foreign label:\n%s", preview.stdout)
+	}
+	if !strings.Contains(preview.stdout, "would drop the path on doc:sender") {
+		t.Errorf("preview did not warn about the unresolvable path:\n%s", preview.stdout)
+	}
+
+	adopt := runCLI(t, dest, nil, "import", dir, "--adopt", "--actor", "human:sothr")
+	if adopt.code != exitOK {
+		t.Fatalf("import --adopt: %s%s", adopt.stdout, adopt.stderr)
+	}
+	if !strings.Contains(adopt.stderr, "dropped label") {
+		t.Errorf("stderr did not name the dropped label:\n%s", adopt.stderr)
+	}
+
+	// The whole point: the receiving store passes --strict, which it would not
+	// have done had the vocabulary come across.
+	if res := runCLI(t, dest, nil, "check", "--strict"); res.code != exitOK {
+		t.Errorf("check --strict after adopt: %s%s", res.stdout, res.stderr)
+	}
+	// The reference survives without its path, because what the sender pointed
+	// at is still worth knowing.
+	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
+	full := decode(t, runCLI(t, dest, nil, "--json", "show", rows[0]["id"].(string)).stdout)
+	tk, _ := full["ticket"].(map[string]any)
+	refs, _ := tk["references"].([]any)
+	var kept bool
+	for _, r := range refs {
+		m, _ := r.(map[string]any)
+		if m["ref"] == "doc:sender" {
+			kept = true
+			if m["path"] != nil {
+				t.Errorf("the unresolvable path survived: %v", m["path"])
+			}
+		}
+	}
+	if !kept {
+		t.Error("the reference itself was dropped; only its path should have been")
 	}
 }

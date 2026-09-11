@@ -23,7 +23,14 @@ import (
 // knows. That is what importing means here: not applying a patch, but adopting
 // its contents.
 //
-// It therefore runs no git at all, and moves no branch. Plan 7.3 is explicit
+// It does not try to work out whether an export came from your own project.
+// An earlier version decided that from the series, and it was wrong: `TKT` is
+// the default every store has, so two strangers almost always share it and the
+// guess said "same project" for the common case. The tool cannot know, so it
+// asks. Without --adopt nothing is written and both routes are named; with it,
+// every ticket is filed afresh under this store's own series.
+//
+// It runs no git at all, and moves no branch. Plan 7.3 is explicit
 // that a sync helper "must never silently push, merge, switch branches, or
 // rewrite a worktree", and an import that ran `git am` onto a scratch branch
 // would do three of those four. Tickets are written through the same locked,
@@ -32,10 +39,10 @@ import (
 
 // runImport adopts the tickets an export carries into this store.
 func runImport(ctx *cmdContext, args []string) error {
-	var apply bool
+	var adopt bool
 	var fromStore string
 	rest, err := ctx.parseFlags("import", args, func(fs *flag.FlagSet) {
-		fs.BoolVar(&apply, "apply", false, "write the tickets; without it nothing is written")
+		fs.BoolVar(&adopt, "adopt", false, "file every ticket afresh under this store's series; without it nothing is written")
 		fs.StringVar(&fromStore, "from-store", "", "the store this export came from, recorded as provenance")
 	})
 	if err != nil {
@@ -62,10 +69,10 @@ func runImport(ctx *cmdContext, args []string) error {
 		return err
 	}
 
-	if !apply {
+	if !adopt {
 		return importPreview(ctx, s, rest[0], ordered)
 	}
-	return importApply(ctx, s, ordered, fromStore)
+	return importAdopt(ctx, s, ordered, fromStore)
 }
 
 // incomingTicket is one ticket read out of an export.
@@ -235,22 +242,40 @@ func importOrder(in []incomingTicket) ([]incomingTicket, error) {
 //
 // This is the default because an export is somebody else's content, and a
 // command that ingests it without showing its hand first asks for trust it has
-// not earned. --apply is the sentence that grants it.
+// not earned. --adopt is the sentence that grants it.
 func importPreview(ctx *cmdContext, s *ticket.Store, dir string, in []incomingTicket) error {
 	cfg := s.Config()
-	fmt.Fprintf(ctx.out, "%s carries %s\n\n", dir, plural(len(in), "ticket"))
+	shared := 0
 	for _, t := range in {
-		series, _ := ticket.SplitID(t.Ticket.ID)
-		verdict := "remint: this store does not declare " + series
-		if cfg.KnownSeries(series) {
-			verdict = "already valid here: git am " + filepath.Join(dir, "*.patch")
-		}
-		fmt.Fprintf(ctx.out, "  %s  %s\n    %s\n", t.Ticket.ID, t.Ticket.Title, verdict)
-		for _, dropped := range importDroppedEdges(t, in) {
-			fmt.Fprintf(ctx.out, "    drops %s: not in this export\n", dropped)
+		if series, _ := ticket.SplitID(t.Ticket.ID); cfg.KnownSeries(series) {
+			shared++
 		}
 	}
-	fmt.Fprintf(ctx.out, "\nnothing written. --apply files them.\n")
+
+	fmt.Fprintf(ctx.out, "%s carries %s\n\n", dir, plural(len(in), "ticket"))
+	for _, t := range in {
+		fmt.Fprintf(ctx.out, "  %s  %s\n", t.Ticket.ID, t.Ticket.Title)
+		if _, dropped := keepKnownLabels(cfg, t.Ticket.Labels); len(dropped) > 0 {
+			fmt.Fprintf(ctx.out, "    would drop labels: %s\n", strings.Join(dropped, ", "))
+		}
+		for _, r := range t.Ticket.References {
+			if r.Path != nil && *r.Path != "" && !repoHasPath(s.Root(), *r.Path) {
+				fmt.Fprintf(ctx.out, "    would drop the path on %s: not in this repository\n", r.Ref)
+			}
+		}
+		for _, d := range importDroppedEdges(t, in) {
+			fmt.Fprintf(ctx.out, "    would drop %s: not in this export\n", d)
+		}
+	}
+
+	fmt.Fprintf(ctx.out, "\nNothing written. --adopt files all %s afresh under this store's series.\n", plural(len(in), "ticket"))
+	// Advice, not a verdict. Whether this export is your own project's work is
+	// something only you know: the series cannot say, because TKT is the default
+	// every store has and two strangers share it by default.
+	if shared > 0 {
+		fmt.Fprintf(ctx.out, "\n%s already use a series this store declares. If this export is your own\nproject's work, `git am %s` keeps the original IDs and is the better route.\nIf it came from elsewhere, --adopt is correct even though the series matches.\n",
+			plural(shared, "ticket"), filepath.Join(dir, "*.patch"))
+	}
 	if extra := importOtherPatches(dir); len(extra) > 0 {
 		fmt.Fprintf(ctx.env.Stderr, "%s also carries %s of code, which import does not apply: git am %s\n",
 			dir, plural(len(extra), "patch"), filepath.Join(dir, "*.patch"))
@@ -258,34 +283,19 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, in []incomingTi
 	return nil
 }
 
-// importApply files each ticket, rewriting the edges among them to the IDs this
-// store just minted.
-func importApply(ctx *cmdContext, s *ticket.Store, in []incomingTicket, fromStore string) error {
-	// A ticket whose series this store already declares does not need adopting,
-	// and filing it again would put a second copy beside the first under a new
-	// ID. `git am` is the right tool there and it keeps the original identity,
-	// which is the whole reason to prefer it: two clones of one project should
-	// agree on what a ticket is called.
+// importAdopt files each ticket afresh, rewriting the edges among them to the
+// IDs this store just minted and dropping the vocabulary it does not share.
+func importAdopt(ctx *cmdContext, s *ticket.Store, in []incomingTicket, fromStore string) error {
 	cfg := s.Config()
-	var known []string
-	for _, t := range in {
-		if series, _ := ticket.SplitID(t.Ticket.ID); cfg.KnownSeries(series) {
-			known = append(known, t.Ticket.ID)
-		}
-	}
-	if len(known) > 0 {
-		return fmt.Errorf("this store already declares the series of %s, so importing would file a second copy; apply the export with `git am` instead, which keeps the original IDs",
-			strings.Join(known, ", "))
-	}
-
 	remap := make(map[string]string, len(in))
 	var filed []string
 	for _, t := range in {
+		labels, droppedLabels := keepKnownLabels(cfg, t.Ticket.Labels)
 		o := ticket.CreateOptions{
 			Title:              t.Ticket.Title,
 			Type:               t.Ticket.Type,
 			Priority:           t.Ticket.Priority,
-			Labels:             t.Ticket.Labels,
+			Labels:             labels,
 			Assignees:          t.Ticket.Assignees,
 			Description:        t.Ticket.Body.Description,
 			ImplementationPlan: t.Ticket.Body.ImplementationPlan,
@@ -308,6 +318,24 @@ func importApply(ctx *cmdContext, s *ticket.Store, in []incomingTicket, fromStor
 		}
 		remap[t.Ticket.ID] = res.Ticket.ID
 		filed = append(filed, res.Ticket.ID)
+		for _, l := range droppedLabels {
+			fmt.Fprintf(ctx.env.Stderr, "  dropped label %q on %s: this store does not declare it\n", l, res.Ticket.ID)
+		}
+
+		// A reference whose path names a file this repository does not have is
+		// reference_path_unresolved, a warning, and --strict fails on warnings.
+		// The reference itself is still worth keeping - it says what the sender
+		// pointed at - so the path is dropped and the ref survives.
+		for _, r := range t.Ticket.References {
+			keep := r
+			if keep.Path != nil && *keep.Path != "" && !repoHasPath(s.Root(), *keep.Path) {
+				fmt.Fprintf(ctx.env.Stderr, "  dropped the path on %s for %s: not in this repository\n", keep.Ref, res.Ticket.ID)
+				keep.Path = nil
+			}
+			if _, err := ctx.applyTo(s, res.Ticket.ID, ticket.AddReference{Ref: keep.Ref, Path: keep.Path}); err != nil {
+				return fmt.Errorf("carrying reference %s to %s: %w", keep.Ref, res.Ticket.ID, err)
+			}
+		}
 
 		// Provenance is a reference and never origin. `origin` is checked
 		// against this store and an unresolvable one is an error, which is the
@@ -372,4 +400,32 @@ func importOtherPatches(dir string) []string {
 		}
 	}
 	return out
+}
+
+// keepKnownLabels splits a ticket's labels into the ones this store declares and
+// the ones it does not.
+//
+// A label outside the allowlist is label_unknown, a warning, and a receiver
+// whose CI runs check --strict fails on warnings. Carrying a sender's vocabulary
+// into a store that never agreed to it is not a kindness, so the unknown ones
+// are dropped and named. This is the reconciliation git am cannot do, and the
+// clearest argument for import existing beside it.
+func keepKnownLabels(cfg ticket.Config, labels []string) (keep, dropped []string) {
+	for _, l := range labels {
+		if cfg.KnownLabel(l) {
+			keep = append(keep, l)
+			continue
+		}
+		dropped = append(dropped, l)
+	}
+	return keep, dropped
+}
+
+// repoHasPath reports whether a reference's repository-relative path exists here.
+func repoHasPath(root, rel string) bool {
+	if root == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
+	return err == nil
 }

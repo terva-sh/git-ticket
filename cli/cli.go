@@ -146,7 +146,7 @@ func commands() []command {
 		{"show", "print one ticket", "ID [--body]", runShow},
 		{"copy", "put the ticket's body on the system clipboard", "ID", runCopy},
 		{"export", "write a ticket and its patches as a mail-formatted directory", "ID... [--out DIR]", runExport},
-		{"import", "adopt the tickets an export carries, reminting foreign series", "DIR [--apply]", runImport},
+		{"import", "file the tickets an export carries as new tickets here", "DIR [--adopt]", runImport},
 		{"list", "print the tickets that match", "[filters]", runList},
 		{"ready", "print what could be picked up now", "", runReady},
 		{"search", "search titles, body sections, and references", "QUERY [--regex]", runSearch},

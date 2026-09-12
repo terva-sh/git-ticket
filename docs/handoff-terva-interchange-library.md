@@ -24,9 +24,41 @@ status over it.
 ## The API
 
 ```go
+func (s *Store) Export(ctx context.Context, o ExportOptions) (*Export, error)
 func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, error)
 func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, error)
 ```
+
+### Export
+
+```go
+type ExportOptions struct {
+	IDs  []string  // resolved like any ref, so a unique prefix works
+	From string    // the From: header, as "Name <mail>"
+	Now  time.Time // the Date: header instant
+}
+
+type Export struct {
+	Cover   []byte    // the cover letter; not part of the series, do not name it *.patch
+	Patch   []byte    // the one patch, adding the ticket files
+	Tickets []*Ticket // resolved, so you can report without reading them again
+}
+```
+
+It returns bytes. Where they land is yours to decide, which is what lets you
+put an export on a wire instead of on a disk.
+
+`From` is a parameter rather than something the library works out. It comes from
+git config, and the library runs no git at all. The CLI reads it and passes it
+in, and you should do the same rather than expecting a default: an export with
+no identity says `unknown <unknown@localhost>`.
+
+The cover is numbered `0/1` and the patch is `1`. Numbers from 2 up are free for
+code you compose in with `git format-patch --start-number 2`, and a plain `git
+am *.patch` on the receiving side then applies the tickets and the code
+together. The cover is `.txt` precisely so that glob skips it.
+
+### Import
 
 `PlanImport` decides and writes nothing. `ApplyImport` carries out exactly what
 the plan says and decides nothing. That split is the library-shaped version of
@@ -154,9 +186,27 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/terva-sh/git-ticket/ticket"
 )
+
+// Send builds an export and hands back the two files to write or transmit.
+func Send(ctx context.Context, repo string, ids []string, from string) (cover, patch []byte, err error) {
+	s, err := ticket.Discover(repo)
+	if err != nil {
+		return nil, nil, err
+	}
+	art, err := s.Export(ctx, ticket.ExportOptions{
+		IDs:  ids,
+		From: from,
+		Now:  time.Now(),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return art.Cover, art.Patch, nil
+}
 
 // Adopt shows an export's reconciliation, then files it.
 func Adopt(ctx context.Context, repo, patchPath string, actor ticket.Actor) error {

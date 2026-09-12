@@ -2809,6 +2809,7 @@ func (s *Store) Check(ctx context.Context) (*Report, error)
 func (s *Store) Fix(ctx context.Context, o FixOptions) (*FixResult, error)
 func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOptions) (*Result, error)
 
+func (s *Store) Export(ctx context.Context, o ExportOptions) (*Export, error)
 func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, error)
 func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, error)
 
@@ -3356,12 +3357,18 @@ the same clothes. Recovery is reading the output and removing what landed.
 In `ticket`, not in `cli`. The library owns the wire format, the reconciliation
 rule, and the write loop; the command owns flags, wording and exit status.
 
-The pair is plan and apply:
+The three calls are:
 
 ```go
+func (s *Store) Export(ctx context.Context, o ExportOptions) (*Export, error)
 func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, error)
 func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, error)
 ```
+
+`Export` returns the cover letter and the patch as bytes. Writing them to a
+directory is the caller's decision, and the sender's identity is a parameter
+rather than something the library reads, because it comes from git config and
+the library runs no git.
 
 That is the library-shaped version of the preview-then-adopt split a person
 sees, and it is one answer rather than two. The preview renders the plan the

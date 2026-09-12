@@ -336,6 +336,70 @@ normal case, not a finding. `config` publishes the template names, per 10.6,
 so a consumer building a create form gets the list without globbing the
 store, and the TUI's create form offers the same list when it is non-empty.
 
+### 4.3 Authored documents
+
+`create --file PATH` reads a ticket-shaped Markdown file and files it. It
+serves the case a template does not: somebody has written the whole ticket
+out, which is the most natural thing for a model to produce, and would
+otherwise have to decompose it back into flags and repeated `--ac`
+arguments. `git am` is the only whole-document path without it, and that one
+demands the document be a patch.
+
+It shares the loader of 4.2 and seeds the same fields, because a document and
+a template differ in where they come from and not in what they say. The
+leniency is the same and for the same reason: the loader reads what it
+recognises and ignores the rest, which is what lets either one be made by
+copying a real ticket.
+
+One field is seeded here that a template does not give: the `title` in the
+document's frontmatter, which makes `--title` optional with `--file` and
+required everywhere else. A template is a form for many tickets and has no
+title to offer, while a document is one ticket and its title is the first
+thing a reader sees in it. `--from` already seeds a title for that reason.
+An explicit `--title` still wins, as every explicit flag does. A document
+carrying no title refuses the create, which is the same requirement `create`
+states without `--file` rather than a new one.
+
+Two flags rather than one that takes either. `--template NAME` resolves
+inside `.tickets/templates/`; `--file PATH` reads a path. A single flag would
+have to guess which was meant, by a slash, an `.md` suffix, or a probe of the
+filesystem, and the two are not reliably distinguishable: a path need contain
+no slash, and a template may share its name with a file that exists. No flag
+in this CLI resolves a name or a path today. Two spellings cost a reader one
+choice, and the heuristic would cost everyone the chance of silently
+resolving the wrong one.
+
+`--file` is a third seed source, so it is refused together with `--template`
+and with `--from`, as `usage`, by the rule those two already follow: seed
+sources overlapping on the same fields need a precedence rule nobody would
+remember. Explicit flags still win over the document, exactly as they win
+over a template. A `--file` naming no readable file refuses the create, as
+`--template` does and for the same reason.
+
+#### Lifecycle keys in a document
+
+A document may carry `status`, `created_at`, `updated_at`, `id`, or a `claim`
+or `archive` block, because the easiest way to write one is to copy a ticket
+that already has them. None of them is honoured, and each one that appears is
+named on stderr.
+
+Ignoring them is 4.2's rule and the gate of 6.2.1 together. `--status` is the
+only route to `done` or `archived`, everything else lands in `draft`, and
+promotion out of draft is a human call that a file sitting in a working tree
+must not make on its own.
+
+Naming them is what import already does per 12.8, where what the receiver
+never agreed to does not travel and is reported rather than dropped in
+silence. A template is a form somebody copied once and reuses, so its stray
+`status` is noise; a document is written for one create, so the same key is
+more likely to be meant. That is the whole argument for saying so here and
+not there.
+
+It warns rather than refuses. Refusing would make the obvious way to author a
+document, copying a real ticket, fail on a key the author never thought
+about. The warning names `--status` and `--created`, so a genuine backport is
+told which flags carry the intent the file could not.
+
 ## 5. Ticket format
 
 ### 5.1 Frontmatter
@@ -2591,7 +2655,7 @@ git ticket ui       # browse the store interactively; no --json form
 git ticket show   ID [--body]
 git ticket copy   ID     # put the body on the system clipboard, per 12.7
 git ticket search QUERY [--regex]
-git ticket create --title T [--template NAME --from ID --series S --type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --template per 4.2; --from and --series per 5.6; --status, --created, --reason per 6.2.1
+git ticket create --title T [--template NAME --file PATH --from ID --series S --type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --template per 4.2; --file per 4.3, which supplies the title and so makes --title optional; --from and --series per 5.6; --status, --created, --reason per 6.2.1
 git ticket update ID [--title --type --priority --description --description-file --milestone --parent --origin --blocks-on --due-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
 git ticket claim  ID [--expires-in D] [--force]
@@ -2646,6 +2710,14 @@ named sibling, so `--description` is joined by `--description-file` and `--plan`
 by `--plan-file`. The four commands that take the text as a positional get one
 `--file`, since there is only one thing it could fill. A `PATH` of `-` reads
 stdin.
+
+`create --file` of 4.3 is not an exception to that, because it is not supplying
+prose for a field at all. It carries a whole ticket, which is why it is bare
+rather than the `--something-file` sibling of a flag. So on `create` the two
+forms sit side by side and mean different sizes of thing: `--description-file`
+fills one section, and `--file` is the ticket. A reader who mixes them up gets a
+usage error rather than a surprise, since `--file` refuses alongside the other
+seed sources.
 
 Giving both the text and its file is a usage error, naming both, the way
 `--depends-on` with `--ref` is. A caller who typed two meant one, and picking by

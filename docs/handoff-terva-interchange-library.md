@@ -294,21 +294,33 @@ every ticket it touches is one it created moments earlier.
 ## Status of this document
 
 The worked example is not illustrative. It was extracted to its own module and
-built, so every field name and signature above is one the compiler accepted:
+built against the published release, with no `replace` of any kind:
 
 ```text
 module example.test/handoff
-require github.com/terva-sh/git-ticket v0.15.0
-replace github.com/terva-sh/git-ticket => <the working tree>
+require github.com/terva-sh/git-ticket v0.16.0
 
 $ go build ./... && go vet ./...   # both clean
 ```
 
-That `replace` is the limit of the check. No release carries `PlanImport` yet,
-so this has not been compiled against a published module version, and the
-version floor is unsettled rather than being the current tag. Compiling it
-without the `replace` belongs to the verification run of whatever release ships
-this, and that is the run that should also fill in the floor.
+So every field name and signature above is one the compiler accepted against
+bytes the module proxy served, rather than against a working tree.
 
-Until then, this document describes an API that exists on a branch. Do not pin
-to it.
+**The version floor is v0.16.0.** That is the first release carrying `Export`,
+`PlanImport` and `ApplyImport`, so pin to it or later.
+
+The published module was checked against the tag rather than taken on trust,
+because `go list -m` answers from the local module cache and can report a hash
+that was never published:
+
+```text
+$ curl -sS https://proxy.golang.org/github.com/terva-sh/git-ticket/@v/v0.16.0.info
+{"Version":"v0.16.0", ... "Hash":"3820f842dc5ad72c41bdd4859de8dac16d503096", ...}
+
+$ git rev-parse v0.16.0^{commit}
+3820f842dc5ad72c41bdd4859de8dac16d503096
+```
+
+An earlier version of this section said the floor was unsettled and told you not
+to pin. That was written before any release carried the API, and it is
+superseded by the two paragraphs above.

@@ -23,7 +23,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-12T00:06:26Z
+updated_at: 2026-09-12T00:33:15Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -119,7 +119,7 @@ refactor moved no output.
 - [x] cli/export.go and cli/import.go hold flags, printing and exit status only
 - [x] An export generated before and after the move is byte-identical under a fixed clock and identity
 - [x] Plan 12.2 and 12.8 say the library owns the interchange and the CLI renders it
-- [ ] A handoff document for terva describes the new API, with its code compiled against the published module
+- [x] A handoff document for terva describes the new API, with its code compiled against the published module
 
 ## Implementation plan
 
@@ -434,9 +434,37 @@ Task worklog for this ticket, from the session task board.
 - [ ] task-21 Plan 12.2 and 12.8 say the library owns the interchange and the CLI renders it
 - [ ] task-22 A handoff document for terva describes the new API, with its code compiled against the published module
 
+**agent:terva/mieli** at 2026-09-12T00:33:06Z
+
+The eighth criterion is ticked, in the v0.16.0 verification run. All eight hold.
+
+The handoff's worked example was extracted from
+`docs/handoff-terva-interchange-library.md` and proven verbatim by `diff`
+against the document's own lines rather than retyped. Its module requires
+`github.com/terva-sh/git-ticket v0.16.0` and carries no `replace` of any kind:
+`go mod tidy`, `go build ./...` and `go vet ./...` all exit 0, and `go list -m`
+in that module answers `v0.16.0`.
+
+The published module was checked against the tag rather than taken on trust.
+`https://proxy.golang.org/github.com/terva-sh/git-ticket/@v/v0.16.0.info`
+answers with Hash `3820f842dc5ad72c41bdd4859de8dac16d503096`, which equals
+`git rev-parse v0.16.0^{commit}`. That question went over HTTP because
+`go list -m` answers from the local module cache and has reported a hash that
+was never published. The cache held no `v0.16.0` entry beforehand, so nothing
+stale could have answered.
+
+This supersedes the closing paragraphs of the notes at 2026-09-11T23:57:13Z and
+2026-09-12T00:06:22Z, both of which said this evidence could not exist yet. It
+can now, and it does.
+
+The document's closing section changed with it. It named no version floor and
+told the reader not to pin; it now names v0.16.0 as the floor and shows the
+proxy check. The superseded wording is quoted in the section itself, so a reader
+arriving later sees what it used to say.
+
 ## Summary
 
-Done on `refactor/interchange-library`, ten commits, seven criteria of eight.
+Done on `refactor/interchange-library`, ten commits, all eight criteria.
 
 The interchange lives in `ticket`. `Export` returns the cover letter and the
 patch as bytes, `PlanImport` decides and writes nothing, `ApplyImport` carries
@@ -457,7 +485,8 @@ parameter is poor public API. And the implementation plan's six steps never
 built `Store.Export` even though three criteria asked for it, which is the gap
 that made this ticket longer than it looked.
 
-The eighth criterion is unticked and honest. The handoff's code compiles, but
-against this tree through a `replace`, because no release carries this API yet.
-Compiling it without the `replace` belongs to the verification run of the
-release that ships it.
+The eighth criterion was the case of evidence that could not exist yet, and
+v0.16.0 supplied it. The handoff's example now compiles and vets clean against
+`require github.com/terva-sh/git-ticket v0.16.0` with no `replace`, the proxy's
+hash for that tag equals `git rev-parse v0.16.0^{commit}`, and the document
+names v0.16.0 as the version floor instead of telling the reader not to pin.

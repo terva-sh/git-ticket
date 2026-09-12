@@ -95,10 +95,61 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.16.0, which makes the interchange callable. `ticket`
-gained `Store.Export`, `Store.PlanImport` and `Store.ApplyImport`, the wire
-format as `BlobSHA`, `AddedFileHunk`, `MboxMessage`, `ParseAddedFiles` and
-`MboxFromLine`, and the reconciliation as typed `Change` values that
+Releases run through v0.17.0, where a ticket can arrive as a document. `git
+ticket create --file PATH` reads a Markdown file with ticket frontmatter and
+files it, and `ticket.ReadDocument` and `ticket.Document` are the library half.
+A minor under 12.4 by the new-surface rule, the v0.11.0 and v0.16.0 precedent:
+one new flag, two new exported names, nothing broken and no schema move.
+Section 4.3 of the plan is the format.
+
+Three rulings hold that command up, and each one was settled with the user
+before the branch. It is two flags rather than one, because `--template NAME`
+resolves inside `.tickets/templates/` and `--file PATH` reads a path, and one
+flag telling them apart would need a heuristic that a path containing no slash
+defeats. A document's `status`, `created_at`, `id`, `claim` and `archive` are
+not honoured, and every one that the document states is named on stderr with
+the flag that does state it here, because a lifecycle key silently dropped is
+how a person files a `done` ticket and gets a draft. A key present but null
+states nothing and is not reported, which is not a nicety: 5.3 renders an
+absent scalar as `null`, so a document made by copying a real ticket carries
+`claim: null` and `status_reason: null`, and reporting those would make the
+ordinary case warn about keys nobody wrote.
+
+The document supplies the title, so `--title` is optional with `--file` and an
+explicit flag still wins. That one was settled by consequence rather than by
+instruction, which is why it was flagged to the user as the part to challenge
+first.
+
+What a `- [x]` in a document means is deliberately undecided. It survives into
+the filed ticket, while `--from` and `import --adopt` both untick, and plan 15
+carries the argument with a trigger rather than a ruling.
+`TestADocumentKeepsItsTicks` pins the current answer so a change to it is a
+choice somebody makes.
+
+That question is the lesson of the release, and it is the real-binary rule
+from Gotchas arriving by a new route. Sixteen tests covered the loader, the
+refusals, the precedence and the warning, and not one of them asked whether a
+tick survives. Running the built binary once in a scratch store raised it in
+seconds, because a document written by hand is the shape a person actually
+sends and a fixture built field by field is not. Run the thing for real even
+when the suite is thorough, and especially then.
+
+Its verification found nothing wrong, which is what a verification usually
+does and is not an argument for skipping it. Both forges published six assets,
+both archives passed `sha256sum -c`, both binaries reported `v0.17.0
+(ab645869fe43, ...)` with 38 commands, and the count is 38 because this
+release adds a flag and not a command. The feature ran in the shipped binary:
+a document carrying `id`, `status: done`, `created_at`, two nulls and an
+unknown key filed as a draft with the document's title and both checklists
+intact, the warning naming exactly the three stated keys, and `check --strict`
+clean. All three image tags pulled anonymously to one digest,
+`sha256:b23d6231`. The Windows lane was read green on `ab645869` before the
+tag.
+
+v0.16.0 makes the interchange callable. `ticket` gained `Store.Export`,
+`Store.PlanImport` and `Store.ApplyImport`, the wire format as `BlobSHA`,
+`AddedFileHunk`, `MboxMessage`, `ParseAddedFiles` and `MboxFromLine`, and the
+reconciliation as typed `Change` values that
 `ChangeKinds()` enumerates. Before it, `export` and `import` had their whole
 domain in `cli`, which exports three symbols, so the only way in was argv and
 prose, and `import` has no `--json` form, which left the map from each arriving

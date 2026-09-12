@@ -60,18 +60,29 @@ func runExport(ctx *cmdContext, args []string) error {
 		return err
 	}
 
-	tickets := make([]*ticket.Ticket, 0, len(rest))
-	for _, id := range rest {
-		t, err := s.Get(context.Background(), id)
-		if err != nil {
-			return err
-		}
-		tickets = append(tickets, t)
+	when := time.Now()
+	if ctx.env.Now != nil {
+		when = ctx.env.Now()
 	}
 
+	// The identity is the sender's git config, not the ticket's actor. An actor
+	// is a session and a From: header is a person, and it is the person sending
+	// who answers for what arrives. It is read here rather than in the library
+	// because it comes from git, which the library does not run.
+	art, err := s.Export(context.Background(), ticket.ExportOptions{
+		IDs:  rest,
+		From: exportIdentity(ctx.env.Dir),
+		Now:  when,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Where it lands is the command's decision, which is why Export hands back
+	// bytes rather than filling a directory.
 	dir := out
 	if dir == "" {
-		dir = tickets[0].ID + "-export"
+		dir = art.Tickets[0].ID + "-export"
 	}
 	if err := exportDirIsFree(dir); err != nil {
 		return err
@@ -80,29 +91,15 @@ func runExport(ctx *cmdContext, args []string) error {
 		return err
 	}
 
-	// The sender's git identity, not the ticket's actor. An actor is a session
-	// and a From: header is a person, and it is the person sending who answers
-	// for what arrives.
-	who := exportIdentity(ctx.env.Dir)
-	when := time.Now()
-	if ctx.env.Now != nil {
-		when = ctx.env.Now()
-	}
-
 	written := make([]string, 0, 3)
-
-	body, err := exportTicketFiles(s, tickets)
-	if err != nil {
-		return err
-	}
 	ticketPath := filepath.Join(dir, exportTicketPatch)
-	if err := os.WriteFile(ticketPath, []byte(ticket.MboxMessage(who, when, exportSubject(tickets), exportCommitBody(tickets), body)), 0o644); err != nil {
+	if err := os.WriteFile(ticketPath, art.Patch, 0o644); err != nil {
 		return err
 	}
 	written = append(written, ticketPath)
 
 	coverPath := filepath.Join(dir, exportCoverName)
-	if err := os.WriteFile(coverPath, []byte(exportCover(who, when, tickets, len(written))), 0o644); err != nil {
+	if err := os.WriteFile(coverPath, art.Cover, 0o644); err != nil {
 		return err
 	}
 	written = append([]string{coverPath}, written...)
@@ -111,7 +108,7 @@ func runExport(ctx *cmdContext, args []string) error {
 	// receiving store and a caller passing --json is the one least likely to be
 	// reading the artifact by eye. Warnings go to stderr in both modes, as the
 	// actor and heading warnings already do.
-	warnDanglingEdges(ctx, tickets)
+	warnDanglingEdges(ctx, art.Tickets)
 
 	if ctx.g.json {
 		writeJSON(ctx.out, mutationEnvelope{
@@ -205,116 +202,4 @@ func exportIdentity(dir string) string {
 		return fmt.Sprintf("%s <unknown@localhost>", name)
 	}
 	return "unknown <unknown@localhost>"
-}
-
-// exportSubject is the commit subject the receiving log will carry. One ticket
-// lends its title, because that is what a person recognises; several cannot, so
-// they are counted instead.
-func exportSubject(tickets []*ticket.Ticket) string {
-	if len(tickets) == 1 {
-		return "Ticket: " + tickets[0].Title
-	}
-	return fmt.Sprintf("Tickets: %d from another store", len(tickets))
-}
-
-// exportCommitBody says what the commit adds. It stays short on purpose: the
-// ticket text is in the diff directly below it, and repeating it there would
-// double the size of every export to no end.
-func exportCommitBody(tickets []*ticket.Ticket) string {
-	var b strings.Builder
-	b.WriteString("Adds the ticket files below. The status of each decides the directory it\n")
-	b.WriteString("lands in, so the store is consistent the moment this applies.\n\n")
-	for _, t := range tickets {
-		fmt.Fprintf(&b, "  %s  %s  %s\n", t.ID, t.Status, t.Title)
-	}
-	return b.String()
-}
-
-// exportTicketFiles builds the diff that adds every ticket file.
-func exportTicketFiles(s *ticket.Store, tickets []*ticket.Ticket) (string, error) {
-	root := s.Root()
-	var diff, stat strings.Builder
-	adds := 0
-	for _, t := range tickets {
-		data, err := os.ReadFile(t.Path)
-		if err != nil {
-			return "", err
-		}
-		rel := t.Path
-		if r, ok := relativeTo(root, t.Path); ok && root != "" {
-			rel = r
-		}
-		rel = filepath.ToSlash(rel)
-		hunk, n := ticket.AddedFileHunk(rel, data)
-		diff.WriteString(hunk)
-		adds += n
-		fmt.Fprintf(&stat, " %s | %d %s\n", rel, n, strings.Repeat("+", plusBar(n)))
-	}
-	var b strings.Builder
-	b.WriteString(stat.String())
-	fmt.Fprintf(&b, " %s changed, %s(+)\n", plural(len(tickets), "file"), plural(adds, "insertion"))
-	for _, t := range tickets {
-		rel := t.Path
-		if r, ok := relativeTo(root, t.Path); ok && root != "" {
-			rel = r
-		}
-		fmt.Fprintf(&b, " create mode 100644 %s\n", filepath.ToSlash(rel))
-	}
-	b.WriteString("\n")
-	b.WriteString(diff.String())
-	return b.String(), nil
-}
-
-// plusBar is the width of a diffstat's bar. Real diffstat scales to the widest
-// file in the set; this is cosmetic text in a patch nothing parses, so it is
-// clamped instead of scaled.
-func plusBar(n int) int {
-	if n > 40 {
-		return 40
-	}
-	if n < 1 {
-		return 1
-	}
-	return n
-}
-
-// exportCover is the report half: what this is, how to apply it, and what it
-// carries. It is written for somebody who has never run git-ticket, because the
-// first person to receive one of these will not have it.
-func exportCover(who string, when time.Time, tickets []*ticket.Ticket, patches int) string {
-	var b strings.Builder
-	b.WriteString(ticket.MboxFromLine + "\n")
-	fmt.Fprintf(&b, "From: %s\n", who)
-	fmt.Fprintf(&b, "Date: %s\n", when.Format(time.RFC1123Z))
-	fmt.Fprintf(&b, "Subject: [PATCH 0/%d] %s\n", patches, exportSubject(tickets))
-	b.WriteString("\n")
-	b.WriteString("This is a git-ticket export: one or more tickets, and the patches that\n")
-	b.WriteString("carry them.\n\n")
-	b.WriteString("    git am *.patch\n\n")
-	b.WriteString("Nothing here needs git-ticket. The patches add ordinary Markdown files, so\n")
-	b.WriteString("a repository that runs git-ticket gains real tickets and one that does not\n")
-	b.WriteString("gains readable text in a directory.\n\n")
-	b.WriteString("This file is not part of the series. It is named .txt so the glob above\n")
-	b.WriteString("skips it, since a cover letter has no diff to apply.\n\n")
-	b.WriteString("Numbers 0 and 1 are this export's. A sender attaching code uses\n")
-	b.WriteString("`git format-patch --start-number 2 -o <this directory> <range>`, and the\n")
-	b.WriteString("one command above still applies the whole of it.\n\n")
-	for _, t := range tickets {
-		b.WriteString(strings.Repeat("-", 72) + "\n")
-		fmt.Fprintf(&b, "%s  [%s, %s, %s]\n\n", t.ID, t.Type, t.Status, t.Priority)
-		fmt.Fprintf(&b, "%s\n", t.Title)
-		if len(t.References) > 0 {
-			b.WriteString("\nreferences:\n")
-			for _, r := range t.References {
-				fmt.Fprintf(&b, "  %s\n", r.Ref)
-			}
-		}
-		b.WriteString("\n")
-		if body, err := os.ReadFile(t.Path); err == nil {
-			if raw, err := ticket.RawBody(body); err == nil {
-				b.WriteString(strings.TrimSpace(raw) + "\n\n")
-			}
-		}
-	}
-	return b.String()
 }

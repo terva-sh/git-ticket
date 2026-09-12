@@ -95,28 +95,69 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.15.0, which is the interchange pair of plan 12.8:
-`export` and `import`, plus `ticket.ChecklistItems` and the `storePathspec`
-symlink fix. A minor under 12.4 by the new-surface rule of v0.7.0 and v0.11.0,
-two new commands and one new exported function, nothing broken and no schema
-move.
+Releases run through v0.16.0, which makes the interchange callable. `ticket`
+gained `Store.Export`, `Store.PlanImport` and `Store.ApplyImport`, the wire
+format as `BlobSHA`, `AddedFileHunk`, `MboxMessage`, `ParseAddedFiles` and
+`MboxFromLine`, and the reconciliation as typed `Change` values that
+`ChangeKinds()` enumerates. Before it, `export` and `import` had their whole
+domain in `cli`, which exports three symbols, so the only way in was argv and
+prose, and `import` has no `--json` form, which left the map from each arriving
+ticket ID to the minted one in neither the exit code nor the English. No command
+changed and no output moved: `cli/export.go` went from 382 lines to 205 and
+`cli/import.go` from 549 to 233, and what left them is the domain rather than
+the interface. A minor under 12.4 by the new-surface rule, which is the v0.11.0
+precedent exactly, a package gaining exported functions with nothing broken and
+no schema move.
 
-Its verification is the pattern to copy for a feature release, because a green
-job proves only that the job was green. The linux_amd64 archive was downloaded
-from the mirror, checked against `checksums.txt`, and run: `v0.15.0
-(68697f44fcdb, go1.25.0)`, 38 commands. Then the feature, in the shipped binary
-rather than in a working tree: a `LIVE` ticket with a ticked criterion and a
-note exported from one store and adopted into another, arriving with the
-criterion unticked, the work record carried, and `check --strict` clean. All
-three image tags pulled anonymously to one digest. The Windows lane was read
-green on `68697f4` before the tag, which is the order the release sequence
-wants.
+The evidence that no output moved is a before-image, and that is the technique
+to copy for any refactor that must change nothing a person sees.
+`cli/export_golden_test.go` pinned a real export, a cover letter and a patch,
+into `cli/testdata/export-before-image` in one commit before the move began. An
+export is deterministic once three things are held still, the clock, the
+sender's git identity, and the tickets themselves, so what is left varying is
+the wire format, which is exactly what the move must not touch. Four refactor
+commits then moved the format, the reconciliation, the change values and the
+artifact's whole composition across a package boundary, and not one of them
+edited those files. It has no `-update` flag on purpose: the bytes are evidence
+from before the move, and a flag that rewrites them after the fact turns a
+failed comparison into a keystroke. It is stronger than the installed-binary
+`diff` in Gotchas, which `just install` destroys, because a committed artifact
+keeps proving the same thing a year later.
 
-One trap in that run, which cost a minute and reads like a broken image. `podman
-run IMAGE --version` fails with "executable file `--version` not found". The
-image has no entrypoint and its `CMD` is `sh`, by the ruling below that an
-entrypoint hook is the wrong mechanism, so the binary is named explicitly:
-`podman run IMAGE git-ticket --version`.
+v0.15.0 is the interchange pair of plan 12.8 that v0.16.0 refactored: `export`
+and `import`, plus `ticket.ChecklistItems` and the `storePathspec` symlink fix.
+A minor under 12.4 by the same new-surface rule, two new commands and one new
+exported function.
+
+The v0.15.0 verification is the pattern to copy for a feature release, because a
+green job proves only that the job was green, and v0.16.0 ran it again with the
+same shape. The linux_amd64 archive was downloaded from the mirror, checked
+against `checksums.txt`, and run: `v0.15.0 (68697f44fcdb, go1.25.0)` then
+`v0.16.0 (3820f842dc5a, go1.25.0)`, 38 commands each. Then the feature, in the
+shipped binary rather than in a working tree: a ticket with a ticked criterion
+and a note exported from one store and adopted into another, arriving with the
+criterion unticked, the work record carried as one note naming the origin, and
+`check --strict` clean. v0.16.0 added the other half of 12.8's promise to that
+run, `git am` of the same patch into a third repository that has never heard of
+git-ticket, which applied clean and left readable Markdown. All three image tags
+pulled anonymously to one digest, `sha256:129ee4c4` at v0.16.0. The Windows lane
+was read green on `68697f4` and on `3820f84` before each tag, which is the order
+the release sequence wants.
+
+A library release has one more step, and v0.16.0 is where it was first run.
+Compile the handoff's worked example against the published module with no
+`replace`, because until a tag exists that example can only be built against a
+working tree and so proves nothing about what a consumer will get. Extract the
+code from the document mechanically and `diff` it back, rather than retyping it.
+Ask the proxy for `@v/$TAG.info` and compare `Origin.Hash` with `git rev-parse
+"$TAG^{commit}"`. That run is also what settles the version floor the document
+names, so a handoff stops saying "do not pin to it".
+
+One trap in the image half of that verification, which cost a minute and reads
+like a broken image. `podman run IMAGE --version` fails with "executable file
+`--version` not found". The image has no entrypoint and its `CMD` is `sh`, by
+the ruling below that an entrypoint hook is the wrong mechanism, so the binary
+is named explicitly: `podman run IMAGE git-ticket --version`.
 
 `self-update` (plan 12.6, with the graded
 exit bucket of 10.2) is proven end to end: on 2026-09-04 the v0.8.0 release

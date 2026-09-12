@@ -851,6 +851,25 @@ that gave forward guidance under the old trigger is superseded by name, for the
 reason a reworded criterion is: `note` appends, and the old one still argues the
 other way.
 
+Write a trigger from a mechanism you traced, not from one that sounds right,
+because the failure is silent in the direction that costs most. A trigger built
+on a guess can read as fired when nothing has happened, and it then sends the
+next reader to settle the question inside the wrong piece of work.
+TKT-01M29F9KS named `create --file` as what would send a file with no trailing
+newline into `AddedFileHunk`, and parked the whole decision on that ticket's
+design. `create --file` shipped in v0.17.0 and nothing fired: export reads the
+ticket file back off disk with `os.ReadFile`, and `Render` has put a trailing
+newline on it by then, so a hand-authored document's last byte never reaches
+the wire format at all. Tracing that took one grep for the callers of
+`AddedFileHunk`. Guessing it cost a deferral pointed at the wrong ticket.
+
+So when a trigger appears to have fired, trace the path before acting on it,
+and say in the note whether it fired rather than assuming the arrival of the
+named event settles it. What had really changed for that ticket was the
+exposure and not the reachability: v0.16.0 published both functions, so the
+defect was reachable by a library caller and never by anyone running the
+binary.
+
 ## Conventions
 
 Names are singular: `git ticket`, the `ticket_*` tools, the `ticket` package.
@@ -1231,6 +1250,28 @@ not proven in another, which the image opt-in demonstrated: an entrypoint hook
 worked under every `podman run` variant and was simply absent under `exec`, the
 way CI delivers a step. Ask which shape the thing will actually meet, and run
 that one.
+
+A round trip between two halves you own proves they agree, and nothing more.
+Both can share a misreading of the format and still hand each other back the
+exact bytes. Where an outside authority defines the format, ask it. The
+trailing-newline fix is the worked example: `AddedFileHunk` and
+`ParseAddedFiles` disagreed about git's `\ No newline at end of file` marker,
+and the round-trip test could only say that they disagreed. Applying the hunk
+with real `git apply` said which one was wrong, and the answer settled the
+repair. The writer had been right the whole time, so refusing the input at
+export would have thrown away a valid patch to avoid fixing a parser.
+`TestAHunkWithNoTrailingNewlineAppliesWithRealGit` is that check, and
+`TestBlobSHAMatchesGit` is the same move against `git hash-object`. Plan 12.8
+promises a receiver can land an export with `git am` alone, and a promise about
+another tool's behaviour is only ever evidenced by running that tool.
+
+Such a test needs its control row. `TestAFileRoundTripsWhateverItsLastByte`
+sends a file with a trailing newline as well as one without, because a parser
+that trimmed the last byte unconditionally passes the interesting row and
+breaks every real export. And prove the test can fail before you trust it:
+reverting `ticket/interchange.go` to main's version failed the no-newline row
+and passed the control, which is what showed the two rows were testing
+different things.
 
 A release is not proven by a green job. Read the assets back, verify
 `sha256sum -c`, and run the unpacked binary, because the failure this catches is

@@ -3323,6 +3323,23 @@ hash-object` rather than trusting the arithmetic. Import verifies the same name
 on the way in, so a truncated or hand-edited patch fails at the door instead of
 becoming a puzzling ticket later.
 
+A file whose last byte is not a newline carries git's `\ No newline at end of
+file` marker, and import honours that marker rather than skipping past it. The
+choice was between honouring it on the way in and refusing such a file on the
+way out, and two things settled it. `AddedFileHunk` was published in v0.16.0 and
+already accepts those bytes, so narrowing it is a change to a released surface
+under 12.4, while teaching the parser to read the marker only accepts input that
+was refused before. And the marker is what git itself writes: real git applies
+such a hunk and produces the exact bytes, which means the artifact was correct
+all along and only the reader was wrong. Refusing would have thrown away a
+valid patch to avoid fixing a parser.
+
+A reader that skips the marker appends a newline the sender never wrote,
+rebuilds a file one byte longer, and fails its own blob check with a message
+blaming the sender for a patch nobody touched. Nothing the store exports takes
+that path, because `Render` ends every ticket file with a newline, so the whole
+exposure is a caller of the library reaching the functions directly.
+
 There is no `--patch` flag. It would have to run `git format-patch`, which 7.4
 does not list, and admitting a row there is a decision that belongs to a
 maintainer rather than to a new command. Code composes in from outside instead:

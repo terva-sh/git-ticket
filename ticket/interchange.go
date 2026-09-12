@@ -165,6 +165,11 @@ func MboxMessage(from string, when time.Time, subject, body, diff string) string
 // prefix removed. The blob name on the index line is checked against the body
 // that comes out, which is what turns a truncated or hand-edited patch into an
 // error here rather than a puzzling ticket later.
+//
+// git's `\ No newline at end of file` marker is honoured rather than skipped,
+// because AddedFileHunk writes it and a parser that adds the newline back
+// rebuilds a file one byte longer than the one that went out. The blob check
+// then fires on an artifact nobody touched and blames the sender for it.
 func ParseAddedFiles(patch string) ([]AddedFile, error) {
 	var out []AddedFile
 	lines := strings.Split(patch, "\n")
@@ -175,6 +180,9 @@ func ParseAddedFiles(patch string) ([]AddedFile, error) {
 		var path, want string
 		var body strings.Builder
 		newFileSeen := false
+		// The marker follows the last added line, and every hunk here adds a
+		// whole file, so one flag per file is the whole of the bookkeeping.
+		noTrailingNewline := false
 		for i++; i < len(lines); i++ {
 			l := lines[i]
 			switch {
@@ -197,6 +205,7 @@ func ParseAddedFiles(patch string) ([]AddedFile, error) {
 						continue
 					}
 					if strings.HasPrefix(l, "\\ No newline") {
+						noTrailingNewline = true
 						continue
 					}
 					if strings.TrimSpace(l) == "" {
@@ -213,11 +222,17 @@ func ParseAddedFiles(patch string) ([]AddedFile, error) {
 		if !newFileSeen || path == "" {
 			continue
 		}
-		got := BlobSHA([]byte(body.String()))
+		// Trim once, before the blob check and the value both read it, so the
+		// name that is verified is the name of the bytes that are handed back.
+		content := body.String()
+		if noTrailingNewline {
+			content = strings.TrimSuffix(content, "\n")
+		}
+		got := BlobSHA([]byte(content))
 		if want != "" && got != want {
 			return nil, fmt.Errorf("%s does not match its blob name (%s, expected %s); the patch has been altered or truncated", path, got[:12], want[:12])
 		}
-		out = append(out, AddedFile{Path: path, Body: body.String()})
+		out = append(out, AddedFile{Path: path, Body: content})
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no added files found")

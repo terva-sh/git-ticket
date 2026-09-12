@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-12T00:12:07Z
-updated_at: 2026-09-12T00:12:07Z
+updated_at: 2026-09-12T00:42:55Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -33,7 +33,7 @@ extensions: {}
 
 ## Description
 
-`exportCommitBody` in `ticket/export.go` writes one line per ticket as `"  %s  %s  %s\n"` over the ID, the status and the title. Two literal spaces between fields means the title starts at a different column on every row, because a status is between 5 and 11 characters.
+`exportCommitBody` in `ticket/export.go` writes one line per ticket as `"  %s  %s  %s\n"` over the ID, the status and the title. Two literal spaces between fields means the title starts at a different column on every row, because a status is between 4 and 11 characters.
 
 The pinned before-image shows it:
 
@@ -56,3 +56,43 @@ Pad the status to the width of the widest status in the set rather than to a con
 - [ ] The padding follows the widest status in the set rather than a fixed width
 - [ ] The before-image is regenerated and its diff shows the alignment change alone
 - [ ] git am still applies an export whose body changed, proven against real git rather than inferred
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-12T00:42:42Z
+
+Groomed. The defect and the fix hold. One number in the description is wrong,
+and the blast radius is smaller than the description leaves open.
+
+`exportCommitBody` is at `ticket/export.go:93` and line 98 is
+`fmt.Fprintf(&b, "  %s  %s  %s\n", t.ID, t.Status, t.Title)`, two literal spaces
+and no padding, as filed. The before-image shows it at lines 9 and 10 of
+`cli/testdata/export-before-image/0001-tickets.patch`.
+
+### Correction: a status is 4 to 11 characters, not 5 to 11
+
+The description says "a status is between 5 and 11 characters". `done` is four.
+The seven are draft 5, ready 5, in-progress 11, blocked 7, review 6, done 4,
+archived 8.
+
+The fix does not change, because the ticket already asks for padding to the
+widest status in the set rather than to a constant, and that rule is indifferent
+to where the floor sits. Only the stated range was wrong. The original wording
+is quoted above so a later reader does not have to reach for `git log`.
+
+### The blast radius is one file, measured
+
+`0001-tickets.patch` is the only artifact carrying these rows. The cover letter
+prints `TKT-...  [spike, blocked, normal]`, a bracketed triple that is
+self-delimiting, so it has no alignment to fix and does not need regenerating.
+No test hardcodes the two-space rows: a grep for them across `*_test.go` returns
+nothing, and `exportCommitBody` is named in no file but `ticket/export.go`. So
+the reviewable diff is one file and the change is the alignment alone, which is
+exactly what the third criterion asks for.
+
+### The trigger fired
+
+This was deferred for one stated reason: fixing it inside TKT-01M298KEG would
+have made the before-image differ for a cause unrelated to the move that had to
+prove byte-identity. That move is done and released in v0.16.0, so the reason to
+wait is discharged. Nothing else gates it, and it carries no open decision.

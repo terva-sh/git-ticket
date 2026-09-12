@@ -95,9 +95,59 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.17.0, where a ticket can arrive as a document. `git
-ticket create --file PATH` reads a Markdown file with ticket frontmatter and
-files it, and `ticket.ReadDocument` and `ticket.Document` are the library half.
+Releases run through v0.17.1, where an export with no trailing newline survives
+its own import. `ParseAddedFiles` skipped git's `\ No newline at end of file`
+marker and appended a newline to every line it read, so it rebuilt a file one
+byte longer than `AddedFileHunk` wrote, failed its own blob check, and told the
+receiver the patch had been altered when nobody had touched it. It now honours
+the marker and trims once into `content`, which feeds both the blob check and
+`AddedFile.Body`. A patch under 12.4, the v0.14.2 bucket: a bug fix with no
+exported name added and no schema move. `ParseAddedFiles` accepts input it used
+to refuse, and widening is not a break.
+
+Honouring the marker beat refusing the file at export for two reasons, and the
+second is the one worth carrying. v0.16.0 published `AddedFileHunk` accepting
+those bytes, so narrowing it would be a break. And the writer was never wrong:
+real `git apply` lands the hunk and produces the exact bytes, so the artifact
+had always been byte-compatible with git and only the reader disagreed with it.
+Refusing would have thrown away a valid patch to avoid fixing a parser. Plan
+12.8 records it.
+
+That release is also the argument for the before-image, which costs one extra
+`go get` and is what separates a green run from a meaningful one. The fix is
+unreachable through the binary, so "exercise the feature in the shipped binary"
+cannot apply and the analogue is a program compiled against the published module
+with no `replace`. Run it against the previous tag first. Against v0.17.0 the
+no-newline row failed with the real blob mismatch and the control passed;
+against v0.17.1 both pass. Without that first run, a green result proves the
+module compiles and nothing else.
+
+Its other lesson is about the release order rather than the code. Pushing `main`
+to the mirror before tagging is not bookkeeping, and v0.17.1 is where that paid:
+the Windows lane went red on `31038ff` in the gap between the push and the tag,
+which is the gap the step exists for. `ab64586` stayed the last released commit
+while it was sorted out, and the tag went on `5c25689` instead. Do not collapse
+those two steps.
+
+What it caught was a test of mine asserting bytes without stating its condition.
+git for Windows installs with `core.autocrlf=true`, so `git apply` wrote
+`one\r\ntwo`. The diagnosis came from both rows failing, control included,
+because a marker fault can only reach the first row, so a control added to guard
+against over-trimming turned out to be the thing that identified the failure.
+The test now pins `core.autocrlf=false`, proven under a `GIT_CONFIG_GLOBAL`
+carrying `autocrlf=true` that reproduces the runner on Linux.
+
+Underneath it is a live defect the release did not fix and did not wait for. Plan
+12.8 promises a receiver can land an export with `git am`, and on Windows those
+ticket files arrive as CRLF, which 5.3 forbids and `parse` refuses, so `git am`
+reports success and every ticket it added is unreadable. v0.14.3 does not cover
+it, because that taught `init` to write the `eol=lf` attribute for a store
+git-ticket created and an export carries no such line.
+`TKT-01M29N8RDQ7HM91SD6WH57WKQ3` carries the question.
+
+v0.17.0 is where a ticket can arrive as a document. `git ticket create --file
+PATH` reads a Markdown file with ticket frontmatter and files it, and
+`ticket.ReadDocument` and `ticket.Document` are the library half.
 A minor under 12.4 by the new-surface rule, the v0.11.0 and v0.16.0 precedent:
 one new flag, two new exported names, nothing broken and no schema move.
 Section 4.3 of the plan is the format.

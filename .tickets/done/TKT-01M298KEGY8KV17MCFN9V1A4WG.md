@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M298KEGY8KV17MCFN9V1A4WG
 title: Move the export and import interchange into the ticket library
 type: chore
-status: in-progress
+status: done
 status_reason: null
 priority: high
 due_on: null
@@ -20,16 +20,10 @@ references:
     path: docs/plan.md
   - ref: plan:12.8
     path: docs/plan.md
-claim:
-  actor: agent:terva/mieli
-  branch: refactor/interchange-library
-  worktree: null
-  commit: null
-  claimed_at: 2026-09-11T23:22:22Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-11T23:57:13Z
+updated_at: 2026-09-12T00:06:26Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
@@ -118,13 +112,13 @@ refactor moved no output.
 
 ## Acceptance criteria
 
-- [ ] ticket exports Export, PlanImport and ApplyImport, and the interchange domain lives in the ticket package
-- [ ] Export returns the artifact as bytes; writing a directory is the CLI's decision
-- [ ] The reconciliation is computed once and rendered twice: PlanImport answers, and the CLI preview prints that answer rather than deriving its own
-- [ ] Changes are typed values carrying a kind and a value, not preformatted English
-- [ ] cli/export.go and cli/import.go hold flags, printing and exit status only
-- [ ] An export generated before and after the move is byte-identical under a fixed clock and identity
-- [ ] Plan 12.2 and 12.8 say the library owns the interchange and the CLI renders it
+- [x] ticket exports Export, PlanImport and ApplyImport, and the interchange domain lives in the ticket package
+- [x] Export returns the artifact as bytes; writing a directory is the CLI's decision
+- [x] The reconciliation is computed once and rendered twice: PlanImport answers, and the CLI preview prints that answer rather than deriving its own
+- [x] Changes are typed values carrying a kind and a value, not preformatted English
+- [x] cli/export.go and cli/import.go hold flags, printing and exit status only
+- [x] An export generated before and after the move is byte-identical under a fixed clock and identity
+- [x] Plan 12.2 and 12.8 say the library owns the interchange and the CLI renders it
 - [ ] A handoff document for terva describes the new API, with its code compiled against the published module
 
 ## Implementation plan
@@ -382,3 +376,88 @@ The eighth criterion is the separate case of evidence that cannot exist yet. The
 handoff's example compiles, but against this tree through a `replace`, because
 no release carries `PlanImport`. Compiling it without the `replace` belongs to
 the verification run of the release that ships this.
+
+**agent:terva/mieli** at 2026-09-12T00:06:22Z
+
+`Store.Export` is built, at `4128850`, and the docs followed at `ce4d524`.
+
+`exportSubject`, `exportCommitBody`, `exportTicketFiles` and `exportCover`
+moved. `plusBar` went with the diffstat, which retires this ticket's ruling that
+kept it in `cli` as cosmetic: the stat is part of the format `ParseAddedFiles`
+reads past, and splitting a formatter from the thing it formats buys nothing.
+That supersedes the paragraph in the description listing `plusBar` under
+presentation, and the step 2 note that deferred the question.
+
+The CLI's `plural` deliberately did not move. `ticket` has its own
+`exportPlural`, because a change to how a command counts things must not move
+the bytes of an artifact another store parses.
+
+`cli/export.go` is 205 lines: `runExport`, `exportDirIsFree`,
+`warnDanglingEdges`, and `exportIdentity`, the last because it reads the
+sender's identity from git config and the library runs no git.
+
+The before-image passed unchanged. The artifact's whole composition changed
+package and not one byte of its output moved, which is what the first commit of
+this branch was for.
+
+Seven criteria are ticked. The eighth is not, and it is the case of evidence
+that cannot exist yet rather than work left undone. The handoff's example was
+extracted to its own module and built, `go build` and `go vet` both clean, but
+through a `replace` pointing at this tree, because no release carries
+`PlanImport` or `Export`. Compiling it against a published version belongs to
+the verification run of whatever release ships this, and that run should also
+settle the version floor the document currently leaves open.
+
+Two things to file after this branch lands, kept off it so the store writes do
+not ride into this PR:
+
+- The trailing-newline round-trip defect, pinned by
+  `TestAFileWithNoTrailingNewlineDoesNotRoundTrip`.
+- The diffstat's status column not aligning, seen in the before-image.
+
+One question for review rather than a defect: `ApplyImport` returns no partial
+result with its error, so a caller cannot report what landed before a failure.
+The CLI used to print the changes for tickets already filed and no longer does.
+
+**agent:terva/mieli** at 2026-09-12T00:06:24Z
+
+Task worklog for this ticket, from the session task board.
+
+### Generation 3 — 2026-09-11 — TKT-01M298KEG steps 1-2: before-image pinned, wire format moved
+
+- [ ] task-15 ticket exports Export, PlanImport and ApplyImport, and the interchange domain lives in the ticket package
+- [ ] task-16 Export returns the artifact as bytes; writing a directory is the CLI's decision
+- [ ] task-17 The reconciliation is computed once and rendered twice: PlanImport answers, and the CLI preview prints that answer rather than deriving its own
+- [ ] task-18 Changes are typed values carrying a kind and a value, not preformatted English
+- [ ] task-19 cli/export.go and cli/import.go hold flags, printing and exit status only
+- [ ] task-20 (active) An export generated before and after the move is byte-identical under a fixed clock and identity — Half done. Before-image pinned and committed at 5656c0b: cli/testdata/export-before-image/ plus TestExportMatchesThePinnedBeforeImage, proven falsifiable. The comparison half needs the move to exist, so this stays open through steps 2-6.
+- [ ] task-21 Plan 12.2 and 12.8 say the library owns the interchange and the CLI renders it
+- [ ] task-22 A handoff document for terva describes the new API, with its code compiled against the published module
+
+## Summary
+
+Done on `refactor/interchange-library`, ten commits, seven criteria of eight.
+
+The interchange lives in `ticket`. `Export` returns the cover letter and the
+patch as bytes, `PlanImport` decides and writes nothing, `ApplyImport` carries
+out exactly what the plan says. `Change` is a typed value with a kind, and
+`ChangeKinds()` lists every one so a host can prove it renders them all.
+`cli/export.go` is 205 lines and `cli/import.go` is 233, both flags, wording and
+exit status.
+
+Nothing a person sees moved. The before-image pinned in the first commit passed
+after every step, including the last one, which changed the package of the
+artifact's entire composition and not one byte of its output. The import side
+is held by the existing tests asserting its exact preview and adopt wording.
+
+Three rulings in the description were overtaken and are recorded in the notes.
+`plusBar` came to the library with the diffstat it formats. `addedFileDiff`
+changed signature rather than moving verbatim, because a `*strings.Builder`
+parameter is poor public API. And the implementation plan's six steps never
+built `Store.Export` even though three criteria asked for it, which is the gap
+that made this ticket longer than it looked.
+
+The eighth criterion is unticked and honest. The handoff's code compiles, but
+against this tree through a `replace`, because no release carries this API yet.
+Compiling it without the `replace` belongs to the verification run of the
+release that ships it.

@@ -111,3 +111,76 @@ func TestExportNeedsATicket(t *testing.T) {
 		t.Fatal("an export of no tickets succeeded")
 	}
 }
+
+// TestExportCommitBodyAlignsEveryTitle is TKT-01M29FA29 (Align the status
+// column in an export's diffstat body) in its own words.
+//
+// The before-image proves the status half only. Both of its tickets are TKT, so
+// their IDs are the same width and a fix that padded the status alone would
+// pass it. A store may declare several series and a prefix is 2 to 8 characters
+// per plan 5.6, so an ID runs 29 to 35 and that column goes ragged too. This
+// drives both at once, which is the case the fixture corpus cannot reach.
+func TestExportCommitBodyAlignsEveryTitle(t *testing.T) {
+	ragged := []*Ticket{
+		{ID: "AB-01K3ZZ67Q0PT427VFD1F4WFWSH", Status: StatusDone, Title: "Shortest of both columns"},
+		{ID: "LONGSERI-01K3ZZ82A0YPGSE71EY0N5NCH6", Status: StatusInProgress, Title: "Longest of both columns"},
+		{ID: "TKT-01K3ZZ9WQ0PT427VFD1F4WFWSJ", Status: StatusReview, Title: "Somewhere in between"},
+	}
+
+	body := exportCommitBody(ragged)
+	want := -1
+	for _, tk := range ragged {
+		line := rowFor(t, body, tk.ID)
+		col := strings.Index(line, tk.Title)
+		if col < 0 {
+			t.Fatalf("the row for %s does not carry its title: %q", tk.ID, line)
+		}
+		if want < 0 {
+			want = col
+			continue
+		}
+		if col != want {
+			t.Errorf("the title of %s starts at column %d, want %d\n%s", tk.ID, col, want, body)
+		}
+	}
+
+	// No row may end in spaces. The title is last and is never padded, which is
+	// what keeps the padding from reaching the end of a line.
+	for _, tk := range ragged {
+		if line := rowFor(t, body, tk.ID); line != strings.TrimRight(line, " ") {
+			t.Errorf("the row for %s ends in spaces: %q", tk.ID, line)
+		}
+	}
+}
+
+// TestExportCommitBodyPadsToTheSetNotAConstant is the other half of the same
+// criterion. Padding to the widest status that exists, rather than to the
+// widest in this set, would put nine spaces after "done" in a set that never
+// mentions in-progress. A reader would call that a trench, so the set decides.
+func TestExportCommitBodyPadsToTheSetNotAConstant(t *testing.T) {
+	uniform := []*Ticket{
+		{ID: "TKT-01K3ZZ67Q0PT427VFD1F4WFWSH", Status: StatusDone, Title: "First"},
+		{ID: "TKT-01K3ZZ82A0YPGSE71EY0N5NCH6", Status: StatusDone, Title: "Second"},
+	}
+
+	body := exportCommitBody(uniform)
+	for _, tk := range uniform {
+		line := rowFor(t, body, tk.ID)
+		want := "  " + tk.ID + "  " + string(tk.Status) + "  " + tk.Title
+		if line != want {
+			t.Errorf("row\n  got  %q\n  want %q", line, want)
+		}
+	}
+}
+
+// rowFor returns the body line carrying this ID, and fails when there is none.
+func rowFor(t *testing.T, body, id string) string {
+	t.Helper()
+	for _, line := range strings.Split(body, "\n") {
+		if strings.Contains(line, id) {
+			return line
+		}
+	}
+	t.Fatalf("no row for %s in:\n%s", id, body)
+	return ""
+}

@@ -90,12 +90,28 @@ func exportSubject(tickets []*Ticket) string {
 // exportCommitBody says what the commit adds. It stays short on purpose: the
 // ticket text is in the diff directly below it, and repeating it there would
 // double the size of every export to no end.
+//
+// Both leading columns are padded to the widest value in this set, rather than
+// to a constant, so a person reading the commit in git log finds the titles on
+// one column and a set of short statuses carries no trench of spaces.
+//
+// The ID is padded as well as the status, which is what the alignment actually
+// needs. A status is 4 to 11 characters, and an ID is 29 to 35, because a
+// series prefix is 2 to 8 per plan 5.6 and a store may declare several. So a
+// multi-series export has two ragged columns and padding the status alone would
+// leave the titles where they started.
 func exportCommitBody(tickets []*Ticket) string {
 	var b strings.Builder
 	b.WriteString("Adds the ticket files below. The status of each decides the directory it\n")
 	b.WriteString("lands in, so the store is consistent the moment this applies.\n\n")
+	idWidth, statusWidth := 0, 0
 	for _, t := range tickets {
-		fmt.Fprintf(&b, "  %s  %s  %s\n", t.ID, t.Status, t.Title)
+		idWidth = max(idWidth, len(t.ID))
+		statusWidth = max(statusWidth, len(string(t.Status)))
+	}
+	for _, t := range tickets {
+		// The title is last and is never padded, so no line ends in spaces.
+		fmt.Fprintf(&b, "  %-*s  %-*s  %s\n", idWidth, t.ID, statusWidth, t.Status, t.Title)
 	}
 	return b.String()
 }

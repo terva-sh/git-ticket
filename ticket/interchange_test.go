@@ -152,6 +152,18 @@ func TestAHunkWithNoTrailingNewlineAppliesWithRealGit(t *testing.T) {
 				}
 			}
 			git("init", "-q", "-b", "main")
+			// This test is about the marker, and line endings are a different
+			// axis git decides by configuration. Windows installs git with
+			// core.autocrlf=true, and the lane caught that: `git apply` wrote
+			// "one\r\ntwo" and both rows failed, the control included, which is
+			// how a line-ending failure tells itself apart from a marker one.
+			// Pinning it states the condition rather than inheriting whatever
+			// the machine happens to have.
+			//
+			// What the conversion does to a real export is a separate question,
+			// because a ticket file that arrives as CRLF is one plan 5.3 forbids
+			// and `parse` refuses. TKT-01M29N8RDQ7HM91SD6WH57WKQ3 carries it.
+			git("config", "core.autocrlf", "false")
 
 			hunk, _ := AddedFileHunk("a.md", []byte(tc.data))
 			// The patch lives outside the worktree, so applying it cannot be

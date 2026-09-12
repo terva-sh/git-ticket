@@ -4380,6 +4380,32 @@ in `config.yml` is the list a bare write is attributed from rather than a gate.
 The trigger is somebody meeting an adopted ticket assigned to a person who does
 not work on their project.
 
+**A ticked box in an authored document** (`TKT-01M298MJ0`). Whether
+`create --file` should carry a `- [x]` from the document into the filed ticket,
+or untick it the way `--from` and `import --adopt` both do.
+
+It carries it today, which follows from 4.3 sharing the loader of 4.2: a
+template's checklist seeds as rendered lines and a document's does the same.
+That was not decided so much as inherited, which is why it is written down here
+rather than defended in 4.3.
+
+The case for unticking is the one 5.6 already makes for `--from`: carrying a
+tick claims evidence for work this ticket has not begun, and a false `[x]` costs
+a reader their trust in every other box. The case for carrying is that `--from`
+and `import` copy somebody else's claim of evidence, while a document is the
+author's own statement of the ticket they are filing, so preserving what they
+wrote is the least surprising thing a file-shaped input can do.
+
+A backport is what stops this being obvious. 6.2.1 exists so finished work can
+arrive as finished, and a document filed with `--status done` plausibly wants
+its satisfied criteria ticked, which an unconditional untick would forbid. So
+the answer may well be that the status decides, and that is a third option
+rather than a compromise.
+
+The trigger is a person filing a document whose ticks turn out to mean the wrong
+thing in either direction: a draft that arrives claiming finished work, or a
+backport that loses the record of what it satisfied.
+
 ## 16. References
 
 - [Backlog.md](https://github.com/MrLesk/Backlog.md) and its

@@ -197,6 +197,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		created   string
 		reason    string
 		tmpl      string
+		docPath   string
 		series    string
 		from      string
 		labels    stringList
@@ -230,6 +231,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		f.StringVar(&series, "series", "", "the ID prefix to file under; the store's default when absent, per plan 5.6")
 		f.StringVar(&from, "from", "", "seed the title, description and acceptance criteria from this ticket, and record it as the origin, per plan 5.6")
 		f.StringVar(&tmpl, "template", "", "seed from .tickets/templates/NAME.md; explicit flags win, per plan 4.2")
+		f.StringVar(&docPath, "file", "", "file a ticket written out as Markdown at this path; explicit flags win, per plan 4.3")
 		f.StringVar(&status, "status", "", "file directly as done or archived, for a backport, per plan 6.2.1")
 		f.StringVar(&created, "created", "", "backdate the ticket: RFC 3339, or YYYY-MM-DD read as midnight UTC")
 		f.StringVar(&reason, "reason", "", "why, with --status archived only; lands in the archive block and Notes")
@@ -240,15 +242,24 @@ func runCreate(ctx *cmdContext, args []string) error {
 	if len(rest) > 0 {
 		return usageErr("create takes flags, not positional arguments; did you mean --title %q?", rest[0])
 	}
-	// --from supplies the title when the caller names none, per plan 5.6, so
-	// the requirement relaxes for exactly that case and no other.
-	if title == "" && from == "" {
+	// --from supplies the title when the caller names none, per plan 5.6, and
+	// so does a --file document, per 4.3. The requirement relaxes for exactly
+	// those cases and no other, and each refuses later if its source has no
+	// title to give.
+	if title == "" && from == "" && docPath == "" {
 		return usageErr("create needs --title")
 	}
 	// Two seed sources overlapping on the same fields need a precedence rule
-	// nobody would remember, so 5.6 refuses the pair rather than inventing one.
+	// nobody would remember, so 5.6 refuses the pair rather than inventing one,
+	// and 4.3 puts --file under the same rule as the third source.
 	if from != "" && tmpl != "" {
 		return usageErr("--from and --template are two seed sources for the same fields; use one")
+	}
+	if docPath != "" && tmpl != "" {
+		return usageErr("--file and --template are two seed sources for the same fields; use one")
+	}
+	if docPath != "" && from != "" {
+		return usageErr("--file and --from are two seed sources for the same fields; use one")
 	}
 
 	// Which of the four prose flags were typed, since "" is a legal value for
@@ -281,6 +292,18 @@ func runCreate(ctx *cmdContext, args []string) error {
 		}
 	}
 
+	// The library reads the document and decides what it seeds and what it will
+	// not honour, per 4.3. This only words the report, the way the import
+	// preview renders a plan it did not compute.
+	var doc *ticket.Document
+	if docPath != "" {
+		loaded, derr := ticket.ReadDocument(docPath)
+		if derr != nil {
+			return derr
+		}
+		doc = loaded
+	}
+
 	s, err := ctx.openStore()
 	if err != nil {
 		return err
@@ -311,6 +334,7 @@ func runCreate(ctx *cmdContext, args []string) error {
 		Created:            createdAt,
 		Reason:             reason,
 		Template:           tmpl,
+		Document:           doc,
 		// Uppercased rather than refused, the way `series add idea` is, because
 		// the grammar is uppercase and a reference resolves case-insensitively
 		// per 5.5. An empty value means the store's default.
@@ -342,7 +366,29 @@ func runCreate(ctx *cmdContext, args []string) error {
 	// than what a failed command would have done.
 	warnSectionHeadings(ctx.env.Stderr, description.source(), description.text)
 	warnSectionHeadings(ctx.env.Stderr, plan.source(), plan.text)
+	if doc != nil {
+		warnDocumentKeys(ctx.env.Stderr, docPath, doc.Ignored, res.Ticket.Status)
+	}
 	return ctx.writeMutation(s, res, fmt.Sprintf("Created %s  %s", res.Ticket.ID, res.Ticket.Title))
+}
+
+// warnDocumentKeys reports the lifecycle keys a --file document stated and that
+// 4.3 does not honour.
+//
+// It warns rather than refuses because copying a real ticket is the obvious way
+// to author a document, and those keys ride along with the copy. Saying nothing
+// is the other thing it must not do: a template's stray status is noise, while a
+// document is written for one create and the key is likelier to have been meant.
+//
+// It names the status the ticket actually landed in, so a reader who wanted
+// done sees what they got, and the two flags that would have said it.
+func warnDocumentKeys(w io.Writer, path string, keys []string, landed string) {
+	if len(keys) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "warning: %s states %s a document does not set: %s\n",
+		path, plural(len(keys), "lifecycle key"), strings.Join(keys, ", "))
+	fmt.Fprintf(w, "  Filed as %s. Use --status done|archived and --created to state those here.\n", landed)
 }
 
 // parseCreated reads the two forms plan 6.2.1 accepts for --created: a full

@@ -191,6 +191,14 @@ type CreateOptions struct {
 	// because a template is a starting point and not an argument. A name
 	// that resolves to no file refuses the create.
 	Template string
+	// Document seeds from a ticket somebody wrote out in full, per plan 4.3.
+	// ReadDocument produces it. It seeds what a template seeds and the title
+	// besides, and explicit fields win over it the same way.
+	//
+	// It is a third seed source, so it is refused with Template or From: two
+	// sources overlapping on the same fields need a precedence rule nobody
+	// would remember.
+	Document *Document
 }
 
 // validateNewTitle is the title check a create runs. The ID does not exist yet,
@@ -209,10 +217,18 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A document is a third seed source and cannot share the fields with
+	// another, per 4.3. The CLI refuses the same pairs earlier as usage, so
+	// this is the guard for a caller reaching the library directly.
+	if o.Document != nil && (o.Template != "" || o.From != "") {
+		return nil, codedError(CodeValidationFailed,
+			"a document seeds the same fields as a template and as --from; use one source")
+	}
 	// With --from the title may come from the source, and the source cannot be
 	// read until the store is locked, so the check runs again below the seeding.
-	// Without --from it runs here alone and an empty title costs no lock.
-	if o.From == "" {
+	// A document carries its own title too, per 4.3. Without either it runs
+	// here alone and an empty title costs no lock.
+	if o.From == "" && o.Document == nil {
 		if err := validateNewTitle(o.Title); err != nil {
 			return nil, err
 		}
@@ -229,6 +245,19 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 			return nil, err
 		}
 		tpl = loaded
+	}
+	if o.Document != nil {
+		// The title is the one field a document gives and a form cannot, per
+		// 4.3, and it is seeded here so the check below the --from block sees
+		// it. An explicit --title still wins, like every other field.
+		if o.Title == "" {
+			o.Title = o.Document.Title
+		}
+		// Everything else a document seeds, it seeds as a template does, which
+		// is why the rest of this is shared rather than written twice.
+		tpl = &o.Document.Seed
+	}
+	if tpl != nil {
 		if o.Type == "" {
 			o.Type = tpl.Type
 		}

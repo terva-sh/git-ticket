@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2HEEX3SDTTP1Q8EH7526YK6
 title: check passes a ticket whose criteria are prose the tool cannot see
 type: bug
-status: in-progress
+status: done
 status_reason: null
 priority: high
 due_on: null
@@ -16,16 +16,10 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim:
-  actor: agent:terva/invisible-sections
-  branch: fix/invisible-section-headings
-  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
-  commit: 248c062437c435966ff3570dd9ec16431522006a
-  claimed_at: 2026-09-15T02:59:33Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-15T02:31:12Z
-updated_at: 2026-09-15T02:59:33Z
+updated_at: 2026-09-15T03:04:41Z
 created_by:
   id: agent:claude-code/triage
   name: ""
@@ -98,11 +92,11 @@ have to move between sections, which is a rewrite rather than a repair, and
 
 ## Acceptance criteria
 
-- [ ] check reports a ticket whose body carries a `###` heading naming a section the format owns, and --strict fails on it
-- [ ] The report names the section and the offending heading, so the fix is obvious without reading the source
-- [ ] A `###` heading that does not collide with a known section name is left alone; `### Scope` and `### Trigger` stay silent
-- [ ] Both this store and the ketju store still pass unchanged, so the check ships without a backlog of repairs
-- [ ] The ## warning no longer advises ### for a heading naming a section the format owns; it says the real section was opened and the items are live
+- [x] check reports a ticket whose body carries a `###` heading naming a section the format owns, and --strict fails on it
+- [x] The report names the section and the offending heading, so the fix is obvious without reading the source
+- [x] A `###` heading that does not collide with a known section name is left alone; `### Scope` and `### Trigger` stay silent
+- [x] Both this store and the ketju store still pass unchanged, so the check ships without a backlog of repairs
+- [x] The ## warning no longer advises ### for a heading naming a section the format owns; it says the real section was opened and the items are live
 
 ## Notes
 
@@ -150,3 +144,52 @@ The reporter's own judgement is left standing in full. The argument against a
 heading-level rule holds, and the argument that a --fix would be a trap is
 right for the reason given: moving items between sections is a rewrite, and
 --fix elsewhere in this tool only ever moves or rewrites whole files.
+
+## Summary
+
+Shipped as section_heading_demoted, a warning in plan section 11, plus the
+correction to the advice that produced the defect.
+
+The check is keyed on the name and never on the level, which is the reporter's
+own argument and it held up under measurement: this store carries 14
+"### Trigger", 8 "### Open questions" and 7 "### Scope", so a level rule would
+arrive with a backlog and teach its readers to ignore it. The match is exact and
+case-insensitive rather than a prefix, because originRecord in ticket/import.go
+writes "### Summary at the origin" and its notes and comments forms into the work
+record of every ticket adopted through import --same-owner, which shipped the
+same day; a substring rule would have fired on three headings of this tool's own
+making on every adopted ticket.
+
+It is a warning rather than an error because the store is valid: nothing dangles,
+nothing fails to parse, and the file is exactly what its author wrote. What is
+wrong is that the author meant something else. There is no --fix, for the reason
+the reporter gave and which survived review: the repair moves items from one
+section into another, which is a rewrite of the body, and every other --fix here
+moves or rewrites whole files.
+
+The fifth criterion is the one the triage added, and it turned out to be the
+cause rather than a second symptom. A description carrying "## Acceptance
+criteria" produces a real working section whose items tick, measured rather than
+inferred, and the existing warning answered that by telling the author to write
+"### Acceptance criteria" instead. For the seven names the format owns the advice
+was inverted: it took a ticket that worked and instructed the author to break it.
+The same inverted sentence was in AGENTS.md and in cli/instructions.md, both of
+which outlive any session, and all three are corrected.
+
+Verification. The reported reproduction was run against the built binary and now
+warns at exit 0 and fails --strict at exit 1, naming both the offending heading
+and the real section. Both real stores pass unchanged: this one and ketju's, the
+store where the mistake was originally made, each report no problems, which is
+the criterion that lets the code ship without a repair queue. The corpus fixture
+discriminates three ways in one ticket, a colliding heading, an ordinary
+"### Trigger", and a heading inside a fenced block, and both falsifications were
+run: making IsSectionName always true fires on the ordinary subheading, and
+dropping the fence scanner fires on the fenced one. Each produces two findings
+where the sidecar records one.
+
+Left out deliberately. No tag: this is a minor under 12.4 by the new-surface
+rule, two new exported names and a new check code, with nothing broken and no
+schema move, but cutting the release is a separate decision. The eight-hundred-odd
+existing tickets in other stores were not surveyed beyond ketju's, because the
+check is silent on both stores available here and a survey of stores this machine
+does not hold would be a claim rather than a measurement.

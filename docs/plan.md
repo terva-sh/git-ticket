@@ -1273,6 +1273,27 @@ No command that moves history or the working tree joins this table. Section 15
 records that decision under sync helpers, so a change that needs `fetch` or
 `push` is a change to the plan first.
 
+There is no `status` and no `diff`, and the question those usually get asked is
+already answerable without them. "Is this ticket's current text in history" is
+`rev-parse HEAD` for the commit, `ls-tree -r HEAD -- PATH` for the blob name the
+file has there, and `BlobSHA` of the bytes on disk, which computes git's own
+object name locally and is held to `git hash-object` by `TestBlobSHAMatchesGit`.
+Equal names mean every byte now on disk is reachable from HEAD. All three rows
+this needs are already above, so wanting that answer is not a reason to grow the
+table.
+
+The edges all fail safe. A file absent from HEAD, a repository with no commits,
+and a store outside a repository each answer "not in history", which is the
+conservative direction for a caller about to destroy something. Content staged
+but not committed answers the same way, and should: the index is not history.
+
+This is written down because the gap was asserted before it was measured.
+`TKT-01M2HHTCKMN244FP2BRRSQY2PN` was filed claiming the tool could not tell
+whether a note it was about to destroy had been committed, and that a row here
+would be needed to find out. Both halves were wrong, and one shell prototype over
+five cases showed it. A missing row is a cheap thing to believe in and an
+expensive thing to act on, so trace the existing rows before proposing another.
+
 This table binds the tool and not a workflow, which can run plain `git` with the
 tool nowhere in the pipe. Section 11 carries that rule separately, under
 verifying generated artifacts in CI, and reaches the same answer: a job verifies

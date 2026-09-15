@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2H6TM1T2W0WF99HMDZCM520
 title: Carry parent and criteria state through git ticket import --adopt
 type: task
-status: review
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -22,7 +22,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-15T00:17:48Z
-updated_at: 2026-09-15T01:03:29Z
+updated_at: 2026-09-15T01:56:48Z
 created_by:
   id: agent:claude/skill-bundle-2
   name: ""

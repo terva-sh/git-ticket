@@ -156,7 +156,7 @@ func runInit(ctx *cmdContext, args []string) error {
 	}
 	var instructions instructionsAction
 	if writeInstructions {
-		path, action, err := writeInstructionsFile(root)
+		path, action, err := writeInstructionsFile(root, instructionsCore)
 		if err != nil {
 			return err
 		}
@@ -177,6 +177,13 @@ func runInit(ctx *cmdContext, args []string) error {
 	fmt.Fprintf(ctx.out, "Initialized a ticket store at %s\n", displayPath(s, s.Path()))
 	if writeInstructions {
 		fmt.Fprintf(ctx.out, "%s\n", instructions.sentence(displayPath(s, filepath.Join(root, instructionsFile))))
+	} else {
+		// The block is how an agent working this store learns to work it, and
+		// nothing else advertises that it exists. init is the one moment
+		// somebody is certainly setting the store up, so it is the cheapest
+		// place to say so, and saying it costs a line rather than a decision:
+		// --instructions was not passed, so this writes nothing.
+		fmt.Fprintf(ctx.out, "Run `git ticket instructions --write` to put the agent workflow block in %s,\nor `git ticket instructions` to read it.\n", instructionsFile)
 	}
 	fmt.Fprintf(ctx.out, "Commit it, then run `git ticket create --title \"...\"`.\n")
 	return nil

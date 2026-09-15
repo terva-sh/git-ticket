@@ -16,6 +16,22 @@ import (
 //go:embed instructions.md
 var instructionsText string
 
+// instructionsCore is the short form, and it is what --write installs.
+//
+// The two exist because the written block is loaded in every session of every
+// project that adopts this tool, which makes it the largest standing context
+// cost here: the full text is 2,434 words and most of them are the reason for a
+// rule rather than the rule. An agent needs the rule every time and the reason
+// when a rule surprises it, so the summary goes in the file and the argument
+// stays one command away. That is the same split `show` makes for note history.
+//
+// The core names `git ticket instructions` so the long form is reachable from
+// the short one. A summary nobody can get behind is worse than the volume it
+// replaced.
+//
+//go:embed instructions-core.md
+var instructionsCore string
+
 // instructionsFile is where the block is written. It is the file terva and most
 // agent harnesses already read.
 const instructionsFile = "AGENTS.md"
@@ -40,10 +56,14 @@ const (
 // --write puts it in AGENTS.md and keeps it current there. It reads no store,
 // so it answers outside a repository and before init.
 func runInstructions(ctx *cmdContext, args []string) error {
-	var write bool
+	var write, core, full bool
 	rest, err := ctx.parseFlags("instructions", args, func(fs *flag.FlagSet) {
 		fs.BoolVar(&write, "write", false,
-			"write the block to "+instructionsFile+", replacing an earlier one in place")
+			"write the short form to "+instructionsFile+", replacing an earlier one in place")
+		fs.BoolVar(&core, "core", false,
+			"print the short form, which is what --write installs")
+		fs.BoolVar(&full, "full", false,
+			"the long form, with the reason behind each rule; the default when printing")
 	})
 	if err != nil {
 		return err
@@ -51,31 +71,51 @@ func runInstructions(ctx *cmdContext, args []string) error {
 	if len(rest) != 0 {
 		return usageErr("instructions takes no arguments")
 	}
-	if write {
-		return writeInstructions(ctx)
+	if core && full {
+		return usageErr("instructions --core and --full ask for different texts; pass one")
 	}
+	// Printing and writing default to different forms, because the callers want
+	// different things. Somebody typing the command is asking how to work here
+	// and wants the reasoning; a setup step is filling a file that is read in
+	// every session afterwards and wants it short. Either default is overridable
+	// and the help text says which is which.
+	if write {
+		return writeInstructions(ctx, full)
+	}
+	if core {
+		return printInstructions(ctx, instructionsCore)
+	}
+	return printInstructions(ctx, instructionsText)
+}
+
+// printInstructions writes one form to stdout, or into the envelope.
+func printInstructions(ctx *cmdContext, text string) error {
 	if ctx.g.json {
 		writeJSON(ctx.out, instructionsEnvelope{
 			SchemaVersion: schemaVersion,
 			Kind:          "instructions",
-			Text:          instructionsText,
+			Text:          text,
 		})
 		return nil
 	}
-	_, err = fmt.Fprint(ctx.out, instructionsText)
+	_, err := fmt.Fprint(ctx.out, text)
 	return err
 }
 
 // writeInstructions puts the block in AGENTS.md at the repository root, or in
 // the working directory when there is no repository, since the command answers
 // anywhere.
-func writeInstructions(ctx *cmdContext) error {
+func writeInstructions(ctx *cmdContext, full bool) error {
 	root := readGit(ctx.env.Dir, "rev-parse", "--show-toplevel")
 	if root == "" {
 		root = ctx.env.Dir
 	}
 
-	path, action, err := writeInstructionsFile(root)
+	block := instructionsCore
+	if full {
+		block = instructionsText
+	}
+	path, action, err := writeInstructionsFile(root, block)
 	if err != nil {
 		return err
 	}
@@ -191,12 +231,12 @@ func checkInstructionsFile(root string) error {
 
 // writeInstructionsFile brings AGENTS.md at the repository root up to date and
 // reports the path and what it did. A file that is not there is created.
-func writeInstructionsFile(root string) (string, instructionsAction, error) {
+func writeInstructionsFile(root, block string) (string, instructionsAction, error) {
 	path := filepath.Join(root, instructionsFile)
 
 	existing, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		if err := os.WriteFile(path, []byte(appendBlock("", instructionsText)), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(appendBlock("", block)), 0o644); err != nil {
 			return "", "", err
 		}
 		return path, instructionsWrote, nil
@@ -205,7 +245,7 @@ func writeInstructionsFile(root string) (string, instructionsAction, error) {
 		return "", "", err
 	}
 
-	next, action, err := spliceInstructions(string(existing), instructionsText)
+	next, action, err := spliceInstructions(string(existing), block)
 	if err != nil {
 		return "", "", err
 	}

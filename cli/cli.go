@@ -173,7 +173,7 @@ func commands() []command {
 		{"schema", "print the values and codes this binary enforces", "", runSchema},
 		{"config", "print what this store configured, including the allowlists", "", runConfig},
 		{"series", "list the ID prefixes this store uses, or declare one", "[add NAME | remove NAME]", runSeries},
-		{"instructions", "print the agent workflow block for an AGENTS.md", "[--write]", runInstructions},
+		{"instructions", "how to work a ticket store, for an agent; --write installs a summary in AGENTS.md", "[--write] [--core] [--full]", runInstructions},
 		{"completion", "print a shell completion script", "SHELL [--install]", runCompletion},
 		{"self-update", "replace this binary with the latest release", "[--check | --dry-run]", runSelfUpdate},
 		{"install-merge-driver", "configure this binary as Git's merge driver for ticket files", "", runInstallMergeDriver},

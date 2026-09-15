@@ -58,7 +58,21 @@ func codeSpans(s string) []string {
 // `git ticket files ID --add PATH`, inventing a mutation for what is a query
 // from a path back to the tickets that reference it. A version of this test
 // that checked only the command name passed, because `files` is a real command.
+// instructionsForms is every text this binary ships. Both are installed prose
+// that tells an agent what to type, so both are held to the same checks: the
+// core is what lands in AGENTS.md and the full text is what the command prints,
+// and a wrong command in either one misleads a reader the same way.
+func instructionsForms() map[string]string {
+	return map[string]string{"core": instructionsCore, "full": instructionsText}
+}
+
 func TestInstructionsNameRealCommands(t *testing.T) {
+	for form, text := range instructionsForms() {
+		t.Run(form, func(t *testing.T) { checkNamesRealCommands(t, text) })
+	}
+}
+
+func checkNamesRealCommands(t *testing.T, instructionsText string) {
 	// help is dispatched in Run before the command table, so it is a real
 	// invocation that commands() does not list.
 	known := map[string]bool{"help": true}
@@ -111,6 +125,12 @@ func TestInstructionsNameRealCommands(t *testing.T) {
 // wrong, so the block told an agent to run a sequence that fails on its first
 // step. This runs the sequence.
 func TestInstructionsWorkflowRuns(t *testing.T) {
+	for form, text := range instructionsForms() {
+		t.Run(form, func(t *testing.T) { checkWorkflowRuns(t, text) })
+	}
+}
+
+func checkWorkflowRuns(t *testing.T, instructionsText string) {
 	dir := newGitStore(t)
 	const actor = "agent:test/session"
 	id := ticketID(t, createTicket(t, dir))
@@ -184,7 +204,7 @@ func TestInitWritesInstructionsOnlyWhenAsked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the written file: %v", err)
 	}
-	if string(body) != instructionsText {
+	if string(body) != instructionsCore {
 		t.Error("the written file is not the block instructions prints")
 	}
 	if !strings.Contains(got.stdout, instructionsFile) {
@@ -278,7 +298,7 @@ func TestWriteRefreshesTheBlockInPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := prefix + strings.TrimRight(instructionsText, "\n") + suffix
+	want := prefix + strings.TrimRight(instructionsCore, "\n") + suffix
 	if string(body) != want {
 		t.Errorf("the refresh did not land exactly:\n--- got ---\n%s\n--- want ---\n%s", body, want)
 	}
@@ -307,7 +327,7 @@ func TestWriteAppendsWhenThereAreNoMarkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := mine + "\n" + instructionsText; string(body) != want {
+	if want := mine + "\n" + instructionsCore; string(body) != want {
 		t.Errorf("append did not land exactly:\n--- got ---\n%s", body)
 	}
 
@@ -339,7 +359,7 @@ func TestWriteChangesNothingWhenItIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(first) != instructionsText {
+	if string(first) != instructionsCore {
 		t.Error("a created file is not the block instructions prints")
 	}
 
@@ -436,5 +456,135 @@ func TestInstructionsTakesNoArguments(t *testing.T) {
 	}
 	if code := errCode(t, got); code != codeUsage {
 		t.Errorf("code = %v, want %s", code, codeUsage)
+	}
+}
+
+// TestWriteInstallsTheShortForm is the split itself.
+//
+// The written block is loaded in every session of every project that adopts this
+// tool, and the printed one is read on demand, so the file gets the summary and
+// the command gives the argument. Without this the two could drift back into one
+// text and nobody would notice until a consumer's context bill did.
+func TestWriteInstallsTheShortForm(t *testing.T) {
+	dir := t.TempDir()
+	if got := runCLI(t, dir, nil, "instructions", "--write"); got.code != exitOK {
+		t.Fatalf("instructions --write: %s%s", got.stdout, got.stderr)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, instructionsFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Exactly the core, not merely containing it. A --write that quietly installed
+	// the long form would still contain the short one's sentences.
+	if string(body) != instructionsCore {
+		t.Errorf("--write installed %d bytes; the core is %d", len(body), len(instructionsCore))
+	}
+
+	if len(instructionsCore) >= len(instructionsText) {
+		t.Errorf("the core is %d bytes and the full text %d; the point of the split is that the file gets the smaller one",
+			len(instructionsCore), len(instructionsText))
+	}
+	// Both are refreshable in place, so both carry the markers a later --write
+	// looks for. A block pasted from either has to be findable again.
+	for form, text := range instructionsForms() {
+		for _, marker := range []string{instructionsBegin, instructionsEnd} {
+			if !strings.Contains(text, marker) {
+				t.Errorf("the %s form does not carry %s, so --write could not refresh it", form, marker)
+			}
+		}
+	}
+}
+
+// TestTheCoreNamesTheLongForm keeps the summary from being a dead end. A reader
+// who only ever sees what AGENTS.md carries needs a way to reach the reasoning,
+// and the command that prints it is the only route.
+func TestTheCoreNamesTheLongForm(t *testing.T) {
+	if !strings.Contains(instructionsCore, "git ticket instructions") {
+		t.Error("the core does not name the command that prints the long form")
+	}
+	if !strings.Contains(instructionsText, "--core") {
+		t.Error("the long form does not name the short one, so a reader cannot tell which they have")
+	}
+}
+
+// TestInstructionsFormsAreSelectable covers the three ways to ask for a text and
+// the refusal when a caller asks for two.
+func TestInstructionsFormsAreSelectable(t *testing.T) {
+	dir := t.TempDir()
+	full := runCLI(t, dir, nil, "instructions")
+	if full.stdout != instructionsText {
+		t.Error("instructions with no flag should print the long form")
+	}
+	core := runCLI(t, dir, nil, "instructions", "--core")
+	if core.stdout != instructionsCore {
+		t.Error("instructions --core should print the short form")
+	}
+	if both := runCLI(t, dir, nil, "instructions", "--core", "--full"); both.code == exitOK {
+		t.Error("--core with --full should be refused rather than one of them winning")
+	}
+}
+
+// TestWriteFullIsStillAvailable keeps the old behaviour reachable. Every store
+// written before the split carries the long form, and taking away the ability to
+// keep it that way would be a break rather than an improvement.
+func TestWriteFullIsStillAvailable(t *testing.T) {
+	dir := t.TempDir()
+	if got := runCLI(t, dir, nil, "instructions", "--write", "--full"); got.code != exitOK {
+		t.Fatalf("instructions --write --full: %s%s", got.stdout, got.stderr)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, instructionsFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), strings.TrimRight(instructionsText, "\n")) {
+		t.Error("--write --full did not install the long form")
+	}
+}
+
+// TestInitPointsAtTheBlock is the discovery half. Nothing else advertises that
+// the block exists, and init is the one moment somebody is certainly setting the
+// store up.
+func TestInitPointsAtTheBlock(t *testing.T) {
+	dir := t.TempDir()
+	got := runCLI(t, dir, nil, "init", "--actor", "human:sothr")
+	if got.code != exitOK {
+		t.Fatalf("init: %s%s", got.stdout, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "git ticket instructions") {
+		t.Errorf("init does not say the workflow block exists:\n%s", got.stdout)
+	}
+	// And it still writes nothing it was not asked to write, so the pointer is
+	// a sentence rather than a decision taken on the reader's behalf.
+	if _, err := os.Stat(filepath.Join(dir, instructionsFile)); err == nil {
+		t.Error("init wrote AGENTS.md without --instructions")
+	}
+}
+
+// TestTheSearchSentenceSaysSubstring guards the one error the audit found, which
+// TestInstructionsNameRealCommands is structurally unable to catch: that test
+// asks whether every command and flag named is real, and `search` is real, so
+// prose calling it a pattern match passed while being wrong.
+//
+// The failure it caused is the expensive kind. A regular expression typed
+// without `--regex` matches nothing and exits 0, which reads exactly like a
+// store that does not hold the ticket, so the reader concludes the work is not
+// filed and files it again.
+//
+// The check is deliberately narrow. It does not try to verify prose against
+// behaviour in general; it pins the one sentence that was wrong, by requiring
+// that wherever a form introduces `search`, it says which match it does.
+func TestTheSearchSentenceSaysSubstring(t *testing.T) {
+	for form, text := range instructionsForms() {
+		for _, para := range strings.Split(text, "\n\n") {
+			if !strings.Contains(para, "git ticket search") {
+				continue
+			}
+			if !strings.Contains(para, "substring") {
+				t.Errorf("the %s form introduces search without saying it matches a substring:\n%s", form, para)
+			}
+			if strings.Contains(para, "regular expression") && !strings.Contains(para, "--regex") {
+				t.Errorf("the %s form calls search a regular expression without naming the flag that makes it one:\n%s", form, para)
+			}
+		}
 	}
 }

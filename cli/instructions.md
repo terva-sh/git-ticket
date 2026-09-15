@@ -5,17 +5,21 @@
 Work is tracked as Markdown tickets in `.tickets/`, managed with `git ticket`.
 Run `git ticket help` for the full command list.
 
+This is the long form. `git ticket instructions --core` is the summary that
+`--write` installs in AGENTS.md, and it carries the rules without the reasons
+below. If you arrived here from that summary, this is the argument behind it.
+
 Every write records who made it, and `--actor` is how you say. Name yourself on
 every command that writes, as `agent:tool/session`:
 
 ```sh
-git ticket note TKT-01M1PQ7T "..." --actor agent:terva/mieli
+git ticket note TKT-01M1PQ7T "..." --actor agent:yourtool/session-3
 ```
 
 With no `--actor` the store falls back to the first actor in `config.yml`, which
 is usually a person. Your notes then arrive signed with their name, and your
 claim tells every other agent that a human is holding the ticket. Nothing
-downstream repairs it: a commit carries the committer's Git identity while an
+downstream repairs it. A commit carries the committer's Git identity while an
 actor is a session, so committing collapses every agent that touched the store
 into whoever ran `git commit`.
 
@@ -30,8 +34,14 @@ not pick.
 
 `git ticket ready` lists what is open, unblocked, and has every dependency
 closed. That is the queue. `git ticket list --status in-progress` shows what is
-already underway, and `git ticket search PATTERN` takes a regular expression
-over the title and body when you only roughly know what you are after.
+already underway, and `git ticket search QUERY` matches a substring of the
+title, the body sections, and the references when you only roughly know what you
+are after.
+
+`search` is a substring match and not a pattern one. `--regex` is what makes it a
+pattern, and the difference matters because the failure is silent. A regular
+expression typed without the flag matches nothing, exits 0, and reads exactly
+like a store that does not hold the ticket.
 
 `git ticket list` answers with open work: every status except `done` and
 `archived`. Naming a status brings it back, so `git ticket list --status done`
@@ -51,8 +61,14 @@ so an agent that promotes its own next ticket has appointed itself.
 
 Read the whole ticket with `git ticket show ID` before you start, including its
 acceptance criteria and its dependencies. `show` is also how you read the
-criteria at all: `git ticket ac ID` with no flag is a refusal rather than a
-listing.
+criteria at all, because `git ticket ac ID` with no flag is a refusal rather
+than a listing.
+
+`show` prints the most recent note in full and replaces the earlier ones with a
+line naming how many there are and how to read them, so opening a worked ticket
+costs its current state rather than its whole history. On the `note` command,
+`--list` is the index and `--show N`, `--show N-M` or `--show all` prints the
+text. Nothing is deleted, and `show --json` still carries `body.notes` whole.
 
 Anywhere an ID is taken, a unique prefix works, with or without the `TKT-` part,
 down to four characters. Do not shorten one yourself. A ULID opens with about
@@ -68,9 +84,9 @@ complete as they were, and nothing derives it from Git history.
 ### Doing the work
 
 Work starts from a ticket that is `ready`, and a draft cannot be claimed. If you
-were asked to pick up something still in `draft`, that request is the promotion:
-run `git ticket status ID ready` first and carry on. One you took off the queue
-is already there.
+were asked to pick up something still in `draft`, that request is the promotion,
+so run `git ticket status ID ready` first and carry on. A ticket you took off
+the queue is already `ready` and needs no such step.
 
 Then `git ticket claim ID`, and `git ticket status ID in-progress`. A claim
 records who is working, on which branch, from which commit. It is advisory and
@@ -101,8 +117,8 @@ Finish with `git ticket summary ID "..."` saying where it landed, then
 `git ticket status ID done` and `git ticket release ID`.
 
 `note` appends and `summary` replaces, as `plan` does. So a summary is rewritten
-by setting it again, while a note you got wrong stays where it is: correct it by
-adding another that says which one it supersedes.
+by setting it again, while a note you got wrong stays where it is. Correct it
+by adding another that says which one it supersedes.
 
 If you cannot proceed, `git ticket status ID blocked --reason "..."`. The
 reason is required, because a blocked ticket that does not say why tells the
@@ -110,14 +126,18 @@ next person nothing.
 
 ### When the store check fails
 
-CI verifies the store with `git ticket check --fix --dry-run --strict`. That
-plans every repair, prints what it would do, writes nothing, and exits 1 when
-one is pending. A ticket under the wrong filename, a ticket in the directory its
-status does not imply, and a stale `.tickets/epics.md` all land there.
+`git ticket check --fix --dry-run --strict` plans every repair, prints what it
+would do, writes nothing, and exits 1 when one is pending. A ticket under the
+wrong filename, a ticket in the directory its status does not imply, and a stale
+`.tickets/epics.md` all land there.
 
-Run `git ticket check --fix` and commit what it changed. CI reports the repair
-and never commits it for you, the same way it reports unformatted code rather
-than reformatting it behind your back.
+Run `git ticket check --fix` and commit what it changed.
+
+Many projects run that verify command in CI, and this one may or may not. Where
+it runs, it reports the repair and does not commit it for you, on the same
+principle that reports unformatted code rather than reformatting it behind your
+back. Where it does not, running the check yourself before you commit is what
+keeps the store clean.
 
 ### Filing new work
 
@@ -144,17 +164,11 @@ intend. The command warns on stderr when it sees one, and the write still
 happens, so read the warning rather than the exit status.
 
 One exception, and it runs the other way. If the subheading names a section the
-format owns, `### Acceptance criteria` is prose no command can reach: `ac` will
-tell you the section has 0 items, while `show` prints your boxes and `check`
-calls the store clean. Use `--ac` and `--dod` to file those, or write them as
+format owns, `### Acceptance criteria` is prose no command can reach. `ac` tells
+you the section has 0 items, while `show` prints your boxes and `check` calls
+the store clean. Use `--ac` and `--dod` to file those, or write them as
 `## `, which opens the real section. `check` reports the mistake as
 `section_heading_demoted`, and `--strict` fails on it.
-
-`show` prints the most recent note in full and replaces the earlier ones with a
-line naming how many there are and how to read them, so opening a worked ticket
-costs its current state rather than its whole history. `git ticket note ID
---list` is the index, and `--show N`, `--show N-M` or `--show all` prints the
-text. Nothing is deleted and `show --json` still carries `body.notes` whole.
 
 When you file one wrong, `git ticket remove ID` deletes it and you file it
 again. Repairing it in place does not work, because `update --description`
@@ -199,7 +213,7 @@ the rest, so git's own tool composes in:
 
 ```sh
 git ticket export TKT-01M1PQ7T --out ./handoff
-git format-patch --start-number 2 -o ./handoff main..fix
+git format-patch --start-number 2 -o ./handoff main..BRANCH
 ```
 
 Read the warnings export prints. A parent or dependency naming a ticket the
@@ -226,7 +240,7 @@ rather than taking in somebody else's. The ticks then travel, a ticket that was
 `done` or `archived` arrives that way, the ticket keeps the instant it was filed,
 and a parent left behind is kept as an `origin-parent:` reference. Your
 allowlists still apply, so an undeclared label or milestone is dropped and named
-exactly as before. Nothing writes the sending store: the command prints the
+exactly as before. Nothing writes the sending store. The command prints the
 `summary` and `status` commands that close the origin, and you run those there.
 
 ### Naming a ticket in what you write
@@ -234,7 +248,7 @@ exactly as before. Nothing writes the sending store: the command prints the
 When you mention a ticket in prose, put its title beside the ID the first time:
 
 ```text
-TKT-01M1PQ7T (Build git ticket remove, per plan 9.1)
+TKT-01M1PQ7T (Delete a ticket filed by mistake)
 ```
 
 After that, in the same summary or comment or commit message, the bare ID is

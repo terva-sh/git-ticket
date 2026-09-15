@@ -2258,7 +2258,8 @@ depend on where it ran. `config`, in 10.6, is where they live.
 
 ### 10.5 The instructions kind
 
-`instructions` carries the agent workflow block of 12.1 as one string:
+`instructions` carries the agent workflow block of 12.1 as one string, in
+whichever form the flags selected:
 
 ```json
 { "schemaVersion": 1, "kind": "instructions", "text": "<!-- git-ticket:begin -->\n\n## Tickets\n\n…" }
@@ -2269,6 +2270,10 @@ structure a consumer would want to walk. `text` carries the markers of 12.1,
 because what a consumer pastes has to be what a later `--write` can find again.
 In human mode the command prints the Markdown alone, so it can be redirected or
 read.
+
+The envelope does not say which form it holds. A consumer that wanted the short
+one asked for it, and a field naming the answer to a question the caller already
+decided is a field that goes stale the first time the forms are renamed.
 
 `--write` puts it in `AGENTS.md` instead, per 12.1, and reports what it did as a
 `mutation-result` whose `pathsChanged` is empty when the file was already
@@ -2731,7 +2736,7 @@ git ticket remove ID [--force]   # delete a ticket filed by mistake, per 9.1
 git ticket export ID... [--out DIR]   # hand tickets to another store as patches, per 12.8
 git ticket import DIR [--adopt] [--same-owner] [--from-store NAME]   # file what an export carries, per 12.8
 git ticket migrate [--to N] [--dry-run]
-git ticket instructions [--write]
+git ticket instructions [--write] [--core] [--full]
 git ticket schema
 git ticket config   # what this store configured, including the allowlists
 git ticket series [add NAME | remove NAME]   # the ID prefixes this store uses, per 5.6
@@ -2837,6 +2842,36 @@ claim it, record what it learned, and finish, and it names only commands this
 binary has. A test holds it to that, because prose that tells a reader to run
 something that does not exist is worse than no prose.
 
+The block has two forms, and they exist because the two readers of it are not
+the same reader. The written block is loaded in every session of every project
+that adopts this tool, which makes it the largest standing context cost this
+tool imposes. Most of its words are the reason behind a rule rather than the
+rule. An agent needs the rule every session and the reason only when a rule
+surprises it, so the short form goes in the file and the argument stays one
+command away. That is the split `show` makes for note history in 12.9, for the
+same reason and against the same cost.
+
+The short form carries every rule and the whole sequence in the order it is
+worked. It drops the argument, not a step, because a summary that leaves out a
+command leaves an agent doing that step wrong rather than doing it uninformed.
+It names `git ticket instructions` in its second paragraph, so an agent reading
+the file can reach the long form without being told it exists by anyone. A
+summary nobody can get behind is worse than the volume it replaced.
+
+Printing and writing default to different forms because the callers want
+different things. Somebody who types the command is asking how to work here and
+wants the reasoning, so a bare `instructions` prints the long form. A setup step
+is filling a file that is read in every session afterwards and wants it short,
+so `--write` installs the short one. `--core` and `--full` override either
+default, and passing both is a usage error rather than a silent precedence rule,
+because the caller who typed both did not mean either.
+
+Three things point an agent at the command, since a form nobody finds is a form
+nobody reads. `init` names it in the sentence it prints when it was not asked to
+write the file. The short form names it in its own text. Its help line says what
+`--write` installs, so the difference between the two forms is visible from
+`git ticket help` without running anything.
+
 It opens by telling an agent to pass `--actor` on every write, as
 `agent:tool/session`. That is the block's first instruction because it is the
 one whose absence is silent: with no flag the store falls back to the first
@@ -2878,9 +2913,11 @@ every way it leaves the binary carries them: stdout, the `instructions` kind of
 reason. An HTML comment is the form because it renders as nothing, so it does
 not clutter a file a person reads and edits.
 
-`instructions --write` puts the block in `AGENTS.md` at the repository root, or
-in the working directory when there is no repository, since the command answers
-anywhere. What it does depends on what it finds:
+`instructions --write` puts the short form in `AGENTS.md` at the repository
+root, or in the working directory when there is no repository, since the command
+answers anywhere. `--write --full` installs the long form instead, for a project
+that would rather pay the words than the lookup. What it does depends on what it
+finds:
 
 | The file | What happens |
 |---|---|

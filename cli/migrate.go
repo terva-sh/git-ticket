@@ -101,9 +101,20 @@ func plural(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
-func were(n int) string {
+// verb agrees a finite verb with a count, for a sentence whose subject is that
+// count. A line built from plural() reads "1 ticket already use" without it,
+// because the sentence was written against the plural and the singular case is
+// the one nobody looks at.
+func verb(n int, one, many string) string {
 	if n == 1 {
-		return "was"
+		return one
 	}
-	return "were"
+	return many
+}
+
+// were is the was/were case, kept as its own name because a call site reading
+// were(n) says what it means where verb(n, "was", "were") makes the reader
+// assemble it.
+func were(n int) string {
+	return verb(n, "was", "were")
 }

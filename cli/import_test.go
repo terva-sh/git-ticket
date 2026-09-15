@@ -927,3 +927,41 @@ func slicesContains(haystack []string, needle string) bool {
 	}
 	return false
 }
+
+// TestTheSharedSeriesLineAgreesInNumber covers the count of one, which is the
+// case that was wrong. The sentence was written against the plural, so two and
+// above always read correctly and nothing looked at one.
+//
+// It is cosmetic, but the line is advice about which of two routes to take, and
+// a reader deciding whether to trust that advice reads the sentence carefully.
+func TestTheSharedSeriesLineAgreesInNumber(t *testing.T) {
+	src, first := newExportSource(t, "The first TKT ticket")
+
+	for _, want := range []struct {
+		count int
+		line  string
+	}{
+		{1, "1 ticket already uses a series"},
+		{2, "2 tickets already use a series"},
+	} {
+		ids := []string{first}
+		if want.count == 2 {
+			second := crossCreate(t, src, "The second TKT ticket", "human:sothr")
+			exportGit(t, src, "add", "-A")
+			exportGit(t, src, "commit", "-qm", "second")
+			ids = append(ids, second)
+		}
+
+		dir := filepath.Join(t.TempDir(), "out")
+		if got := runCLI(t, src, nil, append(append([]string{"export"}, ids...), "--out", dir)...); got.code != exitOK {
+			t.Fatalf("export of %d: %s%s", want.count, got.stdout, got.stderr)
+		}
+		preview := runCLI(t, newGitStore(t), nil, "import", dir)
+		if preview.code != exitOK {
+			t.Fatalf("preview of %d: %s%s", want.count, preview.stdout, preview.stderr)
+		}
+		if !strings.Contains(preview.stdout, want.line) {
+			t.Errorf("preview of %d tickets does not say %q:\n%s", want.count, want.line, preview.stdout)
+		}
+	}
+}

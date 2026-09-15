@@ -1,8 +1,8 @@
 ---
 schema: 2
 id: TKT-01M1W3TM8BBJRSRC17WPFMDXXS
-title: Split the agent instruction block into named guides
-type: task
+title: Decide whether the block splits further than its two forms
+type: spike
 status: draft
 status_reason: null
 priority: normal
@@ -18,58 +18,77 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-06T19:41:19Z
-updated_at: 2026-09-06T19:41:19Z
+updated_at: 2026-09-15T05:00:37Z
 created_by:
   id: agent:terva/mieli
   name: ""
 updated_by:
-  id: agent:terva/mieli
+  id: agent:terva/import-preview-number
   name: ""
 extensions: {}
 ---
 
 ## Description
 
-Split the agent instruction block into named guides, from section D of
-`docs/review-backlog-md.md`.
+Decide whether the block is worth splitting further than the two forms it now
+has, from section D of `docs/review-backlog-md.md`.
 
-Backlog.md splits its instructions into `overview`, `task-creation`,
-`task-execution`, and `task-finalization`, and the block it writes into
-`AGENTS.md` says only to run `backlog instructions overview`. So the part
-that sits in every agent's context is short, and the detail is fetched when
-the agent is about to do that particular thing.
+This was filed as a task to split the block into named guides, on the Backlog.md
+model of `overview`, `task-creation`, `task-execution` and `task-finalization`,
+where `AGENTS.md` carries only a pointer at `backlog instructions overview` and
+each phase is fetched when the agent is about to do that phase.
 
-Ours is one piece. `cli/instructions.md` is embedded with `go:embed` and
-printed whole by `git ticket instructions`. It is already long enough that
-`TestInstructionsWorkflowRuns` has to execute the sequence it prints, in
-order, against a real store, to catch an ordering that reads fine and cannot
-run. That test exists because the block once said to claim before ready, and
-a draft cannot be claimed.
+### What TKT-01M2HMZ308RYY9ZXXMJS738S48 already took
 
-The win is the always-loaded part getting smaller. The cost is that the two
-tests holding the block honest were written for one document.
-`TestInstructionsNameRealCommands` checks every command and flag the prose
-names against what the binary has, and `TestInstructionsWorkflowRuns` runs
-the sequence. Splitting means deciding whether each guide runs on its own,
-which loses the cross-guide ordering that test was written to catch, or
-whether the suite stitches them back into one sequence and runs that.
+The win this ticket named was the always-loaded part getting smaller, and that
+has happened. `instructions --write` now installs a 951-word short form instead
+of the 2,473-word long one, and the long one stays behind a bare
+`git ticket instructions`, which the short form names in its second paragraph.
 
-This is an idea lift and not a code lift, so under the ruling on this work it
-takes a NOTICE entry and no file header.
+Four of the five acceptance criteria this ticket carried are satisfied by that
+work: the written block is shorter and points at the command that prints the
+rest, `TestInstructionsNameRealCommands` and `TestInstructionsWorkflowRuns` are
+table-driven over both forms, and the vocabulary question is moot because
+neither form is named after a phase.
 
-Worth settling before building: whether the guide names are theirs or ours.
-Taking `task-creation` verbatim imports a vocabulary where the noun is task
-and ours is ticket, and this project's convention is that names are singular
-and the codebase is the word list.
+The cost this ticket worried about did not arrive. Splitting one document into
+several was going to make the ordering test either run each guide alone, losing
+the cross-guide sequence, or stitch them back together. Two forms of the whole
+sequence sidestep that: each runs end to end on its own.
+
+### What is actually still open
+
+Only whether to subdivide further, into per-phase guides, now that the cheap
+half of the win is taken. The remaining case for it is narrow. An agent filing a
+ticket loads the sections on doing and finishing work it will not use in that
+turn, and per-phase guides would cut that too.
+
+The case against is that the short form is already 951 words, so the saving is a
+few hundred at best, and it is bought with a real cost: the reader has to know
+which phase they are in before they can fetch the right guide, and an agent that
+guesses wrong reads the wrong rules. The two-form split has no such failure,
+because both forms carry the whole sequence.
+
+Settle it with a measurement rather than a preference. If the per-phase saving
+is under roughly 300 words against the current short form, the lookup is not
+worth it and this closes as declined.
 
 ## Acceptance criteria
 
-- [ ] Named guides can each be printed on their own
-- [ ] The block written into AGENTS.md is shorter than today's and points at the guides
-- [ ] TestInstructionsNameRealCommands still holds across every guide
-- [ ] The cross-guide ordering TestInstructionsWorkflowRuns was written to catch is still covered
-- [ ] Guide names use this project's vocabulary, ticket rather than task
+- [ ] The per-phase saving against the current 951-word short form is measured, not estimated
+- [ ] The decision is recorded in plan section 15 with a reopen trigger, whichever way it goes
+- [ ] If declined, plan 12.1 says why, so the next reader of the Backlog.md review does not refile it
 
 ## Definition of done
 
 - [ ] NOTICE credits Backlog.md for the idea, with no file header because no code was adapted
+
+## Notes
+
+**agent:terva/import-preview-number** at 2026-09-15T05:00:22Z
+
+Rewritten from a task into a spike because TKT-01M2HMZ308RYY9ZXXMJS738S48 took the win it was filed for. Its original acceptance criteria are left in place and unticked rather than removed: four of the five are satisfied, but by different work than this ticket proposed, and ticking them here would claim this ticket did it.
+
+**agent:terva/import-preview-number** at 2026-09-15T05:00:37Z
+
+Supersedes the previous note on this ticket, which said the original acceptance criteria were left in place. They are not; they described building named guides, which is the thing this ticket no longer proposes doing. A spike whose criteria describe an implementation reads as work somebody abandoned. Replaced with the three that describe settling the question.

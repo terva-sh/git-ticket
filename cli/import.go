@@ -199,8 +199,8 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 	// something only you know: the series cannot say, because TKT is the default
 	// every store has and two strangers share it by default.
 	if shared > 0 {
-		fmt.Fprintf(ctx.out, "\n%s already use a series this store declares. If this export is your own\nproject's work, `git am %s` keeps the original IDs and is the better route.\nIf it came from elsewhere, --adopt is correct even though the series matches.\n",
-			plural(shared, "ticket"), filepath.Join(dir, "*.patch"))
+		fmt.Fprintf(ctx.out, "\n%s already %s a series this store declares. If this export is your own\nproject's work, `git am %s` keeps the original IDs and is the better route.\nIf it came from elsewhere, --adopt is correct even though the series matches.\n",
+			plural(shared, "ticket"), verb(shared, "uses", "use"), filepath.Join(dir, "*.patch"))
 	}
 	if extra := importOtherPatches(dir); len(extra) > 0 {
 		fmt.Fprintf(ctx.env.Stderr, "%s also carries %s of code, which import does not apply: git am %s\n",

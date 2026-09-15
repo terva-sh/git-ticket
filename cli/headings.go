@@ -36,6 +36,23 @@ func warnSectionHeadings(w io.Writer, source, text string) {
 	if len(headings) == 0 {
 		return
 	}
+	// A heading naming a section the format owns is the one case where "### "
+	// is the wrong advice, and following it is how a ticket ends up with
+	// criteria no mutation can reach. "## Acceptance criteria" opens the real
+	// section and its items tick; "### Acceptance criteria" is prose that
+	// renders identically and cannot. So say what happened instead of proposing
+	// a fix for something that is not broken.
+	//
+	// Only when it is the sole heading. With several, the text is being split
+	// more ways than this sentence can describe, and the general warning below
+	// is the honest one.
+	if len(headings) == 1 && ticket.IsSectionName(headings[0]) {
+		fmt.Fprintf(w, "git-ticket: note: the text for %s contains %q, which opened the real %s section.\n",
+			source, "## "+headings[0], headings[0])
+		fmt.Fprintf(w, "  Its content is live there rather than in the text you passed. Do not write %q, which would be prose no mutation reaches.\n",
+			"### "+headings[0])
+		return
+	}
 	// The first one is where the section actually ends, so it is the one worth
 	// naming. Counting the rest says how much went with it without printing a
 	// list nobody reads.

@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "section_heading_demoted",
+      "file": "tickets/TKT-01M2HG789NRX5R6VTM3TX40AHS.md",
+      "ticket": "TKT-01M2HG789NRX5R6VTM3TX40AHS",
+      "field": "Description"
+    }
+  ]
+}

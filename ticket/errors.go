@@ -56,6 +56,7 @@ const (
 	CodeEpicsIndexStale              = "epics_index_stale"
 	CodeMigrationIncomplete          = "migration_incomplete"
 	CodeOriginMissing                = "origin_missing"
+	CodeSectionHeadingDemoted        = "section_heading_demoted"
 )
 
 // OperationCodes lists every code an operation can fail with, per plan section
@@ -95,6 +96,7 @@ var CheckWarningCodes = []string{
 	CodeMilestoneUnknown,
 	CodeInProgressUnclaimed, CodeBlocksOnNoChildren, CodeTitleLong,
 	CodeEpicsIndexStale, CodeMigrationIncomplete,
+	CodeSectionHeadingDemoted,
 }
 
 // Error is a coded failure. The code is the stable part; the message is for a

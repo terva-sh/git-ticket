@@ -2514,6 +2514,7 @@ Warnings:
 | `title_long` | `title` is longer than 72 characters, per 5.1 |
 | `epics_index_stale` | `epics.md` disagrees with the epics in the store, per section 4 |
 | `migration_incomplete` | a ticket declares a lower `schema` than `config.yml` does, so a migration is unfinished, per 12.5 |
+| `section_heading_demoted` | a body section carries a `###` sub-heading whose name is one of the sections 5.2 owns, so what reads as that section is prose no mutation can reach |
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
@@ -2525,6 +2526,37 @@ That timing is forced rather than tidy: the tables and the fixture corpus are
 one artifact, so a code in a table row with no fixture behind it fails
 `TestCorpusCoversEveryPlanCode`, and neither code has a state a store without
 series can reach. `migration_incomplete` registered the same way.
+
+`section_heading_demoted` is the one code that reads the body's prose rather than
+a field, and it is keyed on the name and never on the level. A `###` sub-heading
+is ordinary and wanted: this store alone carries 14 `### Trigger`, 8
+`### Open questions` and 7 `### Scope`, so flagging the level would be noise
+nobody could act on. What is not ordinary is a sub-heading named for a section
+5.2 already owns, because that is almost always a section somebody meant to be
+real. It renders and reviews as the section it names while `parse` sees prose, so
+a reader sees acceptance criteria, `check` calls the store clean, and the mistake
+surfaces only when somebody tries to tick one, which can be several sessions
+later.
+
+The match is exact and case-insensitive, never a prefix and never a substring.
+`### Summary at the origin` is written into the work record of every ticket
+adopted through `import --same-owner`, per 12.8, along with the notes and
+comments forms, so a substring rule would fire on three headings of this tool's
+own making on every adopted ticket. A check that arrives with a backlog it
+created itself teaches everyone to ignore it. Neither this store nor a sibling
+carries a single exact collision today, which is what lets the code ship without
+a repair queue.
+
+It is a warning rather than an error because the store is valid: nothing dangles,
+nothing fails to parse, and the file is exactly what its author wrote. What is
+wrong is that the author meant something else, which is a judgement `--strict`
+exists to make bite.
+
+There is no `--fix` for it. The repair moves items from one section into another,
+which is a rewrite of the body rather than a repair of it, and every other
+`--fix` in this tool moves or rewrites whole files. Naming the section and the
+heading is enough, because the fix a person then types is one `ac --add` per item
+or one `update --description`.
 
 `unknown_series` and `migration_incomplete` are store-scoped in the way
 `label_unknown` is: each compares a ticket to what its `config.yml` declares, so

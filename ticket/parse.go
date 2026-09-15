@@ -510,6 +510,19 @@ type fenceScanner struct{ fence string }
 // That is deliberate rather than an oversight: an indented fence still closes
 // the block it opened, and an indented "## " is not a section.
 func (f *fenceScanner) heading(line string) (string, bool) {
+	name, level := f.headingAtLevel(line)
+	return name, level == 2
+}
+
+// headingAtLevel returns the heading a line opens and its level, or level 0 for
+// a line that opens none. It advances the fence state exactly once per call, so
+// a caller interested in two levels must ask this rather than call heading
+// twice: the second call would see the fence state the first one already moved.
+//
+// Only levels 2 and 3 are reported. A section is "## " and the sub-heading a
+// person reaches for when they want a heading inside one is "### ", and no
+// caller has a use for the deeper ones.
+func (f *fenceScanner) headingAtLevel(line string) (string, int) {
 	trimmed := strings.TrimSpace(line)
 	switch {
 	case f.fence != "":
@@ -521,10 +534,52 @@ func (f *fenceScanner) heading(line string) (string, bool) {
 	case strings.HasPrefix(trimmed, "~~~"):
 		f.fence = "~~~"
 	}
-	if f.fence == "" && strings.HasPrefix(line, "## ") {
-		return strings.TrimSpace(line[3:]), true
+	if f.fence != "" {
+		return "", 0
 	}
-	return "", false
+	// Order matters: "### " is tested first because the "## " test would not
+	// match it anyway, and stating that here is cheaper than the next reader
+	// working out why. The trailing space is what separates the two levels.
+	if strings.HasPrefix(line, "### ") {
+		return strings.TrimSpace(line[4:]), 3
+	}
+	if strings.HasPrefix(line, "## ") {
+		return strings.TrimSpace(line[3:]), 2
+	}
+	return "", 0
+}
+
+// SubSectionHeadings returns the "### " headings in text, in order, skipping any
+// inside a fenced code block.
+//
+// It reads through the same fenceScanner parseBody uses, so a heading this
+// reports and a heading the parser ignores can never disagree about what a fence
+// covers.
+func SubSectionHeadings(text string) []string {
+	var out []string
+	var fs fenceScanner
+	for _, line := range strings.Split(text, "\n") {
+		if name, level := fs.headingAtLevel(line); level == 3 {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// IsSectionName reports whether name is one of the body sections 5.2 owns,
+// compared case-insensitively and in full.
+//
+// Full and never a prefix. `import --same-owner` writes "Summary at the origin"
+// and its notes and comments forms into an adopted ticket's work record, per
+// 12.8, so a prefix test would call three headings of this tool's own making a
+// defect on every adopted ticket.
+func IsSectionName(name string) bool {
+	for _, s := range knownSections {
+		if strings.EqualFold(strings.TrimSpace(name), s) {
+			return true
+		}
+	}
+	return false
 }
 
 // SectionHeadings returns the headings parseBody would find in text, in the

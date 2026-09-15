@@ -143,6 +143,13 @@ section and starts a new one, so everything below it lands somewhere you did not
 intend. The command warns on stderr when it sees one, and the write still
 happens, so read the warning rather than the exit status.
 
+One exception, and it runs the other way. If the subheading names a section the
+format owns, `### Acceptance criteria` is prose no command can reach: `ac` will
+tell you the section has 0 items, while `show` prints your boxes and `check`
+calls the store clean. Use `--ac` and `--dod` to file those, or write them as
+`## `, which opens the real section. `check` reports the mistake as
+`section_heading_demoted`, and `--strict` fails on it.
+
 When you file one wrong, `git ticket remove ID` deletes it and you file it
 again. Repairing it in place does not work, because `update --description`
 replaces the description alone and the stray sections survive. `remove` refuses

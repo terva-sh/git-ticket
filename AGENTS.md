@@ -1178,6 +1178,23 @@ after it in `body.extra`. Write `###` instead: the prefix test carries the
 trailing space, so three hashes do not match. A `## ` inside a fenced code block
 is already safe, because `parseBody` tracks fences.
 
+That advice has one exception, and until v0.19.0 this file and the CLI both gave
+it without the exception, which is how a ticket ends up with criteria nobody can
+tick. If the heading names a section the format owns, `## Acceptance criteria`
+opens the real section and its items tick, while `### Acceptance criteria` is
+prose `parse` never sees. So for those seven names, Description, Implementation
+plan, Acceptance criteria, Definition of done, Notes, Comments and Summary, `##`
+is right and `###` is the trap. The CLI now says so rather than advising the
+`###`, and `check` reports the demoted form as `section_heading_demoted`.
+
+`TKT-01M2HEEX3SDTTP1Q8EH7526YK6` is the report, and what makes it worth reading
+is where the cost landed. The mistake was made in another store, passed every
+`check --fix --dry-run --strict` run in that repository's CI, was read by a
+human who had no reason to doubt it, and surfaced several sessions later when an
+agent tried to tick a box at the point of closing the ticket. A wrong
+instruction in a permanent file is the expensive kind of defect precisely
+because everything downstream of it looks correct.
+
 The CLI now warns on stderr when you do it, naming the heading it found and
 `###` as the fix. It covers every command that takes prose and every spelling
 that carries it, so `create --description` and `create --description-file` both

@@ -429,6 +429,33 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 		warns = append(warns, at(CodeMilestoneUnknown, "milestone",
 			fmt.Sprintf("%q is not in the config.yml allowlist", *t.Milestone)))
 	}
+	// See bodySections: every section is searched, including Extra, because a
+	// demoted heading is as invisible in one as in another.
+	//
+	// A "### " sub-heading named for a section 5.2 owns is almost always a
+	// section somebody meant to be real. It renders and reviews as that section
+	// while parse sees prose, so the items under it cannot be ticked, `show`
+	// prints them anyway, and nothing says so until somebody tries. One `#` is
+	// the only thing separating the two on screen.
+	//
+	// Keyed on the name and never the level, because a "### " sub-heading is
+	// ordinary and wanted: this store carries dozens that collide with nothing.
+	// Flagging the level would be noise nobody could act on, which is a check
+	// that teaches people to ignore checks.
+	//
+	// A warning rather than an error: the store is valid, nothing dangles, and
+	// the file is exactly what its author wrote. What is wrong is that the
+	// author meant something else, and --strict is where that bites.
+	for _, section := range bodySections(t.Body) {
+		for _, sub := range SubSectionHeadings(section.text) {
+			if !IsSectionName(sub) {
+				continue
+			}
+			warns = append(warns, at(CodeSectionHeadingDemoted, section.name,
+				fmt.Sprintf("%q is a sub-heading, so its content is prose no mutation reaches; %q is the real section",
+					"### "+sub, "## "+sub)))
+		}
+	}
 	// 5.1 calls a reference a typed stable identifier, and a ref with no
 	// namespace is not one: `refs jira:` cannot reach it, so it is findable
 	// only by the substring search every other piece of prose is findable by.
@@ -530,6 +557,37 @@ func cycleMembers(nodes []string, edges map[string][]string) map[string]bool {
 		if _, seen := index[n]; !seen {
 			visit(n)
 		}
+	}
+	return out
+}
+
+// bodySection pairs a section's name with its text, for a check that reads
+// prose rather than a field.
+type bodySection struct {
+	name string
+	text string
+}
+
+// bodySections lists every section of a body, including the preamble and any
+// section this version does not define.
+//
+// Extra is included deliberately. A store shared with a newer reader carries
+// sections this one does not name, per 5.4, and a heading demoted inside one of
+// those is exactly as unreachable as anywhere else. The preamble is included for
+// the same reason: a hand-edited file may carry text above the first heading.
+func bodySections(b Body) []bodySection {
+	out := []bodySection{
+		{"preamble", b.Preamble},
+		{"Description", b.Description},
+		{"Acceptance criteria", b.AcceptanceCriteria},
+		{"Definition of done", b.DefinitionOfDone},
+		{"Implementation plan", b.ImplementationPlan},
+		{"Notes", b.Notes},
+		{"Comments", b.Comments},
+		{"Summary", b.Summary},
+	}
+	for _, s := range b.Extra {
+		out = append(out, bodySection{s.Heading, s.Text})
 	}
 	return out
 }

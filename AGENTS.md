@@ -797,6 +797,10 @@ choose.
 Before filing a feature draft, check what already exists and say so in the
 description: half the filter-token ask (`status:` in the TUI filter) was
 already built, and a draft that records that is what stops a double build.
+What already exists includes what the pieces already there add up to, not only
+what is already named. A draft that says the tool cannot do something is making
+the strongest claim in the document and needs the most evidence, not the least:
+see "Saying the tool cannot do something" in Conventions before writing one.
 Then check again at build time, because the draft is not the tree: the sort
 draft predicted the vocabulary needed sharing, and SortByDueOn and
 SortByPriority already lived in the ticket package when the build arrived. A
@@ -938,6 +942,14 @@ newline on it by then, so a hand-authored document's last byte never reaches
 the wire format at all. Tracing that took one grep for the callers of
 `AddedFileHunk`. Guessing it cost a deferral pointed at the wrong ticket.
 
+That paragraph is about triggers because a trigger is where it was first paid
+for, but the rule under it is not about triggers at all: trace the mechanism
+rather than reason from the one that sounds right. It reappeared later as a
+claim that the tool could not check whether a file was committed, which is the
+same error wearing different clothes, and the generalized form is under "Saying
+the tool cannot do something" in Conventions. A lesson filed under the feature
+that taught it is a lesson the next reader does not recognize.
+
 So when a trigger appears to have fired, trace the path before acting on it,
 and say in the note whether it fired rather than assuming the arrival of the
 named event settles it. What had really changed for that ticket was the
@@ -967,15 +979,56 @@ Time-dependent behaviour uses the fixed reference instant
 `2026-09-30T00:00:00Z`. Inject it. Never read the system clock in a test.
 
 A claim about mechanism goes into a permanent file only after you ran the thing
-that would falsify it. `docs/plan.md`, this file, and a tag message all outlive
-the session that wrote them, so a wrong explanation costs a later reader more
-than no explanation would. PR #88 shipped a guess about `Origin.URL` that read
-like a finding, and #89 withdrew it. Write what you observed, or run the test
-that settles it. Your own work from an hour ago is not exempt, and it is the
-likelier trap, because you feel no need to check: a note here nearly recorded
-that the two `shortestUnique` copies were byte-identical, and one `diff`
-against `ca6d57c^` showed they differed in signature, in comment wrapping, and
-in where they declared `abbrevLen`.
+that would falsify it. `docs/plan.md`, this file, a tag message, and any ticket
+in the store all outlive the session that wrote them, so a wrong explanation
+costs a later reader more than no explanation would. PR #88 shipped a guess about
+`Origin.URL` that read like a finding, and #89 withdrew it. Write what you
+observed, or run the test that settles it. Your own work from an hour ago is not
+exempt, and it is the likelier trap, because you feel no need to check: a note
+here nearly recorded that the two `shortestUnique` copies were byte-identical,
+and one `diff` against `ca6d57c^` showed they differed in signature, in comment
+wrapping, and in where they declared `abbrevLen`.
+
+A ticket is on that list deliberately, and it was added because leaving it off
+cost something. The list used to name three files and a ticket was not among
+them, so a wrong mechanism claim went into `TKT-01M2HHTCKMN244FP2BRRSQY2PN`
+without this rule ever presenting itself as applicable. A ticket is the most
+permanent prose here rather than the least: it is what `why` searches first, it
+is read by whoever picks the work up months later, and unlike a comment it is
+never revisited by the compiler.
+
+### Saying the tool cannot do something
+
+An absence is a claim like any other, and it is the one most likely to be
+asserted after a check that felt like verification. The failure has a shape: a
+true premise and an invalid inference from it.
+
+`TKT-01M2HHTCKMN244FP2BRRSQY2PN` is the worked example. It said the tool cannot
+tell whether a note it is about to destroy has been committed, because 7.4 lists
+every git command this code may run and has no row for `status` or `diff`. The
+premise was true and was checked. The conclusion did not follow: `rev-parse` and
+`ls-tree` were already in the table, `crossbranch.go` already used both, and
+`BlobSHA` already computed git's object name locally, so comparing the blob name
+`ls-tree` reports for HEAD against `BlobSHA` of the bytes on disk answers the
+question exactly. One shell prototype over five cases showed it, and the claim
+had been written half an hour earlier by the same session that then cited it.
+
+Checking the premise is what makes this dangerous. Grepping a table is real work
+and it returns a real answer, so the inference behind it never gets examined.
+
+The test is to name the capability rather than the command. "Is this text in
+history" is a capability and `git status` is one way to get it; asking whether
+the permitted set composes into the capability is a different question from
+asking whether the obvious command is on the list, and only the first one is the
+question you actually have.
+
+Closed lists are where this happens, because they make the premise cheap to
+verify. This tree has several: the 7.4 command table, the section 11 check codes,
+`ChangeKinds()`, `sortOrders`, `knownSections`, and the `config.yml` allowlists.
+Each one answers "is X listed" instantly and none of them answers "can X be
+computed". Before writing that something is impossible, or proposing to grow one
+of these lists so that it becomes possible, compose the primitives already there
+and say in the ticket which combination you tried.
 
 ## Policy
 

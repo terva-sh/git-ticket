@@ -262,7 +262,15 @@ git ticket summary TKT-01K3ZZ2J "Widened the window and pinned the clock source"
 git ticket status TKT-01K3ZZ2J done
 git ticket archive TKT-01K3ZZ2J --reason "shipped in v1.2"
 
+git ticket note TKT-01K3ZZ2J --list      # the note history, one line each
+git ticket note TKT-01K3ZZ2J --show 2-4  # read a range of them in full
+
 git ticket remove TKT-01K3ZZ2J    # a ticket filed by mistake, before anybody worked it
+
+git ticket series add LED         # a second ID prefix this store may mint
+git ticket export TKT-01K3ZZ2J --out ./handoff   # hand tickets to another project
+git ticket import ./handoff       # preview what an export carries
+git ticket import ./handoff --adopt --same-owner # file it, keeping your own evidence
 
 git ticket check --strict         # safe in CI: offline, read-only
 git ticket check --fix            # repair the two findings that have one repair
@@ -496,7 +504,30 @@ stays.
 telling an agent how to find work, claim it, record what it learned, and finish.
 `git ticket instructions --write` puts it there for you, and
 `git ticket init --instructions` does the same for a new project. Without the
-flag, `init` writes no such file.
+flag, `init` writes no such file, though it does say the block exists.
+
+There are two forms of it, because the block written into a file is loaded in
+every session of every project that adopts this tool and most of its words are
+the reason behind a rule rather than the rule. An agent needs the rule every
+session and the reason only when a rule surprises it.
+
+```sh
+git ticket instructions          # the long form, with the reason behind each rule
+git ticket instructions --core   # the short form, which is what --write installs
+git ticket instructions --write         # install the short form
+git ticket instructions --write --full  # install the long one instead
+```
+
+Printing and writing default to different forms because the callers want
+different things. Somebody typing the command is asking how to work here and
+wants the reasoning; a setup step is filling a file read in every session
+afterwards and wants it short. `--core` and `--full` override either default,
+and passing both is refused rather than one of them winning quietly.
+
+The short form drops the argument, not a step. It carries every rule and the
+whole sequence in the order it is worked, and names `git ticket instructions` in
+its second paragraph so the reasoning is one command away from whoever is
+reading the file.
 
 The block is fenced by `<!-- git-ticket:begin -->` and `<!-- git-ticket:end -->`,
 so `--write` can replace it later and leave every other byte of your file alone.
@@ -511,6 +542,52 @@ reading of where the block ends, and guessing would delete prose you wrote.
 A test holds the block to the commands and flags this binary actually has, so it
 cannot tell you to run something that does not exist. It caught the first draft
 telling agents to run `git ticket files ID --add PATH`.
+
+`show` prints the newest note in full and replaces the older ones with a line
+naming how many there are, because a ticket worked for a week opens with its
+whole history and an agent reading it pays for all of it. Nothing is deleted:
+`note --list` is the index, `note --show N` takes one, a range like `2-4`, or
+`all`, and `show --json` still carries the notes whole.
+
+### Handing work to another project
+
+`export` writes a ticket as a git patch series, and `import` is the receiving
+half.
+
+```sh
+git ticket export TKT-01K3ZZ2J --out ./handoff
+git ticket import ./handoff                        # preview, writes nothing
+git ticket import ./handoff --adopt --from-store ledger
+```
+
+An export is two files. The cover letter reads as a report, and the patch adds
+the ticket files. A receiver who has never heard of this tool types
+`git am ./handoff/*.patch` and gets ordinary Markdown, then `git ticket init`
+adopts the directory those files landed in. If the export carries an ID prefix
+this store has never declared, `init` names it and the `git ticket series add`
+that declares it. The IDs are kept throughout, which is what that route is for.
+
+`import` exists for the case `git am` cannot serve: an export whose series this
+store does not declare, where the only repair is to file each ticket again under
+a series this store knows. It previews by default and writes only with
+`--adopt`, because an export is somebody else's content. Reconciliation drops
+what your store never agreed to, so a label or milestone your allowlist does not
+name is dropped and named rather than added quietly, and the adopted copy lands
+`check --strict` clean. A store whose allowlist is empty has expressed no
+opinion, per the advisory rule in 4.1, so it carries the sender's labels
+unchanged and `check` is content either way.
+
+Adopting unticks the acceptance criteria and lands the ticket in `draft`, which
+is right when somebody else's work arrives and wrong when you are moving your
+own ticket between your own stores. `--same-owner` says the two stores have one
+owner: the ticks travel, `done` and `archived` travel, the original `created_at`
+travels so the ticket keeps its real age, and a parent left behind is recorded
+as an `origin-parent:` reference rather than dropped. It says nothing about
+vocabulary, so labels and milestones are still reconciled exactly as before.
+
+Nothing writes the sending store. `import` prints the `summary` and `status`
+commands that close the origin and leaves you to run them there, because the
+tool will not reach into another repository on your behalf.
 
 `schema` prints what the binary enforces: the statuses, types, and priorities,
 the transition table, every error code, and every check finding paired with its

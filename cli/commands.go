@@ -122,11 +122,6 @@ func runInit(ctx *cmdContext, args []string) error {
 		root = filepath.Dir(strings.TrimRight(fromEnv, "/"))
 	}
 
-	// Whether this run adopted a directory that was already holding tickets,
-	// read before Init so the answer is about what was here rather than about
-	// what Init just created. The usual case is a fresh store and no output.
-	adopted := adoptedTickets(filepath.Join(root, ".tickets"))
-
 	// Checked before the store is made, so a refusal leaves no half-built
 	// store behind for the user to clean up.
 	if writeInstructions {
@@ -180,9 +175,7 @@ func runInit(ctx *cmdContext, args []string) error {
 		return nil
 	}
 	fmt.Fprintf(ctx.out, "Initialized a ticket store at %s\n", displayPath(s, s.Path()))
-	if adopted > 0 {
-		reportAdoption(ctx, s, adopted)
-	}
+	reportAdoption(ctx, s)
 	if writeInstructions {
 		fmt.Fprintf(ctx.out, "%s\n", instructions.sentence(displayPath(s, filepath.Join(root, instructionsFile))))
 	} else {
@@ -2351,45 +2344,31 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready tick
 	}
 }
 
-// adoptedTickets counts the ticket files already sitting in a store directory
-// that has no config.yml, which is what `git am` of an export leaves behind.
+// reportAdoption says what init found and what is left to do with it, and says
+// nothing at all for the ordinary case of a store created where there was none.
 //
-// It counts rather than reporting a boolean because the number is what the
-// person reads: it tells them whether the thing they just applied is all here.
-// Anything it cannot read is 0, since this only decides whether to print.
-func adoptedTickets(store string) int {
-	n := 0
-	for _, dir := range []string{"draft", "tickets", "done", "archive"} {
-		entries, err := os.ReadDir(filepath.Join(store, dir))
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-// reportAdoption says what init found and what is left to do with it.
+// A store this command just created holds tickets only if Init adopted them, so
+// the listing answers whether adoption happened and how much of it. An earlier
+// version stat'd the store directory before Init instead, which meant spelling
+// draft, tickets, done and archive in this file while the library keeps that
+// list to itself. One closed list in two places is a disagreement waiting to
+// happen, and this one was not buying anything.
 //
 // The series half is advice and not action. A store's series list declares what
 // this project mints, so adding one because a file arrived carrying it would
 // have init decide something that belongs to whoever owns the store. This is
 // the stance import already takes about closing the origin: name the command,
 // let the person run it.
-func reportAdoption(ctx *cmdContext, s *ticket.Store, n int) {
-	fmt.Fprintf(ctx.out, "Adopted %s already in the directory.\n", plural(n, "ticket"))
+func reportAdoption(ctx *cmdContext, s *ticket.Store) {
+	all, err := s.List(context.Background(), ticket.Filter{})
+	if err != nil || len(all) == 0 {
+		return
+	}
+	fmt.Fprintf(ctx.out, "Adopted %s already in the directory.\n", plural(len(all), "ticket"))
 
 	cfg := s.Config()
 	var undeclared []string
 	seen := map[string]bool{}
-	all, err := s.List(context.Background(), ticket.Filter{})
-	if err != nil {
-		return
-	}
 	for _, t := range all {
 		series, _ := ticket.SplitID(t.ID)
 		if series == "" || seen[series] || cfg.KnownSeries(series) {

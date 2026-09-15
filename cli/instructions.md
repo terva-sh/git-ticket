@@ -150,6 +150,12 @@ calls the store clean. Use `--ac` and `--dod` to file those, or write them as
 `## `, which opens the real section. `check` reports the mistake as
 `section_heading_demoted`, and `--strict` fails on it.
 
+`show` prints the most recent note in full and replaces the earlier ones with a
+line naming how many there are and how to read them, so opening a worked ticket
+costs its current state rather than its whole history. `git ticket note ID
+--list` is the index, and `--show N`, `--show N-M` or `--show all` prints the
+text. Nothing is deleted and `show --json` still carries `body.notes` whole.
+
 When you file one wrong, `git ticket remove ID` deletes it and you file it
 again. Repairing it in place does not work, because `update --description`
 replaces the description alone and the stray sections survive. `remove` refuses

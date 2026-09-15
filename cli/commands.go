@@ -1192,9 +1192,104 @@ func runRefs(ctx *cmdContext, args []string) error {
 // of text. The first two append; a plan and a summary replace, per plan section
 // 9, because each is one statement rather than a log and Notes is already the
 // log. A plan says how the work will go and a summary says where it landed.
+// runNote appends a note, or reads the ones already there.
+//
+// The reading half exists because `show` no longer prints every note, and a
+// summary that a reader cannot act on is worse than the volume it replaced. It
+// sits on `note` rather than on `show` because the subject is a note: `show ID`
+// answers "what is this ticket" and `note ID --list` answers "what was written
+// on it", which are two questions and not two formats of one.
 func runNote(ctx *cmdContext, args []string) error {
+	if list, show, rest, ok := noteReadArgs(args); ok {
+		return runNoteRead(ctx, list, show, rest)
+	}
 	return runTextEntry(ctx, "note", args, "noted on",
 		func(text string) ticket.Mutation { return ticket.AppendNote{Text: text} })
+}
+
+// noteReadArgs picks the reading flags out before runTextEntry sees them.
+//
+// runTextEntry serves note, comment, plan and summary from one body and treats
+// every non-flag word as text, so a --list it did not expect would be read as
+// prose to append. Splitting here keeps that function unchanged and unshared
+// with a mode the other three commands do not have.
+func noteReadArgs(args []string) (list bool, show string, rest []string, ok bool) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			// Everything after -- is text by the caller's own instruction.
+			return false, "", nil, false
+		case a == "--list" || a == "-list":
+			list, ok = true, true
+		case a == "--show" || a == "-show":
+			if i+1 >= len(args) {
+				// Let the writing path produce the usage error, so a reader sees
+				// one voice for a malformed command rather than two.
+				return false, "", nil, false
+			}
+			i++
+			show, ok = args[i], true
+		case strings.HasPrefix(a, "--show=") || strings.HasPrefix(a, "-show="):
+			_, v, _ := strings.Cut(a, "=")
+			show, ok = v, true
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return list, show, rest, ok
+}
+
+// runNoteRead prints an index of a ticket's notes, or the text of a range.
+func runNoteRead(ctx *cmdContext, list bool, show string, rest []string) error {
+	if list && show != "" {
+		return usageErr("note --list and --show ask for different things; run one")
+	}
+	if len(rest) != 1 {
+		return usageErr("note --list and --show take one ticket ID")
+	}
+	// No --json form. The envelope already carries body.notes whole, so a
+	// machine has the text and the numbering is a view of it. Section 15 holds
+	// the question of whether a numbered form belongs in the envelope, which is
+	// the same question import --json is waiting on.
+	if ctx.g.json {
+		return usageErr("note --list and --show have no --json form; show --json already carries body.notes whole")
+	}
+	s, err := ctx.openStore()
+	if err != nil {
+		return err
+	}
+	t, err := s.Get(context.Background(), rest[0])
+	if err != nil {
+		return err
+	}
+	entries := ticket.Entries(t.Body.Notes)
+
+	var b strings.Builder
+	if list {
+		if len(entries) == 0 {
+			fmt.Fprintf(ctx.out, "%s has no notes\n", t.ID)
+			return nil
+		}
+		fmt.Fprintf(&b, "%s  %s\n\n", t.ID, plural(len(entries), "note"))
+		writeNoteIndex(&b, entries)
+		_, err = io.WriteString(ctx.out, b.String())
+		return err
+	}
+
+	r, err := parseNoteRange(show, len(entries))
+	if err != nil {
+		return err
+	}
+	for i, e := range entries[r.from-1 : r.to] {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(renderEntry(e))
+	}
+	b.WriteString("\n")
+	_, err = io.WriteString(ctx.out, b.String())
+	return err
 }
 
 func runComment(ctx *cmdContext, args []string) error {
@@ -2233,7 +2328,7 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready tick
 	section("Acceptance criteria", t.Body.AcceptanceCriteria)
 	section("Definition of done", t.Body.DefinitionOfDone)
 	section("Implementation plan", t.Body.ImplementationPlan)
-	section("Notes", t.Body.Notes)
+	section("Notes", compactNotes(t.Body.Notes, t.ID))
 	section("Comments", t.Body.Comments)
 	section("Summary", t.Body.Summary)
 	for _, extra := range t.Body.Extra {

@@ -2697,7 +2697,7 @@ git ticket unlink ID [--depends-on OTHER | --ref proposal:x]
 git ticket ac     ID [--add TEXT] [--check N] [--uncheck N] [--remove N]
 git ticket dod    ID [--add TEXT] [--check N] [--uncheck N] [--remove N]
 git ticket plan   ID (TEXT | --file PATH)
-git ticket note   ID (TEXT | --file PATH)
+git ticket note   ID (TEXT | --file PATH) | ID (--list | --show N|N-M|all)   # reading half per 12.9
 git ticket comment ID (TEXT | --file PATH)
 git ticket summary ID (TEXT | --file PATH)
 git ticket deps   ID [--transitive] [--dependents]
@@ -2708,7 +2708,7 @@ git ticket archive ID [--reason R]
 git ticket unarchive ID
 git ticket remove ID [--force]   # delete a ticket filed by mistake, per 9.1
 git ticket export ID... [--out DIR]   # hand tickets to another store as patches, per 12.8
-git ticket import DIR [--adopt] [--from-store NAME]   # file what an export carries, per 12.8
+git ticket import DIR [--adopt] [--same-owner] [--from-store NAME]   # file what an export carries, per 12.8
 git ticket migrate [--to N] [--dry-run]
 git ticket instructions [--write]
 git ticket schema
@@ -3570,6 +3570,50 @@ tool for a ticket.
 files written, with a null `ticket` because an export changes no ticket.
 `import` has no `--json` form yet. That is a gap rather than a decision, and
 section 15 records the question of what it should publish.
+
+### 12.9 Reading a note history
+
+`show` prints the most recent note in full and replaces every earlier one with a
+single line naming how many there are, their numbers, and the command that
+retrieves them. `note ID --list` prints the index, and `note ID --show N`,
+`--show N-M` or `--show all` prints the text.
+
+The reason is cost at read time. `show` is how anybody reads a ticket, and it
+was answering a question about the current state by printing everything ever
+written on it: in this repository's own store the worst ticket printed 463 lines
+and 3,626 words, and the 75 tickets carrying notes hold 32,835 words between
+them. A person pays that in scrolling and an agent pays it in context, which is
+where the report came from. Across this store the change leaves 89 tickets
+untouched, compacts 39, and takes those from 45,491 words to 31,362.
+
+The rule is a count and not a size threshold. One note shown, the rest indexed.
+A threshold is a magic number that makes the same ticket print differently in two
+stores and gives a reader nothing to predict from, while a count is a sentence
+somebody can hold in their head. A ticket with one note prints exactly what it
+printed before, which is the case worth protecting, because most tickets have one
+note and charging them a second command would trade a real gain on the worst
+tickets for a tax on the ordinary one.
+
+Nothing is hidden without saying how to get it back. The elision line carries the
+count, the span, and a runnable command with the ID already in it. A summary a
+reader cannot act on is worse than the volume it replaced, and this is the same
+duty the interchange rule of 12.8 carries when it names what did not travel.
+
+This is display and not format. No file changes and nothing is deleted, so no
+store needs a repair and an older binary reads everything a newer one wrote.
+
+`--json` is deliberately untouched. `body.notes` is a string in the 10.1
+envelope and a consumer reads it as one, so truncating it would be a break under
+12.4, and a caller that asked for the whole envelope can slice it itself. The
+reading commands therefore have no `--json` form, which is the `ui` and `copy`
+exemption of 12.1 and 12.7 rather than a new rule: the text is already in the
+contract and only the numbering is not. Section 15 carries whether a numbered
+form belongs in the envelope, alongside the same question for `import`.
+
+The reading half sits on `note` rather than on `show`. `show ID` answers what a
+ticket is and `note ID --list` answers what was written on it, and those are two
+questions rather than two formats of one. It also leaves `show` with one job as
+its output grows.
 
 ## 13. Phases
 

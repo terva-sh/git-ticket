@@ -422,14 +422,34 @@ a real ticket. It seeds nothing lifecycle-shaped, no status and no created
 instant, because 6.2.1 is where a backport says those explicitly. Do not
 tighten it into a validator.
 
-The agent workflow block lives at `cli/instructions.md`, embedded with
-`go:embed`. Edit the Markdown, not a Go string.
-`TestInstructionsNameRealCommands` holds every command and flag it names to what
-the binary has, because prose telling a reader to run something that does not
-exist is worse than no prose. `TestInstructionsWorkflowRuns` goes further and
-runs the sequence against a real store, in the order the block prints it,
+The agent workflow block lives at `cli/instructions.md` and
+`cli/instructions-core.md`, both embedded with `go:embed`. Edit the Markdown,
+not a Go string. The core is the short form and is what `--write` installs; the
+long one is what a bare `instructions` prints. Plan 12.1 has the reason for the
+split. A rule that lands in one form belongs in both, because the short form
+drops the argument behind a rule and never the rule.
+
+`TestInstructionsNameRealCommands` holds every command and flag they name to
+what the binary has, because prose telling a reader to run something that does
+not exist is worse than no prose. `TestInstructionsWorkflowRuns` goes further
+and runs the sequence against a real store, in the order the block prints it,
 because every command can exist and the order still be wrong. It was: the block
 said claim before ready, and a draft cannot be claimed.
+
+Neither test can catch prose that names a real command and describes it
+wrongly. The block said `search` takes a regular expression; it is a substring
+match, so an agent following the block got "Nothing matches" and exit 0 and
+concluded the ticket was not filed. The suite was green throughout, because
+`search` exists and the sentence named no flag. When you change a sentence about
+what a command does, run that command and read what it prints. A test that a
+sentence is accurate has to be written one sentence at a time, and
+`TestTheSearchSentenceSaysSubstring` is the first.
+
+The block ships to other projects, so nothing in it may name this one. No
+`terva`, no plan section number, no branch from this repository. Write
+placeholders the way the rest of the block does, in capitals: `ID`, `QUERY`,
+`DIR`, `BRANCH`. For the same reason it may not assume the reader's project has
+CI, a particular default branch, or any tool this binary does not ship.
 
 Both Phase 2 exit criteria are met. The scripted end-to-end run is
 `TestLifecycle` in `cli/lifecycle_test.go`. The other is `git ticket

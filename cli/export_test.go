@@ -335,3 +335,68 @@ func TestExportWarnsAboutEdgesThatWillNotTravel(t *testing.T) {
 		t.Errorf("stderr did not name the way out:\n%s", got.stderr)
 	}
 }
+
+// TestGitAmOfAnExportReachesAUsableStore exercises the whole of the 12.8
+// promise rather than its first half.
+//
+// The v0.16.0 verification landed an export with `git am` into a third
+// repository and confirmed the patch applied and left readable Markdown. That
+// was true, and it was not enough: nothing went on to ask whether git-ticket
+// could then open the result. It could not, and the receiver had no CLI path
+// out, because every read wanted a config.yml that was not there and init
+// refused to write one because the directory was.
+//
+// The series here is a declared one rather than TKT, because that is the case
+// that needs more than init: a receiver whose store has never heard of LED has
+// to declare it, and the point of the test is that the commands to get there
+// are named and documented.
+func TestGitAmOfAnExportReachesAUsableStore(t *testing.T) {
+	src := newGitStore(t)
+	if got := runCLI(t, src, nil, "series", "add", "LED", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("series add: %s%s", got.stdout, got.stderr)
+	}
+	id := crossCreate(t, src, "A ticket that travels by git am", "human:sothr", "--series", "LED")
+	exportGit(t, src, "add", "-A")
+	exportGit(t, src, "commit", "-qm", "store")
+
+	out := filepath.Join(t.TempDir(), "out")
+	if got := runCLI(t, src, nil, "export", id, "--out", out); got.code != exitOK {
+		t.Fatalf("export: %s%s", got.stdout, got.stderr)
+	}
+
+	// A repository that has never heard of git-ticket, which is who 12.8 aims
+	// this route at.
+	dest := newGitRepo(t)
+	applyExport(t, dest, out)
+
+	// Step one used to be the end of the road.
+	init := runCLI(t, dest, nil, "init", "--actor", "human:sothr")
+	if init.code != exitOK {
+		t.Fatalf("init over an applied export: %s%s", init.stdout, init.stderr)
+	}
+	if !strings.Contains(init.stdout, "Adopted 1 ticket") {
+		t.Errorf("init did not say it adopted what was already there:\n%s", init.stdout)
+	}
+	// The series it cannot declare for the user has to be named, or the next
+	// step is something they have to know rather than something they read.
+	if !strings.Contains(init.stdout, "git ticket series add LED") {
+		t.Errorf("init did not name the command that declares the arrived series:\n%s", init.stdout)
+	}
+
+	if got := runCLI(t, dest, nil, "series", "add", "LED", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("series add, which init just advised: %s%s", got.stdout, got.stderr)
+	}
+
+	// And now the whole promise holds: the tickets are readable and the store
+	// is clean under the strictest reading.
+	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
+	if len(rows) != 1 {
+		t.Fatalf("the adopted store lists %d tickets, want 1", len(rows))
+	}
+	if landedID, _ := rows[0]["id"].(string); landedID != id {
+		t.Errorf("git am route changed the ID to %s; it is supposed to keep %s", landedID, id)
+	}
+	if got := runCLI(t, dest, nil, "check", "--strict"); got.code != exitOK {
+		t.Errorf("check --strict on the adopted store: %s%s", got.stdout, got.stderr)
+	}
+}

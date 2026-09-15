@@ -1,6 +1,7 @@
 package ticket
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,5 +155,67 @@ func TestStoreOutsideARepositoryHasNoRoot(t *testing.T) {
 	// references path to resolve against.
 	if got := s.Root(); got != "" {
 		t.Errorf("root = %q, want empty for a store outside a repository", got)
+	}
+}
+
+// TestInitAdoptsADirectoryWithNoConfig covers the dead end plan 12.8 promised
+// nobody would hit. `git am` of an export writes ticket files and no config.yml,
+// and Init used to refuse because the directory was there while every read
+// refused because the config was not. Two commands disagreed about the same
+// directory and no CLI path repaired it.
+//
+// What resolves it is one definition of a store rather than a special case for
+// adoption: config.yml is what Open keys on, so it is what Init keys on too.
+func TestInitAdoptsADirectoryWithNoConfig(t *testing.T) {
+	root := t.TempDir()
+	landed := filepath.Join(root, StoreDirName, "draft")
+	if err := os.MkdirAll(landed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Written the way git am leaves it: a ticket file and nothing else.
+	//
+	// An epic rather than a task, because the epics index lists epics only. A
+	// task arrives and renders the same empty index a fresh store gets, so it
+	// cannot tell a rebuilt index from an unconditional one.
+	body := "---\nschema: 3\nid: TKT-01M1PQ7TB0X4V2Z9J5K6M8N0Q1\ntitle: An arrived epic\n" +
+		"type: epic\nstatus: draft\npriority: normal\n---\n\n## Description\n\nArrived by git am.\n"
+	if err := os.WriteFile(filepath.Join(landed, "TKT-01M1PQ7TB0X4V2Z9J5K6M8N0Q1.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := Init(root, InitOptions{})
+	if err != nil {
+		t.Fatalf("Init refused a directory with no config: %v", err)
+	}
+	all, err := s.List(context.Background(), Filter{})
+	if err != nil {
+		t.Fatalf("listing an adopted store: %v", err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("adopted store holds %d tickets, want the 1 that arrived", len(all))
+	}
+
+	// The epics index is built from what is here rather than written empty, so
+	// an adopted store is not born reporting a staleness warning either, which
+	// is the same rule a fresh store already got.
+	parsed, err := s.load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, stale := s.epicsIndexStale(parsed); stale {
+		t.Error("an adopted store was born with a stale epics index")
+	}
+}
+
+// TestInitStillRefusesARealStore is the other half. The refusal exists to stop a
+// second store clobbering a first, and widening it to adoption must not cost
+// that.
+func TestInitStillRefusesARealStore(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Init(root, InitOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Init(root, InitOptions{}); CodeOf(err) != CodeStoreExists {
+		t.Errorf("second Init = %v, want %s", err, CodeStoreExists)
 	}
 }

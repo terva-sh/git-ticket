@@ -12,7 +12,9 @@ import (
 // newGitStore makes a real repository with a store and one commit in it. A
 // claim records the branch and the commit it was based on, so those tests need
 // a repository rather than a bare directory.
-func newGitStore(t *testing.T) string {
+// newGitRepo is a git repository with one commit and no ticket store, for a
+// test that needs to watch a store come into being.
+func newGitRepo(t *testing.T) string {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
@@ -36,7 +38,13 @@ func newGitStore(t *testing.T) string {
 	}
 	run("add", "-A")
 	run("commit", "-qm", "first")
+	return dir
+}
 
+// newGitStore is newGitRepo with a store in it, which is what most tests want.
+func newGitStore(t *testing.T) string {
+	t.Helper()
+	dir := newGitRepo(t)
 	if got := runCLI(t, dir, nil, "init", "--actor", "human:sothr"); got.code != exitOK {
 		t.Fatalf("init: %s", got.stderr)
 	}

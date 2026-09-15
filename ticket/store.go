@@ -227,7 +227,18 @@ func Init(root string, opts InitOptions) (*Store, error) {
 			abs, StoreDirName, filepath.Dir(abs))
 	}
 	path := filepath.Join(abs, StoreDirName)
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
+	// What makes a store is config.yml, which is the definition every read
+	// already uses: Open answers store_not_found on a directory without one.
+	// Init used to refuse on the directory alone, so the two disagreed, and a
+	// receiver who landed an export with `git am` got a .tickets holding
+	// tickets and no config that neither command would touch. Every read
+	// refused because the config was missing and the one command that writes a
+	// config refused because the directory was there.
+	//
+	// Keying both on the same file is what makes the dead end impossible rather
+	// than merely repaired. Init still refuses a real store, which is the
+	// clobbering this check was put here to stop.
+	if _, err := os.Stat(filepath.Join(path, configFile)); err == nil {
 		return nil, codedError(CodeStoreExists, "a ticket store already exists at %s", path)
 	}
 
@@ -256,13 +267,28 @@ func Init(root string, opts InitOptions) (*Store, error) {
 	if err := os.WriteFile(filepath.Join(path, readmeFile), []byte(storeReadme), 0o644); err != nil {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 	}
-	// The epics index is written here too, holding no epics, so a fresh store is
+
+	s, err := OpenWith(path, OpenOptions{Now: opts.Now})
+	if err != nil {
+		return nil, err
+	}
+	// The epics index is written from whatever tickets are here, so a store is
 	// not born reporting a staleness warning it did nothing to earn. check
-	// treats a missing index as stale, per section 4.
-	if err := os.WriteFile(filepath.Join(path, epicsFile), renderEpicsIndex(nil), 0o644); err != nil {
+	// treats a missing index as stale, per section 4. For a fresh store that is
+	// no tickets and the empty index; for a directory adopted from `git am` it
+	// is the arrived ones, which is the same rule and not a second case.
+	parsed, err := s.load()
+	if err != nil {
+		// A file that does not parse is check's to report and not init's to
+		// refuse over. This directory may hold anything, and refusing here
+		// would put back the dead end this adoption exists to remove.
+		parsed = nil
+	}
+	want, _ := s.epicsIndexStale(parsed)
+	if err := os.WriteFile(filepath.Join(path, epicsFile), want, 0o644); err != nil {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 	}
-	return OpenWith(path, OpenOptions{Now: opts.Now})
+	return s, nil
 }
 
 // Path is the store directory.

@@ -83,9 +83,11 @@ func newCrossStore(t *testing.T, title string) (string, string) {
 }
 
 // crossCreate files a ticket and returns its ID.
-func crossCreate(t *testing.T, dir, title, actor string) string {
+// extra carries flags a caller needs on top of the title and actor, such as
+// --series. Most callers pass none.
+func crossCreate(t *testing.T, dir, title, actor string, extra ...string) string {
 	t.Helper()
-	got := runCLI(t, dir, nil, "--json", "create", "--title", title, "--actor", actor)
+	got := runCLI(t, dir, nil, append([]string{"--json", "create", "--title", title, "--actor", actor}, extra...)...)
 	if got.code != exitOK {
 		t.Fatalf("create %q: %s%s", title, got.stdout, got.stderr)
 	}

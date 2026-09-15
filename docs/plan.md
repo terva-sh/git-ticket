@@ -3392,6 +3392,27 @@ how to apply it, and every ticket's body in full. `0001-tickets.patch` adds the
 ticket files themselves. The receiver types `git am DIR/*.patch` and needs no
 git-ticket at all, because the patch adds ordinary Markdown files.
 
+"Needs no git-ticket at all" is true of applying the export and was not true of
+what came next. `git am` writes ticket files and no `config.yml`, and a receiver
+who then wanted git-ticket found `init` refusing because `.tickets` existed while
+every read refused because the config did not. Two commands contradicted each
+other about one directory and no CLI path repaired it.
+
+What a store is settles it. `config.yml` is the file every read keys on, so it is
+what `init` keys on too, and a directory holding tickets and no config is not a
+store that `init` would be clobbering. `init` adopts it, builds the epics index
+from the tickets it finds rather than writing an empty one, and says how many it
+adopted.
+
+`init` does not declare the arrived series. A store's series list says what this
+project mints, so inferring it from a file that happens to be present would have
+`init` decide something belonging to whoever owns the store. It names each
+undeclared series and the `series add` that declares it, which is the stance
+export and import already take about the half of a move this tool will not
+perform. So the route is `git am`, then `git ticket init`, then `series add` for
+a series this store has never seen, and the tickets keep their original IDs
+throughout.
+
 The cover's extension is load-bearing. Named `.patch` it is swept into that
 glob, and `git am` stops on its empty diff and wants `--empty=drop`, which is
 git 2.34 or newer. Named `.txt` the glob never sees it, plain `git am` works on
@@ -3453,7 +3474,7 @@ what a ticket says without saying so.
 
 #### What import is for
 
-Where the receiving store declares the incoming series, nothing new is needed:
+Where the receiving store declares the incoming series, nothing new is needed.
 `git am` applies the export and the tickets are correct under their own IDs,
 which is what two clones of one project want. `import` exists for the case that
 fails. `unknown_series` is an error rather than a warning and the prefix sits

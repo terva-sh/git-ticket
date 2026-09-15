@@ -122,6 +122,11 @@ func runInit(ctx *cmdContext, args []string) error {
 		root = filepath.Dir(strings.TrimRight(fromEnv, "/"))
 	}
 
+	// Whether this run adopted a directory that was already holding tickets,
+	// read before Init so the answer is about what was here rather than about
+	// what Init just created. The usual case is a fresh store and no output.
+	adopted := adoptedTickets(filepath.Join(root, ".tickets"))
+
 	// Checked before the store is made, so a refusal leaves no half-built
 	// store behind for the user to clean up.
 	if writeInstructions {
@@ -175,6 +180,9 @@ func runInit(ctx *cmdContext, args []string) error {
 		return nil
 	}
 	fmt.Fprintf(ctx.out, "Initialized a ticket store at %s\n", displayPath(s, s.Path()))
+	if adopted > 0 {
+		reportAdoption(ctx, s, adopted)
+	}
 	if writeInstructions {
 		fmt.Fprintf(ctx.out, "%s\n", instructions.sentence(displayPath(s, filepath.Join(root, instructionsFile))))
 	} else {
@@ -2341,4 +2349,67 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready tick
 	for _, extra := range t.Body.Extra {
 		section(extra.Heading, extra.Text)
 	}
+}
+
+// adoptedTickets counts the ticket files already sitting in a store directory
+// that has no config.yml, which is what `git am` of an export leaves behind.
+//
+// It counts rather than reporting a boolean because the number is what the
+// person reads: it tells them whether the thing they just applied is all here.
+// Anything it cannot read is 0, since this only decides whether to print.
+func adoptedTickets(store string) int {
+	n := 0
+	for _, dir := range []string{"draft", "tickets", "done", "archive"} {
+		entries, err := os.ReadDir(filepath.Join(store, dir))
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// reportAdoption says what init found and what is left to do with it.
+//
+// The series half is advice and not action. A store's series list declares what
+// this project mints, so adding one because a file arrived carrying it would
+// have init decide something that belongs to whoever owns the store. This is
+// the stance import already takes about closing the origin: name the command,
+// let the person run it.
+func reportAdoption(ctx *cmdContext, s *ticket.Store, n int) {
+	fmt.Fprintf(ctx.out, "Adopted %s already in the directory.\n", plural(n, "ticket"))
+
+	cfg := s.Config()
+	var undeclared []string
+	seen := map[string]bool{}
+	all, err := s.List(context.Background(), ticket.Filter{})
+	if err != nil {
+		return
+	}
+	for _, t := range all {
+		series, _ := ticket.SplitID(t.ID)
+		if series == "" || seen[series] || cfg.KnownSeries(series) {
+			continue
+		}
+		seen[series] = true
+		undeclared = append(undeclared, series)
+	}
+	sort.Strings(undeclared)
+
+	if len(undeclared) > 0 {
+		fmt.Fprintf(ctx.out, "This store does not declare %s, which those tickets use. Declare each one:\n",
+			strings.Join(undeclared, ", "))
+		for _, series := range undeclared {
+			fmt.Fprintf(ctx.out, "  git ticket series add %s\n", series)
+		}
+	}
+	// check rather than check --fix, because the adoption may have left nothing
+	// to repair and telling somebody to run a write they do not need is how a
+	// person learns to run it without reading. check names --fix itself when
+	// there is something for it to do.
+	fmt.Fprintf(ctx.out, "Then `git ticket check` to confirm what landed.\n")
 }

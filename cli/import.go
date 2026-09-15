@@ -43,10 +43,11 @@ import (
 
 // runImport adopts the tickets an export carries into this store.
 func runImport(ctx *cmdContext, args []string) error {
-	var adopt bool
+	var adopt, sameOwner bool
 	var fromStore string
 	rest, err := ctx.parseFlags("import", args, func(fs *flag.FlagSet) {
 		fs.BoolVar(&adopt, "adopt", false, "file every ticket afresh under this store's series; without it nothing is written")
+		fs.BoolVar(&sameOwner, "same-owner", false, "both stores are yours, so carry the ticks, the status and the filing instant")
 		fs.StringVar(&fromStore, "from-store", "", "the store this export came from, recorded as provenance")
 	})
 	if err != nil {
@@ -76,6 +77,7 @@ func runImport(ctx *cmdContext, args []string) error {
 	plan, err := s.PlanImport(context.Background(), ticket.ImportOptions{
 		Patch:     patch,
 		FromStore: fromStore,
+		SameOwner: sameOwner,
 		Actor:     actor,
 	})
 	if err != nil {
@@ -85,10 +87,14 @@ func runImport(ctx *cmdContext, args []string) error {
 		return fmt.Errorf("%s carries no tickets; it may be a patch series rather than an export", dir)
 	}
 
+	// --same-owner is legal on its own. It changes what the reconciliation
+	// decides, so a preview that ignored it would show a different answer from
+	// the one --adopt carries out, and the preview's whole promise is that it
+	// does not.
 	if !adopt {
-		return importPreview(ctx, s, dir, plan)
+		return importPreview(ctx, s, dir, plan, sameOwner)
 	}
-	return importAdopt(ctx, s, plan)
+	return importAdopt(ctx, s, plan, sameOwner)
 }
 
 // readExportPatch reads the ticket patch an export carries.
@@ -136,6 +142,16 @@ func changeLine(c ticket.Change) string {
 		return fmt.Sprintf("definition of done: %d carried, every box unchecked", c.Count)
 	case ticket.ChangeWorkRecordCarried:
 		return "summary, notes and comments: carried as one note naming the origin"
+	case ticket.ChangeAcceptanceCriteriaCarried:
+		return fmt.Sprintf("acceptance criteria: %d ticked at the origin, carried ticked", c.Count)
+	case ticket.ChangeDefinitionOfDoneCarried:
+		return fmt.Sprintf("definition of done: %d ticked at the origin, carried ticked", c.Count)
+	case ticket.ChangeStatusCarried:
+		return fmt.Sprintf("status %s: carried, this is the same owner's finished work", c.Value)
+	case ticket.ChangeStatusNotCarried:
+		return fmt.Sprintf("status %s: not carried, it lands in draft because only done and archived may arrive directly", c.Value)
+	case ticket.ChangeOriginParentRecorded:
+		return fmt.Sprintf("parent %s: kept as an origin-parent reference, the edge cannot name a ticket this store does not have", c.Value)
 	}
 	if c.Value != "" {
 		return fmt.Sprintf("%s %s: reported by the library, which this build does not have wording for", c.Kind, c.Value)
@@ -152,7 +168,7 @@ func changeLine(c ticket.Change) string {
 // It renders the plan and decides nothing. That is the guarantee the preview is
 // making: what it shows is what --adopt will carry out, because both read the
 // same ImportPlan rather than each working the answer out.
-func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.ImportPlan) error {
+func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.ImportPlan, sameOwner bool) error {
 	cfg := s.Config()
 	shared := 0
 	for _, pt := range plan.Tickets {
@@ -173,6 +189,12 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 	}
 
 	fmt.Fprintf(ctx.out, "\nNothing written. --adopt files all %s afresh under this store's series.\n", plural(len(plan.Tickets), "ticket"))
+	// Named here rather than left for the adopt to reveal, because the commands
+	// are the half of the move this tool will not perform, and a person deciding
+	// whether to adopt should know the origin is still theirs to close.
+	if sameOwner {
+		fmt.Fprintf(ctx.out, "--same-owner also prints the commands that close each ticket at the origin,\nwhich only you can run: nothing here writes the sending store.\n")
+	}
 	// Advice, not a verdict. Whether this export is your own project's work is
 	// something only you know: the series cannot say, because TKT is the default
 	// every store has and two strangers share it by default.
@@ -193,7 +215,7 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 // this file's business. What is left here is the report, and its subject is the
 // ID this store minted, which is the one thing the sender's copy cannot tell
 // the reader.
-func importAdopt(ctx *cmdContext, s *ticket.Store, plan *ticket.ImportPlan) error {
+func importAdopt(ctx *cmdContext, s *ticket.Store, plan *ticket.ImportPlan, sameOwner bool) error {
 	res, err := s.ApplyImport(context.Background(), plan)
 	if err != nil {
 		return err
@@ -212,8 +234,39 @@ func importAdopt(ctx *cmdContext, s *ticket.Store, plan *ticket.ImportPlan) erro
 			fmt.Fprintf(ctx.env.Stderr, "  %s: %s not carried, this export does not include it\n", filed.ID, dropped)
 		}
 	}
-	fmt.Fprintf(ctx.env.Stderr, "%s filed as draft. Review, then commit.\n", plural(len(res.Filed), "ticket"))
+	// "as draft" is a promise the default keeps and --same-owner does not, since
+	// a ticket that left done arrives done. The default's wording does not move.
+	if sameOwner {
+		fmt.Fprintf(ctx.env.Stderr, "%s filed. Review, then commit.\n", plural(len(res.Filed), "ticket"))
+		importCloseOrigin(ctx, plan, res)
+	} else {
+		fmt.Fprintf(ctx.env.Stderr, "%s filed as draft. Review, then commit.\n", plural(len(res.Filed), "ticket"))
+	}
 	return nil
+}
+
+// importCloseOrigin prints the commands that close each ticket at the origin.
+//
+// Advice, and never the action. The sending store is another working tree, and
+// 7.3 is explicit that a sync helper must never rewrite one; a command that
+// reached across and edited a second repository would also be exactly the
+// collision the no-sibling-writes policy exists to prevent. So the person who
+// knows both stores runs these, in the store they are about.
+//
+// It is the same move the preview already makes when it offers `git am`: name
+// the better route and let the reader take it.
+func importCloseOrigin(ctx *cmdContext, plan *ticket.ImportPlan, res *ticket.ImportResult) {
+	fmt.Fprintf(ctx.env.Stderr, "\nNothing here wrote the sending store. To close the origin, run these there:\n")
+	for i, pt := range plan.Tickets {
+		filed := res.Filed[i]
+		fmt.Fprintf(ctx.env.Stderr, "  git ticket summary %s \"Moved to %s.\"\n", pt.Incoming.ID, filed.ID)
+		// Only when there is a transition left to make. A ticket that arrived
+		// done or archived is already closed, and printing a status command for
+		// it would be advice that fails when taken.
+		if st := pt.Incoming.Status; st != ticket.StatusDone && st != ticket.StatusArchived {
+			fmt.Fprintf(ctx.env.Stderr, "  git ticket status %s done\n", pt.Incoming.ID)
+		}
+	}
 }
 
 // importOtherPatches names the code patches an export carries beside its

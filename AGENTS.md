@@ -60,15 +60,40 @@ room for it. That ruling and its trigger are in section 15 under
 `--start-number 2` is harmless, so the flag buys less than the table's brevity
 costs.
 
-One rule governs what `import --adopt` carries, and the whole of `reconcile` in
-`cli/import.go` is that rule: the statement of the work travels, and what the
+One rule governs what `import --adopt` carries, and the whole of `planTicket` in
+`ticket/import.go` is that rule: the statement of the work travels, and what the
 receiver never agreed to does not, and either way it is named. An undeclared
 label or milestone, a reference path that resolves to nothing here, a due date,
 and the ticks on the checklists all stay behind. Preview and adopt read one
-`reconciled` rather than each working it out, because they had already drifted
+`ImportPlan` rather than each working it out, because they had already drifted
 apart over labels. The contribution arrived dropping acceptance criteria,
 notes, comments, summary, milestone and due date in silence, with `check` clean
 and exit 0, which is why the reporting half of that rule is not decoration.
+(This paragraph said `reconcile` in `cli/import.go` until v0.18.0. Nothing by
+that name has existed since v0.16.0 moved the reconciliation into the library.)
+
+`--same-owner` is that rule's second case, and the shape of the argument is
+worth more than the flag. Unticking rests on a premise, that the tick is *the
+sender's* evidence, and the premise is simply false when one person keeps both
+stores. So the answer was not to weaken the rule but to find where it does not
+apply: under the flag the evidence travels, meaning the ticks, the status and
+the filing instant, and the vocabulary does not, meaning the allowlists still
+reconcile and `check --strict` is still green on arrival. Status stops where
+6.2.1 already stops it, `done` and `archived` through and everything else into
+`draft` and named, because widening `CreateOptions.Status` would walk around the
+gate that makes promotion a human call. Plan 12.8 has it under "One owner, two
+stores", and section 15 records what would reopen it.
+
+Two things about that work are the general lesson. The report was measured
+before it was believed, and one of its three claims did not survive: a parent
+travelling in the same export is carried and reminted already, so the parent
+half was never the rule being wrong but a link with nowhere to go, which is why
+it is answered with a reference rather than an edge. Groom against a run, not
+against the prose. And the first real run of the finished flag found a defect
+the whole suite would have missed, reporting the parent as "kept as an
+origin-parent reference" and then as "not carried" one line later, two true
+sentences that contradict each other. `PlannedTicket.keptParent` exists so
+`droppedEdges` reads the decision rather than recomputing the condition.
 
 The TUI is Phase 4's view: `tui/` is the rendering stack, `tui/view` the
 application, and `git ticket ui` the entrypoint, wired through `Env.RunUI` so

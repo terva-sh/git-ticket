@@ -27,6 +27,21 @@ type ImportOptions struct {
 	// FromStore names the sending store, recorded as provenance. It is empty
 	// when the sender did not say.
 	FromStore string
+	// SameOwner says the two stores have one owner, so the sender's evidence is
+	// this store's own and travels: the checklist ticks, the status as far as
+	// 6.2.1 allows one to arrive, and the instant the work was filed.
+	//
+	// It says nothing about vocabulary. A label or milestone this store does not
+	// declare is still dropped, and a due date still does not travel, because
+	// one owner keeping two stores is not one owner keeping two allowlists. That
+	// split is also what keeps check --strict green on arrival, which is the
+	// constraint that shaped the label rule to begin with.
+	//
+	// The caller asserts it and the library does not infer it. Nothing in an
+	// export says who owns the sending store, and guessing from the series is
+	// the mistake import already made once: TKT is the default every store has,
+	// so two strangers share it by default.
+	SameOwner bool
 	// Actor is recorded on everything ApplyImport writes. A plan built for a
 	// preview can leave it zero, because a preview writes nothing.
 	Actor Actor
@@ -58,11 +73,34 @@ type PlannedTicket struct {
 	// Record is the sending store's summary, notes and comments gathered into
 	// one note, or empty when it carried none.
 	Record string
+	// Ticks are the checklist boxes to re-tick after the create, by section and
+	// by one-based index. It is empty unless ImportOptions.SameOwner was set.
+	//
+	// They are applied after the fact rather than seeded, because
+	// CreateOptions.AcceptanceCriteria takes text and files every box empty. A
+	// second field there would be a published surface carrying a rule that
+	// belongs to import alone.
+	Ticks []ChecklistTick
 	// Changes names what this store imposed.
 	Changes []Change
 	// DroppedEdges names the dependencies and the parent that point outside
 	// this export, in the form "dependency ID" or "parent ID".
 	DroppedEdges []string
+	// keptParent is the parent ID kept as an origin-parent reference, or empty.
+	//
+	// It exists so that droppedEdges reads the decision planTicket made rather
+	// than working the same condition out again. A parent kept as provenance is
+	// not a dropped edge, and the first real run of --same-owner reported it as
+	// both: "kept as an origin-parent reference" followed by "not carried".
+	keptParent string
+}
+
+// ChecklistTick names one box to re-tick on an adopted ticket.
+type ChecklistTick struct {
+	Section ChecklistSection
+	// Index counts from one in the order the items appear, which is the same
+	// counting SetChecklistItem uses.
+	Index int
 }
 
 // ImportPlan is what PlanImport decided, in the order ApplyImport will file it.
@@ -100,6 +138,14 @@ type ImportResult struct {
 // tick is evidence about the sender's work, and it says nothing about whether
 // this store has met the criterion. That is the same argument that files every
 // imported ticket as a draft.
+//
+// ImportOptions.SameOwner is the one case where that argument does not hold,
+// and it is a second case on the rule rather than an exception to it. When the
+// two stores have one owner the sender's evidence is this store's own, so the
+// ticks, the status and the filing instant travel. What the receiver agreed to
+// is still the test: labels, milestones, due dates and blocks_on are reconciled
+// exactly as before, because one owner keeping two stores is not one owner
+// keeping two allowlists.
 func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, error) {
 	files, err := ParseAddedFiles(o.Patch)
 	if err != nil {
@@ -122,8 +168,8 @@ func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, e
 	cfg, root := s.Config(), s.Root()
 	plan := &ImportPlan{Actor: o.Actor, Tickets: make([]PlannedTicket, 0, len(ordered))}
 	for _, in := range ordered {
-		pt := planTicket(cfg, root, in, o.FromStore, o.Actor)
-		pt.DroppedEdges = droppedEdges(in, ordered)
+		pt := planTicket(cfg, root, in, o, ordered)
+		pt.DroppedEdges = droppedEdges(in, ordered, pt.keptParent)
 		plan.Tickets = append(plan.Tickets, pt)
 	}
 	return plan, nil
@@ -170,6 +216,16 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 				return nil, fmt.Errorf("carrying reference %s to %s: %w", ref.Ref, res.Ticket.ID, err)
 			}
 		}
+		// The ticks go on after the create rather than through it, because
+		// CreateOptions seeds a checklist from text and files every box empty.
+		// The indices are the plan's, counted over the same items the create
+		// just seeded in the same order, so they line up by construction.
+		for _, tick := range pt.Ticks {
+			m := SetChecklistItem{Section: tick.Section, Index: tick.Index, Checked: true}
+			if _, err := s.Apply(ctx, res.Ticket.ID, m, ApplyOptions{Actor: p.Actor}); err != nil {
+				return nil, fmt.Errorf("carrying %s item %d to %s: %w", tick.Section, tick.Index, res.Ticket.ID, err)
+			}
+		}
 		if pt.Record != "" {
 			if _, err := s.Apply(ctx, res.Ticket.ID, AppendNote{Text: pt.Record}, ApplyOptions{Actor: p.Actor}); err != nil {
 				return nil, fmt.Errorf("carrying the work record to %s: %w", res.Ticket.ID, err)
@@ -186,7 +242,7 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 }
 
 // planTicket decides how one incoming ticket becomes a ticket of this store.
-func planTicket(cfg Config, root string, in IncomingTicket, fromStore string, actor Actor) PlannedTicket {
+func planTicket(cfg Config, root string, in IncomingTicket, o ImportOptions, all []IncomingTicket) PlannedTicket {
 	t := in.Ticket
 	p := PlannedTicket{Incoming: t, OriginPath: in.Path}
 
@@ -205,13 +261,17 @@ func planTicket(cfg Config, root string, in IncomingTicket, fromStore string, ac
 		ImplementationPlan: t.Body.ImplementationPlan,
 		AcceptanceCriteria: ChecklistItems(t.Body.AcceptanceCriteria),
 		DefinitionOfDone:   ChecklistItems(t.Body.DefinitionOfDone),
-		Actor:              actor,
+		Actor:              o.Actor,
 	}
-	if n := len(p.Create.AcceptanceCriteria); n > 0 {
-		p.Changes = append(p.Changes, Change{Kind: ChangeAcceptanceCriteriaUnchecked, Count: n})
-	}
-	if n := len(p.Create.DefinitionOfDone); n > 0 {
-		p.Changes = append(p.Changes, Change{Kind: ChangeDefinitionOfDoneUnchecked, Count: n})
+	if o.SameOwner {
+		p.planEvidence(t)
+	} else {
+		if n := len(p.Create.AcceptanceCriteria); n > 0 {
+			p.Changes = append(p.Changes, Change{Kind: ChangeAcceptanceCriteriaUnchecked, Count: n})
+		}
+		if n := len(p.Create.DefinitionOfDone); n > 0 {
+			p.Changes = append(p.Changes, Change{Kind: ChangeDefinitionOfDoneUnchecked, Count: n})
+		}
 	}
 
 	// A milestone is an allowlisted vocabulary exactly as a label is, so it is
@@ -251,14 +311,98 @@ func planTicket(cfg Config, root string, in IncomingTicket, fromStore string, ac
 	// exists to carry; a reference is deliberately not checked, which is exactly
 	// what a foreign ID needs.
 	p.Refs = append(p.Refs, AddReference{Ref: "origin-ticket:" + t.ID})
-	if fromStore != "" {
-		p.Refs = append(p.Refs, AddReference{Ref: "origin-store:" + fromStore})
+	if o.FromStore != "" {
+		p.Refs = append(p.Refs, AddReference{Ref: "origin-store:" + o.FromStore})
+	}
+	// A parent left behind is the link the move loses, and it is not the same
+	// loss as a dependency left behind. Under one owner the hierarchy is a real
+	// thing the ticket belongs to, so the ID is kept as provenance where the
+	// edge cannot go: parent names a ticket check resolves in this store, and a
+	// foreign ID there is parent_missing, an error.
+	//
+	// Only under SameOwner. A stranger's parent ID resolves nowhere the receiver
+	// can follow and states nothing they can use, which is the reverse of what a
+	// reference is for.
+	if o.SameOwner {
+		if id := t.Parent; id != nil && *id != "" && !carries(all, *id) {
+			p.Refs = append(p.Refs, AddReference{Ref: "origin-parent:" + *id})
+			p.Changes = append(p.Changes, Change{Kind: ChangeOriginParentRecorded, Value: *id})
+			p.keptParent = *id
+		}
 	}
 
-	if p.Record = originRecord(t, fromStore); p.Record != "" {
+	if p.Record = originRecord(t, o.FromStore); p.Record != "" {
 		p.Changes = append(p.Changes, Change{Kind: ChangeWorkRecordCarried})
 	}
 	return p
+}
+
+// planEvidence carries the sender's evidence, for the SameOwner case.
+//
+// Three things move and each is evidence rather than vocabulary: which boxes the
+// owner ticked, whether the owner finished the work, and when the owner filed
+// it. Everything else planTicket decides is left exactly as it was.
+func (p *PlannedTicket) planEvidence(t *Ticket) {
+	for _, sec := range []struct {
+		section ChecklistSection
+		text    string
+		kind    ChangeKind
+	}{
+		{AcceptanceCriteria, t.Body.AcceptanceCriteria, ChangeAcceptanceCriteriaCarried},
+		{DefinitionOfDone, t.Body.DefinitionOfDone, ChangeDefinitionOfDoneCarried},
+	} {
+		ticked := 0
+		// Checklist is the same view the JSON envelope and the TUI read, so a
+		// box a person ticked by hand counts exactly as one this tool wrote.
+		for i, item := range Checklist(sec.text) {
+			if !item.Checked {
+				continue
+			}
+			ticked++
+			p.Ticks = append(p.Ticks, ChecklistTick{Section: sec.section, Index: i + 1})
+		}
+		if ticked > 0 {
+			p.Changes = append(p.Changes, Change{Kind: sec.kind, Count: ticked})
+		}
+	}
+
+	// Status travels only as far as 6.2.1 already lets one arrive. done and
+	// archived are the finished states a backport is allowed to file directly;
+	// every other status lands in draft, because promotion out of draft is a
+	// human call and an import that filed a ticket straight into ready would
+	// walk around the gate rather than through it.
+	//
+	// Saying so is the point. A ticket that left in-progress and arrives draft
+	// is the report this whole flag came from, and the fix is not to widen
+	// CreateOptions but to stop the loss being silent.
+	switch t.Status {
+	case StatusDone, StatusArchived:
+		p.Create.Status = string(t.Status)
+		p.Changes = append(p.Changes, Change{Kind: ChangeStatusCarried, Value: string(t.Status)})
+	case StatusDraft, "":
+		// Already where it is going, so there is nothing to say.
+	default:
+		p.Changes = append(p.Changes, Change{Kind: ChangeStatusNotCarried, Value: string(t.Status)})
+	}
+
+	// The filing instant, so a moved ticket keeps its real age. CreateOptions
+	// takes the ULID's time part from it too, so the moved ticket sorts among
+	// the work it was actually done beside rather than at the end of the store.
+	// An instant after now is refused by Create, which cannot happen for a
+	// ticket that already exists somewhere.
+	if !t.CreatedAt.Time.IsZero() {
+		p.Create.Created = t.CreatedAt.Time
+	}
+}
+
+// carries reports whether this export includes the ticket with this ID.
+func carries(all []IncomingTicket, id string) bool {
+	for _, o := range all {
+		if o.Ticket.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // importOrder puts a ticket after everything it points at, so that a dependency
@@ -319,7 +463,13 @@ func importOrder(in []IncomingTicket) ([]IncomingTicket, error) {
 // a dependency on a ticket that does not exist here is dependency_missing, an
 // error. Dropping them is the only thing that leaves a valid store, so the
 // duty is to be loud about it rather than to avoid it.
-func droppedEdges(t IncomingTicket, in []IncomingTicket) []string {
+//
+// keptParent is the one exception, and it is a change of wording rather than of
+// behaviour: the edge is gone either way, but when it has been kept as an
+// origin-parent reference, ChangeOriginParentRecorded already says so, and more
+// precisely. Reporting it here too would tell the reader it was not carried
+// directly after telling them it was.
+func droppedEdges(t IncomingTicket, in []IncomingTicket, keptParent string) []string {
 	present := make(map[string]bool, len(in))
 	for _, o := range in {
 		present[o.Ticket.ID] = true
@@ -330,8 +480,8 @@ func droppedEdges(t IncomingTicket, in []IncomingTicket) []string {
 			dropped = append(dropped, "dependency "+d)
 		}
 	}
-	if t.Ticket.Parent != nil && *t.Ticket.Parent != "" && !present[*t.Ticket.Parent] {
-		dropped = append(dropped, "parent "+*t.Ticket.Parent)
+	if p := t.Ticket.Parent; p != nil && *p != "" && !present[*p] && *p != keptParent {
+		dropped = append(dropped, "parent "+*p)
 	}
 	return dropped
 }

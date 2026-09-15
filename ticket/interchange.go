@@ -34,6 +34,12 @@ const MboxFromLine = "From 0000000000000000000000000000000000000000 Mon Sep 17 0
 // silent. The contribution that brought import arrived dropping half of this in
 // silence, with check clean and exit 0, which is why naming them is not
 // decoration.
+//
+// A few kinds name a carry rather than a loss, which is the same duty read from
+// the other side. Under ImportOptions.SameOwner the sender's evidence travels,
+// and evidence that arrives unannounced is as hard to trust afterwards as
+// evidence that vanishes: a reader who was not told the ticks came from another
+// store cannot tell them from ticks this store earned.
 type ChangeKind string
 
 const (
@@ -55,6 +61,22 @@ const (
 	// ChangeWorkRecordCarried reports that the sender's summary, notes and
 	// comments arrived as one note. It carries neither a value nor a count.
 	ChangeWorkRecordCarried ChangeKind = "work_record_carried"
+	// ChangeAcceptanceCriteriaCarried carries the count of ticked items in
+	// Count. It is the SameOwner counterpart of
+	// ChangeAcceptanceCriteriaUnchecked, and the two never both appear.
+	ChangeAcceptanceCriteriaCarried ChangeKind = "acceptance_criteria_carried"
+	// ChangeDefinitionOfDoneCarried carries the count of ticked items in Count.
+	ChangeDefinitionOfDoneCarried ChangeKind = "definition_of_done_carried"
+	// ChangeStatusCarried carries the status in Value. Only done and archived
+	// reach it, per plan 6.2.1.
+	ChangeStatusCarried ChangeKind = "status_carried"
+	// ChangeStatusNotCarried carries the sender's status in Value. It is the
+	// case 6.2.1 refuses: a ticket mid-flight cannot arrive mid-flight, because
+	// promotion out of draft is a human call.
+	ChangeStatusNotCarried ChangeKind = "status_not_carried"
+	// ChangeOriginParentRecorded carries the parent's ID at the origin in Value.
+	// The edge cannot survive a remint, so the link is kept as a reference.
+	ChangeOriginParentRecorded ChangeKind = "origin_parent_recorded"
 )
 
 // ChangeKinds is every kind, in the order a report reads best.
@@ -72,6 +94,11 @@ func ChangeKinds() []ChangeKind {
 		ChangeAcceptanceCriteriaUnchecked,
 		ChangeDefinitionOfDoneUnchecked,
 		ChangeWorkRecordCarried,
+		ChangeAcceptanceCriteriaCarried,
+		ChangeDefinitionOfDoneCarried,
+		ChangeStatusCarried,
+		ChangeStatusNotCarried,
+		ChangeOriginParentRecorded,
 	}
 }
 
@@ -84,11 +111,13 @@ func ChangeKinds() []ChangeKind {
 type Change struct {
 	Kind ChangeKind
 	// Value is the subject of the change: the label, the milestone, the date,
-	// the blocks_on value, or the reference. It is empty for the kinds that have
-	// no subject.
+	// the blocks_on value, the reference, the status, or the parent's ID at the
+	// origin. It is empty for the kinds that have no subject.
 	Value string
-	// Count is how many items the change covers, for the checklist kinds. It is
-	// zero elsewhere.
+	// Count is how many items the change covers, for the checklist kinds. For
+	// the unchecked kinds that is every item, and for the carried kinds it is
+	// the ticked ones alone, because the count is there to say how much evidence
+	// moved. It is zero elsewhere.
 	Count int
 }
 

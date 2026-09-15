@@ -208,6 +208,14 @@ milestone, a reference path that resolves to nothing here, a due date, and the
 ticks on the acceptance criteria. Each is named on the way past, so read that
 output rather than assuming everything arrived.
 
+Add `--same-owner` when both stores are yours and you are moving your own work
+rather than taking in somebody else's. The ticks then travel, a ticket that was
+`done` or `archived` arrives that way, the ticket keeps the instant it was filed,
+and a parent left behind is kept as an `origin-parent:` reference. Your
+allowlists still apply, so an undeclared label or milestone is dropped and named
+exactly as before. Nothing writes the sending store: the command prints the
+`summary` and `status` commands that close the origin, and you run those there.
+
 ### Naming a ticket in what you write
 
 When you mention a ticket in prose, put its title beside the ID the first time:

@@ -136,3 +136,79 @@ func hasChange(changes []Change, kind ChangeKind) bool {
 	}
 	return false
 }
+
+// TestSameOwnerPlansTheEvidenceAndApplyCarriesIt is the library half of the
+// second case on the interchange rule.
+//
+// The split it holds is the load-bearing one: PlanImport decides which boxes
+// travel and ApplyImport ticks exactly those. A preview renders the plan, so an
+// ApplyImport that worked the ticks out for itself could tick a box the preview
+// never promised, and nobody would find out from the output.
+func TestSameOwnerPlansTheEvidenceAndApplyCarriesIt(t *testing.T) {
+	ctx := context.Background()
+
+	src := newTestStore(t)
+	sent, err := src.Create(ctx, CreateOptions{
+		Title:              "Move this between my own stores",
+		AcceptanceCriteria: []string{"met", "not met"},
+		Actor:              testActor,
+	})
+	if err != nil {
+		t.Fatalf("create in the sending store: %v", err)
+	}
+	if _, err := src.Apply(ctx, sent.Ticket.ID,
+		SetChecklistItem{Section: AcceptanceCriteria, Index: 1, Checked: true},
+		ApplyOptions{Actor: testActor}); err != nil {
+		t.Fatalf("tick the first criterion: %v", err)
+	}
+	moved, err := src.Get(ctx, sent.Ticket.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	patch := exportOneTicket(t, moved.Path)
+
+	dst := newTestStore(t)
+	plan, err := dst.PlanImport(ctx, ImportOptions{
+		Patch:     patch,
+		FromStore: "my-other-store",
+		SameOwner: true,
+		Actor:     testActor,
+	})
+	if err != nil {
+		t.Fatalf("PlanImport: %v", err)
+	}
+	pt := plan.Tickets[0]
+
+	// The plan names the ticks, one of two, and says so as a carry rather than
+	// as the loss the default reports.
+	want := []ChecklistTick{{Section: AcceptanceCriteria, Index: 1}}
+	if len(pt.Ticks) != len(want) || pt.Ticks[0] != want[0] {
+		t.Errorf("plan Ticks = %+v, want %+v", pt.Ticks, want)
+	}
+	if !hasChange(pt.Changes, ChangeAcceptanceCriteriaCarried) {
+		t.Errorf("the plan does not report the ticks as carried: %+v", pt.Changes)
+	}
+	if hasChange(pt.Changes, ChangeAcceptanceCriteriaUnchecked) {
+		t.Errorf("the plan reports the ticks as carried and as unchecked at once: %+v", pt.Changes)
+	}
+
+	res, err := dst.ApplyImport(ctx, plan)
+	if err != nil {
+		t.Fatalf("ApplyImport: %v", err)
+	}
+	landed, err := dst.Get(ctx, res.Filed[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(landed.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Exactly the owner's own evidence: the one box they ticked and no other.
+	if n := strings.Count(string(body), "- [x]"); n != 1 {
+		t.Errorf("%d boxes arrived ticked, want the 1 the owner ticked:\n%s", n, body)
+	}
+	if n := strings.Count(string(body), "- [ ]"); n != 1 {
+		t.Errorf("%d boxes arrived unticked, want 1:\n%s", n, body)
+	}
+}

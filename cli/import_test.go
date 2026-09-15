@@ -589,3 +589,341 @@ func declareMilestone(t *testing.T, store, name string) {
 		t.Fatal(err)
 	}
 }
+
+// newOwnedExport is one owner's store, holding a ticket that was worked and
+// finished there, exported to a directory.
+//
+// It carries a parent that stays behind, a ticked and an unticked criterion, a
+// ticked definition-of-done item, and a milestone the receiver will not declare,
+// so one export exercises both halves of the rule: the evidence that travels
+// under --same-owner and the vocabulary that still does not.
+func newOwnedExport(t *testing.T) (dir, parentID, childID string) {
+	t.Helper()
+	src := newGitStore(t)
+	mint := func(args ...string) string {
+		t.Helper()
+		got := runCLI(t, src, nil, append([]string{"--json", "create"}, append(args, "--actor", "human:sothr")...)...)
+		if got.code != exitOK {
+			t.Fatalf("create %v: %s%s", args, got.stdout, got.stderr)
+		}
+		id, _ := decode(t, got.stdout)["ticket"].(map[string]any)["id"].(string)
+		if id == "" {
+			t.Fatalf("create %v returned no id", args)
+		}
+		return id
+	}
+	parentID = mint("--title", "The epic that stays home", "--type", "epic")
+	childID = mint("--title", "The ticket that moves", "--parent", parentID)
+
+	run := func(args ...string) {
+		t.Helper()
+		if got := runCLI(t, src, nil, append(args, "--actor", "human:sothr")...); got.code != exitOK {
+			t.Fatalf("%v: %s%s", args, got.stdout, got.stderr)
+		}
+	}
+	run("ac", childID, "--add", "the criterion that was met")
+	run("ac", childID, "--add", "the criterion that was not")
+	run("ac", childID, "--check", "1")
+	run("dod", childID, "--add", "the suite is green")
+	run("dod", childID, "--check", "1")
+	run("update", childID, "--milestone", "sender-roadmap")
+	run("status", childID, "ready")
+	run("status", childID, "in-progress")
+	run("status", childID, "done")
+
+	exportGit(t, src, "add", "-A")
+	exportGit(t, src, "commit", "-qm", "store")
+	dir = filepath.Join(t.TempDir(), "out")
+	if got := runCLI(t, src, nil, "export", childID, "--out", dir); got.code != exitOK {
+		t.Fatalf("export: %s%s", got.stdout, got.stderr)
+	}
+	return dir, parentID, childID
+}
+
+// box is one checklist item as these tests compare them: the text and whether
+// it is ticked, which is the whole of what --same-owner is about.
+type box struct {
+	Text    string
+	Checked bool
+}
+
+// boxes reads one checklist section back out of the JSON envelope. The name
+// avoids cli.checklist, which renders the envelope rather than reading it.
+func boxes(t *testing.T, tk map[string]any, field string) []box {
+	t.Helper()
+	lists, _ := tk["checklists"].(map[string]any)
+	items, _ := lists[field].([]any)
+	var out []box
+	for _, raw := range items {
+		item, _ := raw.(map[string]any)
+		text, _ := item["text"].(string)
+		checked, _ := item["checked"].(bool)
+		out = append(out, box{text, checked})
+	}
+	return out
+}
+
+// TestSameOwnerCarriesTheEvidence is the second case of the interchange rule.
+//
+// Where TestAdoptCarriesTheStatementOfTheWork asserts that a stranger's evidence
+// does not travel, this asserts that one owner's own evidence does, and that the
+// vocabulary half of the rule is untouched by it. Both must hold at once, which
+// is why the milestone assertion sits in this test rather than in its own: the
+// failure worth catching is --same-owner being read as "carry everything".
+func TestSameOwnerCarriesTheEvidence(t *testing.T) {
+	dir, parentID, childID := newOwnedExport(t)
+
+	dest := newGitStore(t)
+	declareMilestone(t, dest, "receiver-roadmap")
+	adopt := runCLI(t, dest, nil, "import", dir, "--adopt", "--same-owner",
+		"--from-store", "flywheel/ledger", "--actor", "human:sothr")
+	if adopt.code != exitOK {
+		t.Fatalf("import --adopt --same-owner: %s%s", adopt.stdout, adopt.stderr)
+	}
+
+	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
+	if len(rows) != 1 {
+		t.Fatalf("want one adopted ticket, got %d", len(rows))
+	}
+	newID, _ := rows[0]["id"].(string)
+	tk, _ := decode(t, runCLI(t, dest, nil, "--json", "show", newID).stdout)["ticket"].(map[string]any)
+
+	// The ticks travel exactly as the owner left them. Not all of them and not
+	// none of them: a flag that ticked every box would pass an assertion that
+	// only looked at the first.
+	for _, tc := range []struct {
+		field string
+		want  []box
+	}{
+		{"acceptanceCriteria", []box{
+			{"the criterion that was met", true},
+			{"the criterion that was not", false},
+		}},
+		{"definitionOfDone", []box{{"the suite is green", true}}},
+	} {
+		got := boxes(t, tk, tc.field)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: %d items, want %d", tc.field, len(got), len(tc.want))
+			continue
+		}
+		for i := range tc.want {
+			if got[i] != tc.want[i] {
+				t.Errorf("%s[%d] = %+v, want %+v", tc.field, i, got[i], tc.want[i])
+			}
+		}
+	}
+
+	// Status travels, because this owner finished this work.
+	if tk["status"] != "done" {
+		t.Errorf("status = %v, want done: the same owner finished it", tk["status"])
+	}
+
+	// The parent stayed home, so the link is kept where the edge cannot go.
+	if tk["parent"] != nil {
+		t.Errorf("parent = %v, want none: the edge would name a ticket this store does not have", tk["parent"])
+	}
+	var refs []string
+	for _, raw := range tk["references"].([]any) {
+		ref, _ := raw.(map[string]any)["ref"].(string)
+		refs = append(refs, ref)
+	}
+	for _, want := range []string{
+		"origin-ticket:" + childID,
+		"origin-store:flywheel/ledger",
+		"origin-parent:" + parentID,
+	} {
+		if !slicesContains(refs, want) {
+			t.Errorf("references %v do not carry %q", refs, want)
+		}
+	}
+
+	// The vocabulary half of the rule does not move. One owner keeping two
+	// stores is not one owner keeping two allowlists.
+	if tk["milestone"] != nil {
+		t.Errorf("milestone = %v, want none: --same-owner says nothing about vocabulary", tk["milestone"])
+	}
+
+	// Every carry is named. Evidence that arrives unannounced is as hard to
+	// trust later as evidence that vanishes.
+	for _, want := range []string{
+		"acceptance criteria: 1 ticked at the origin, carried ticked",
+		"definition of done: 1 ticked at the origin, carried ticked",
+		"status done: carried",
+		"parent " + parentID + ": kept as an origin-parent reference",
+		`milestone "sender-roadmap": not carried`,
+	} {
+		if !strings.Contains(adopt.stderr, want) {
+			t.Errorf("adopt did not report %q:\n%s", want, adopt.stderr)
+		}
+	}
+
+	// A parent kept as provenance is not also a dropped edge. The first real run
+	// of this flag reported it as both, one line after the other.
+	if strings.Contains(adopt.stderr, "parent "+parentID+" not carried") {
+		t.Errorf("the parent is reported as kept and as dropped at once:\n%s", adopt.stderr)
+	}
+
+	if res := runCLI(t, dest, nil, "check", "--strict"); res.code != exitOK {
+		t.Errorf("check --strict after adopt: %s%s", res.stdout, res.stderr)
+	}
+}
+
+// TestSameOwnerLeavesTheDefaultAlone is the control.
+//
+// The same export adopted without the flag must behave exactly as it did before
+// the flag existed. Without this, every assertion above would still pass if
+// --same-owner had quietly become the only behaviour.
+func TestSameOwnerLeavesTheDefaultAlone(t *testing.T) {
+	dir, parentID, _ := newOwnedExport(t)
+
+	dest := newGitStore(t)
+	adopt := runCLI(t, dest, nil, "import", dir, "--adopt", "--actor", "human:sothr")
+	if adopt.code != exitOK {
+		t.Fatalf("import --adopt: %s%s", adopt.stdout, adopt.stderr)
+	}
+	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
+	tk, _ := decode(t, runCLI(t, dest, nil, "--json", "show", rows[0]["id"].(string)).stdout)["ticket"].(map[string]any)
+
+	for _, item := range boxes(t, tk, "acceptanceCriteria") {
+		if item.Checked {
+			t.Errorf("%q arrived ticked without --same-owner", item.Text)
+		}
+	}
+	if tk["status"] != "draft" {
+		t.Errorf("status = %v, want draft without --same-owner", tk["status"])
+	}
+	for _, raw := range tk["references"].([]any) {
+		if ref, _ := raw.(map[string]any)["ref"].(string); strings.HasPrefix(ref, "origin-parent:") {
+			t.Errorf("a stranger's parent ID arrived as %q, which resolves nowhere the receiver can follow", ref)
+		}
+	}
+	for _, want := range []string{
+		"acceptance criteria: 2 carried, every box unchecked",
+		"parent " + parentID + " not carried, this export does not include it",
+		"filed as draft",
+	} {
+		if !strings.Contains(adopt.stderr, want) {
+			t.Errorf("the default no longer reports %q:\n%s", want, adopt.stderr)
+		}
+	}
+}
+
+// TestSameOwnerLandsAnUnpromotableStatusInDraft holds the one place the flag
+// stops short of the sender's state.
+//
+// 6.2.1 lets done and archived arrive directly and refuses every other status,
+// because promotion out of draft is a human call. So a ticket that left
+// in-progress lands in draft, and the duty is to say so: that silent gap is the
+// report this whole flag came from.
+func TestSameOwnerLandsAnUnpromotableStatusInDraft(t *testing.T) {
+	src := newGitStore(t)
+	got := runCLI(t, src, nil, "--json", "create", "--title", "Still mid-flight", "--actor", "human:sothr")
+	id, _ := decode(t, got.stdout)["ticket"].(map[string]any)["id"].(string)
+	for _, args := range [][]string{
+		{"ac", id, "--add", "a criterion already met"},
+		{"ac", id, "--check", "1"},
+		{"status", id, "ready"},
+		{"status", id, "in-progress"},
+	} {
+		if r := runCLI(t, src, nil, append(args, "--actor", "human:sothr")...); r.code != exitOK {
+			t.Fatalf("%v: %s%s", args, r.stdout, r.stderr)
+		}
+	}
+	exportGit(t, src, "add", "-A")
+	exportGit(t, src, "commit", "-qm", "store")
+	dir := filepath.Join(t.TempDir(), "out")
+	if r := runCLI(t, src, nil, "export", id, "--out", dir); r.code != exitOK {
+		t.Fatalf("export: %s%s", r.stdout, r.stderr)
+	}
+
+	dest := newGitStore(t)
+	adopt := runCLI(t, dest, nil, "import", dir, "--adopt", "--same-owner", "--actor", "human:sothr")
+	if adopt.code != exitOK {
+		t.Fatalf("adopt: %s%s", adopt.stdout, adopt.stderr)
+	}
+	rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))
+	tk, _ := decode(t, runCLI(t, dest, nil, "--json", "show", rows[0]["id"].(string)).stdout)["ticket"].(map[string]any)
+
+	if tk["status"] != "draft" {
+		t.Errorf("status = %v, want draft: only done and archived may arrive directly", tk["status"])
+	}
+	// The evidence still travels. The status is refused by 6.2.1 and the ticks
+	// are not, and conflating the two would lose the record for no reason.
+	if items := boxes(t, tk, "acceptanceCriteria"); len(items) != 1 || !items[0].Checked {
+		t.Errorf("acceptance criteria = %+v, want the one ticked item carried", items)
+	}
+	if !strings.Contains(adopt.stderr, "status in-progress: not carried, it lands in draft") {
+		t.Errorf("the refused status was not named:\n%s", adopt.stderr)
+	}
+	// The origin is still open, so the advice says how to close it.
+	if !strings.Contains(adopt.stderr, "git ticket status "+id+" done") {
+		t.Errorf("the origin-closing advice omits the status command:\n%s", adopt.stderr)
+	}
+}
+
+// TestSameOwnerPreviewPromisesWhatTheAdoptDoes holds the preview to the write.
+//
+// --same-owner is legal without --adopt for exactly this reason. A preview that
+// ignored the flag would describe a reconciliation nobody was going to run, and
+// the preview's whole value is that it is the same answer.
+func TestSameOwnerPreviewPromisesWhatTheAdoptDoes(t *testing.T) {
+	dir, parentID, _ := newOwnedExport(t)
+
+	preview := runCLI(t, newGitStore(t), nil, "import", dir, "--same-owner")
+	if preview.code != exitOK {
+		t.Fatalf("preview: %s%s", preview.stdout, preview.stderr)
+	}
+	for _, want := range []string{
+		"acceptance criteria: 1 ticked at the origin, carried ticked",
+		"definition of done: 1 ticked at the origin, carried ticked",
+		"status done: carried",
+		"parent " + parentID + ": kept as an origin-parent reference",
+		"nothing here writes the sending store",
+	} {
+		if !strings.Contains(preview.stdout, want) {
+			t.Errorf("the preview did not promise %q:\n%s", want, preview.stdout)
+		}
+	}
+	// A preview writes nothing, flag or no flag.
+	if rows := crossRows(t, runCLI(t, newGitStore(t), nil, "--json", "list", "--all")); len(rows) != 0 {
+		t.Errorf("the preview filed %d tickets", len(rows))
+	}
+}
+
+// TestSameOwnerNamesTheOriginItWillNotClose holds the boundary.
+//
+// import runs in the receiving store and never writes the sending one: 7.3
+// forbids a sync helper rewriting another worktree, and the repository policy
+// forbids writing a sibling at all. So the closing half is printed as advice,
+// naming the adopted ID, which is the one thing the sender's copy cannot know.
+func TestSameOwnerNamesTheOriginItWillNotClose(t *testing.T) {
+	dir, _, childID := newOwnedExport(t)
+
+	dest := newGitStore(t)
+	adopt := runCLI(t, dest, nil, "import", dir, "--adopt", "--same-owner", "--actor", "human:sothr")
+	if adopt.code != exitOK {
+		t.Fatalf("adopt: %s%s", adopt.stdout, adopt.stderr)
+	}
+	newID, _ := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))[0]["id"].(string)
+
+	want := `git ticket summary ` + childID + ` "Moved to ` + newID + `."`
+	if !strings.Contains(adopt.stderr, want) {
+		t.Errorf("the advice does not carry %q:\n%s", want, adopt.stderr)
+	}
+	// This one left done, so there is no transition left to advise. Printing one
+	// would be advice that fails when taken.
+	if strings.Contains(adopt.stderr, "git ticket status "+childID+" done") {
+		t.Errorf("advised closing a ticket that already arrived done:\n%s", adopt.stderr)
+	}
+}
+
+// slicesContains is the membership test these assertions want, spelled out here
+// rather than reached for, because cli has no other need of the generic.
+func slicesContains(haystack []string, needle string) bool {
+	for _, s := range haystack {
+		if s == needle {
+			return true
+		}
+	}
+	return false
+}

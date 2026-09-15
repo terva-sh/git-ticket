@@ -3392,7 +3392,8 @@ Title, type, priority, description, implementation plan, acceptance criteria and
 definition of done are the work, and they travel. Both checklists land unticked:
 a tick is evidence about the sender's work and says nothing about whether this
 store has met the criterion, which is the argument that files every imported
-ticket as a draft in the first place.
+ticket as a draft in the first place. "One owner, two stores" below is the single
+case where that argument does not hold.
 
 A label or milestone this store does not declare is dropped and named. Both are
 allowlisted vocabulary, so both are reconciled by one rule rather than two, and
@@ -3417,6 +3418,53 @@ sender cannot see. Provenance goes in references, `origin-ticket:` and with
 `origin` against this store and an unresolvable one is an error, which is the
 guarantee that field exists to carry, while a reference is deliberately
 unverified, which is exactly what a foreign ID needs.
+
+#### One owner, two stores
+
+Everything above reads the sender as somebody else. `--same-owner` is the case
+where they are not, and it is a second case on the one rule rather than an
+exception to it.
+
+The rule turns on what the receiver agreed to, and the argument for unticking is
+that a tick is *the sender's* evidence. When one person keeps both stores that
+argument does not hold: the evidence is theirs in both places, and unticking
+destroys a record nothing else holds. So under `--same-owner` the evidence
+travels and the vocabulary does not. The checklist ticks travel, the status
+travels, and the instant the ticket was filed travels. Labels, milestones, due
+dates and `blocks_on` are reconciled exactly as before, because one owner keeping
+two stores is not one owner keeping two allowlists, and that split is also what
+keeps `check --strict` green on arrival.
+
+Status travels only as far as 6.2.1 already allows one to arrive. `done` and
+`archived` are the finished states a backport may file directly; a ticket that
+left `ready`, `in-progress`, `blocked` or `review` lands in `draft` and is named.
+Widening `CreateOptions.Status` to carry the rest would walk around the gate that
+makes promotion a human call, and the loss worth fixing was never the status
+itself but the silence about it.
+
+A parent the export left behind is kept as an `origin-parent:` reference. The
+edge cannot survive a remint — `parent` names a ticket `check` resolves in this
+store, and a foreign ID there is `parent_missing`, an error — but the link is
+what a move actually loses, and a reference is the unverified form that suits a
+foreign ID. Only under `--same-owner`: a stranger's parent ID resolves nowhere
+the receiver can follow, which is the reverse of what a reference is for. A
+parent kept this way is reported once, as a carry, and not also as a dropped
+edge.
+
+The tool cannot infer any of this. Nothing in an export says who owns the sending
+store, and inferring it from the series is the mistake import already made once,
+since `TKT` is the default every store has. So `--same-owner` is a sentence the
+person asserts, the way `--adopt` is, and it is legal without `--adopt` so that
+the preview shows the reconciliation the write will carry out rather than a
+different one.
+
+Closing the origin is advice and never action. `import` runs in the receiving
+store, 7.3 forbids a sync helper rewriting another worktree, and the sending
+store is a second repository somebody else may be working in. So the command
+prints the `summary` that names the adopted ID and, when the origin has a
+transition left to make, the `status` that closes it, and the person who owns
+both stores runs them there. That is the same move the preview makes when it
+offers `git am`: name the better route and let the reader take it.
 
 Tickets are filed in dependency order so a parent exists before the child naming
 it, and the edges among the imported set are rewritten to the new IDs. An edge
@@ -4397,9 +4445,40 @@ in `config.yml` is the list a bare write is attributed from rather than a gate.
 The trigger is somebody meeting an adopted ticket assigned to a person who does
 not work on their project.
 
+**Carrying a ticket between one owner's own stores**
+(`TKT-01M2H6TM1T2W0WF99HMDZCM520`). Whether `import --adopt` should carry the
+parent link and the acceptance-criteria ticks. Answered in 12.8 under "One owner,
+two stores", on 2026-09-15, as `--same-owner`.
+
+The report was a ticket moved out of a project store arriving in `draft` with
+every box empty while the origin was ticked and `done`. Measuring it first was
+what settled the shape. Two of its three claims held and one did not: a parent
+travelling in the same export is carried and reminted already, and only one left
+behind is dropped. So the parent half was never the rule being wrong, it was a
+link with nowhere to go, which is why the answer is a reference rather than an
+edge.
+
+The ticks were the real question, and the ruling is that the existing argument
+was right and incomplete. Unticking rests on the tick being *the sender's*
+evidence, and that premise simply fails when one person keeps both stores. A flag
+was the answer rather than a `move` command for two reasons. The reconciliation
+is already one decision that preview and adopt share, and a second command would
+own a second copy of it. And `move` is spent across this tree for the file moving
+between status directories, which is a collision the store's own vocabulary would
+have paid for.
+
+What holds the line is that `--same-owner` carries evidence and not vocabulary.
+The receiver's allowlists still apply, which is what keeps `check --strict` green
+on arrival, and status still stops where 6.2.1 stops it.
+
+The trigger is somebody for whom the split is the wrong one: a same-owner move
+that loses a label the owner wanted, or one whose ticks turn out to have been
+about the sending project rather than about the work. Not a wish for `--adopt` to
+carry ticks by default, which is the question this settles.
+
 **A ticked box in an authored document** (`TKT-01M298MJ0`). Whether
 `create --file` should carry a `- [x]` from the document into the filed ticket,
-or untick it the way `--from` and `import --adopt` both do.
+or untick it the way `--from` does and `import --adopt` does by default.
 
 It carries it today, which follows from 4.3 sharing the loader of 4.2: a
 template's checklist seeds as rendered lines and a document's does the same.
@@ -4419,9 +4498,20 @@ its satisfied criteria ticked, which an unconditional untick would forbid. So
 the answer may well be that the status decides, and that is a third option
 rather than a compromise.
 
-The trigger is a person filing a document whose ticks turn out to mean the wrong
-thing in either direction: a draft that arrives claiming finished work, or a
-backport that loses the record of what it satisfied.
+`--same-owner` above is the same axis settled for the adjacent case, and it is
+worth reading before this one is answered, because it strengthens the argument
+already recorded here rather than replacing it. What it ruled is that whose
+evidence a tick is decides whether the tick travels, which is precisely the
+"somebody else's claim of evidence" distinction the paragraph above reaches for.
+It did not fire this question's trigger, which names a person filing a document,
+and no such report exists. It narrows it instead: the third option above, that
+the status decides, now has a second mechanism arguing against it, since the case
+this settled carries ticks at every status and lets 6.2.1 govern the status
+alone.
+
+The trigger is unchanged: a person filing a document whose ticks turn out to mean
+the wrong thing in either direction, a draft that arrives claiming finished work,
+or a backport that loses the record of what it satisfied.
 
 ## 16. References
 

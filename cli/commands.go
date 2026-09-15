@@ -2360,7 +2360,13 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready tick
 // the stance import already takes about closing the origin: name the command,
 // let the person run it.
 func reportAdoption(ctx *cmdContext, s *ticket.Store) {
-	all, err := s.List(context.Background(), ticket.Filter{})
+	// Every status, not the open default. A listing leaves out done and archived
+	// per section 8, because a list of work is about work that is still live,
+	// and that is exactly wrong here: a cross-store move usually carries
+	// finished work, so the tickets this is counting are the ones a bare Filter
+	// hides. v0.18.0 shipped with the default and reported nothing at all for a
+	// store whose arrived tickets were all done.
+	all, err := s.List(context.Background(), ticket.Filter{Status: ticket.Statuses})
 	if err != nil || len(all) == 0 {
 		return
 	}

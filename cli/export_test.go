@@ -400,3 +400,51 @@ func TestGitAmOfAnExportReachesAUsableStore(t *testing.T) {
 		t.Errorf("check --strict on the adopted store: %s%s", got.stdout, got.stderr)
 	}
 }
+
+// TestAdoptionCountsFinishedWork covers the case v0.18.0 shipped broken.
+//
+// reportAdoption asked the store to list its tickets and a bare Filter answers
+// with the open ones, because section 8 leaves done and archived out of a
+// listing on the grounds that a list of work is about work that is still live.
+// Here that rule is exactly inverted: a cross-store move usually carries work
+// somebody finished, so the arrived tickets are the ones the default hides, and
+// init reported nothing at all.
+//
+// TestGitAmOfAnExportReachesAUsableStore did not catch it because crossCreate
+// files a draft, so its adopted ticket was open and the default filter found
+// it. The status is the whole point of this test, which is why it drives the
+// ticket to done through the real transitions rather than adopting a draft.
+func TestAdoptionCountsFinishedWork(t *testing.T) {
+	src := newGitStore(t)
+	if got := runCLI(t, src, nil, "series", "add", "LED", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("series add: %s%s", got.stdout, got.stderr)
+	}
+	id := crossCreate(t, src, "Finished work that moves", "human:sothr", "--series", "LED")
+	for _, to := range []string{"ready", "in-progress", "done"} {
+		if got := runCLI(t, src, nil, "status", id, to, "--actor", "human:sothr"); got.code != exitOK {
+			t.Fatalf("status %s: %s%s", to, got.stdout, got.stderr)
+		}
+	}
+	exportGit(t, src, "add", "-A")
+	exportGit(t, src, "commit", "-qm", "store")
+
+	out := filepath.Join(t.TempDir(), "out")
+	if got := runCLI(t, src, nil, "export", id, "--out", out); got.code != exitOK {
+		t.Fatalf("export: %s%s", got.stdout, got.stderr)
+	}
+
+	dest := newGitRepo(t)
+	applyExport(t, dest, out)
+	init := runCLI(t, dest, nil, "init", "--actor", "human:sothr")
+	if init.code != exitOK {
+		t.Fatalf("init: %s%s", init.stdout, init.stderr)
+	}
+	if !strings.Contains(init.stdout, "Adopted 1 ticket") {
+		t.Errorf("init did not count a done ticket it adopted:\n%s", init.stdout)
+	}
+	// The series advice is behind the same early return, so losing the count
+	// loses the one line that tells the reader how to finish.
+	if !strings.Contains(init.stdout, "git ticket series add LED") {
+		t.Errorf("init did not name the series of a done ticket it adopted:\n%s", init.stdout)
+	}
+}

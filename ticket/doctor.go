@@ -126,15 +126,6 @@ type Rule struct {
 	Check func(RuleContext) []DoctorFinding
 }
 
-// DefaultRules is the set that ships with the binary, on by default. A store
-// that configures nothing gets exactly this, which is the point of shipping an
-// opinion at all.
-//
-// It is empty until TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0 lands the first two rules.
-// The machinery below is exercised by rules registered in tests through this
-// same shape, so what ships untested is nothing rather than everything.
-func DefaultRules() []Rule { return nil }
-
 // RuleUnknown is the finding doctor raises for a rule identifier a store
 // configured that this binary does not know.
 //
@@ -157,6 +148,16 @@ const RuleUnknown = "rule_unknown"
 // --fix repairs, and it has to keep answering a yes-or-no question about
 // validity; hygiene is advice and an untidy store is not a broken one.
 func (s *Store) Doctor(ctx context.Context, rules []Rule, now time.Time) (*DoctorReport, error) {
+	// The open set, which is what Filter{} means, per plan section 8: draft,
+	// ready, in-progress, blocked and review, and not done or archived.
+	//
+	// Deliberate and not a default taken by accident. Hygiene is about a ticket
+	// somebody might pick up, and nobody picks up an archived one. Measured on
+	// this project's own store the difference is the whole feature: 11 findings
+	// against the open set, 65 against every file, and the extra 54 are tickets
+	// finished months ago that no one will label now. A report that large is one
+	// a reader learns to skim, which is the failure this command exists to
+	// avoid.
 	tickets, err := s.List(ctx, Filter{})
 	if err != nil {
 		return nil, err

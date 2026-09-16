@@ -24,7 +24,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-16T16:41:30Z
-updated_at: 2026-09-16T18:29:49Z
+updated_at: 2026-09-16T18:37:35Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -71,7 +71,7 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 
 - [x] check keeps answering only whether the store is valid, and doctor never fails a build by default
 - [x] Each finding names the ticket and says what would resolve it
-- [ ] Rules are marked hard or soft, and a soft finding reads as a question rather than a verdict
+- [x] Rules are marked hard or soft, and a soft finding reads as a question rather than a verdict
 - [x] Rules ship on by default and a store that configures nothing gets them
 - [x] A store turns a rule off, changes its level, or sets its parameters in .tickets/config.yml
 - [x] Every rule has a stable identifier that configuration refers to
@@ -365,6 +365,10 @@ alone with a deliberate gap so neither bucket has to move if either grows. Plan
 10.2 now reserves them and says why a grade rather than a mask, and section 10.3
 gained a `doctor-report` subsection rather than a new numbered section, so
 nothing downstream renumbered.
+
+**agent:claude/t3code** at 2026-09-16T18:37:35Z
+
+The third criterion is now ticked, by TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0 rather than by this ticket's own change. It shipped unticked because "a soft finding reads as a question rather than a verdict" needed a soft rule to be true of anything, and label_order is that rule. The tick landed after the run that proved it: TestLabelOrderFiresOnlyWhenALabelIsHidden asserts the message ends in a question mark and that the finding is soft. One correction to this ticket's own work, found while building on it. Doctor reads the open set, because List takes a bare Filter{}, and that was never stated. It is the right scope and now says so in doctor.go with a test, but it was an implicit default rather than a decision when this shipped.
 
 ## Summary
 

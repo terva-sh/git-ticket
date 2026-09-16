@@ -3,8 +3,8 @@ schema: 2
 id: TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0
 title: "Ship doctor's first hard and soft rules: label presence and order"
 type: task
-status: draft
-status_reason: null
+status: done
+status_reason: "Worked straight from draft at the user's request, without passing through ready or in-progress. The work is this branch: ticket/doctorrules.go and ticket/doctorrules_test.go, committed with this ticket's ID."
 priority: normal
 due_on: null
 labels: []
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:57:13Z
-updated_at: 2026-09-16T18:16:49Z
+updated_at: 2026-09-16T18:37:44Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -74,11 +74,11 @@ renamed casually afterwards.
 
 ## Acceptance criteria
 
-- [ ] Every ticket carries at least one label ships as the first hard rule
-- [ ] Labels are ordered most-descriptive first ships as the first soft rule
-- [ ] The hard rule reports presence only, and does not restate check's label_unknown
-- [ ] The level each rule ships at is chosen against what it does to a real store, not in the abstract
-- [ ] The soft finding reads as a question rather than a verdict, and does not make the run fail
+- [x] Every ticket carries at least one label ships as the first hard rule
+- [x] Labels are ordered most-descriptive first ships as the first soft rule
+- [x] The hard rule reports presence only, and does not restate check's label_unknown
+- [x] The level each rule ships at is chosen against what it does to a real store, not in the abstract
+- [x] The soft finding reads as a question rather than a verdict, and does not make the run fail
 
 ## Notes
 
@@ -135,3 +135,71 @@ finding still may not do is make the run fail.
 
 The first half of the criterion is untouched. The soft rule reads as a question
 either way, and that was never about the exit status.
+
+**agent:claude/t3code** at 2026-09-16T18:37:24Z
+
+Both rules ship. `label_missing` is hard, `label_order` is soft, and
+`DefaultRules()` is no longer empty, so the framework's fourth criterion stops
+being vacuous.
+
+**The measurement recorded on this ticket was wrong, and the corrected number is
+better news.** The note above says the hard rule would fire on 63 of 137. It
+fires on **11**, because `Doctor` reads the open set and not every file: 25 open
+tickets, 11 of them unlabelled, while the other 54 unlabelled ones are done or
+archived.
+
+That scope was implicit in a bare `Filter{}` when the framework was built, which
+is not good enough for a decision this size, so it is now stated and commented
+in `doctor.go` and held by `TestDoctorReadsTheOpenSet`. Hygiene is about a
+ticket somebody might pick up, and nobody picks up an archived one. The
+difference is the whole feature: 11 findings a person can act on today against
+65 mostly about work finished months ago, and a report that large is one a
+reader learns to skim.
+
+**The fourth criterion could not be satisfied the way it was written, and this
+is the honest version.** It asks that the level each rule ships at be chosen
+against what it does to a real store. But the framework settled that level means
+whether a rule can be settled mechanically, not how severe or how noisy it is.
+Whether a ticket has a label is objectively checkable, so `label_missing` is
+hard no matter how often it fires; moving it to soft to quiet it would be
+claiming the tool cannot tell, which is false. Level is not a dial.
+
+What the measurement did decide, which is the real content of the criterion:
+
+- **Scope.** The open set rather than every file, on the numbers above.
+- **The soft rule's threshold.** It fires only when a label is actually hidden,
+  which with a card showing two means three or more labels. A ticket with two
+  labels has no ordering choice a reader can see, and a rule that fired there
+  would be asking about a decision that does not exist.
+
+**The soft rule fires exactly once in this store, as predicted.** That was
+flagged before it was built and it is still true: one ticket carries three
+labels. It is not a design fault. `visible` is a parameter, so a store whose
+board renders compact cards sets it to three and the rule goes quiet, and a
+store that labels heavily gets more from it than this one does. That makes the
+near-silence a fact about this store rather than about the rule, which is the
+best that can be done without inventing subjects.
+
+It is also the first shipped rule to read a parameter, so the framework's
+params plumbing now has a user rather than only a test.
+
+**The remedy was verified rather than guessed.** Labels keep insertion order:
+`addUnique` appends and nothing sorts them, confirmed against a scratch store.
+There is no reorder flag, but `update` applies removals before additions within
+one write, so `--remove-label NAME --add-label NAME` moves a label to the end in
+a single command. That was measured before it was put in a remedy a person is
+told to run.
+
+**TKT-01M2NHGHTZ4PWHBKRHE43XJG8D's third criterion is now ticked**, on its
+ticket. It was left unticked when the framework shipped because "a soft finding
+reads as a question rather than a verdict" needed a soft rule to be true of
+anything. `label_order` is that rule, and the assertion that its message ends in
+a question mark is in `TestLabelOrderFiresOnlyWhenALabelIsHidden`.
+
+**agent:claude/t3code** at 2026-09-16T18:37:44Z
+
+draft to done: Worked straight from draft at the user's request, without passing through ready or in-progress. The work is this branch: ticket/doctorrules.go and ticket/doctorrules_test.go, committed with this ticket's ID.
+
+## Summary
+
+label_missing ships hard and label_order soft, so DefaultRules is no longer empty. The hard rule reports presence only and leaves membership to check's label_unknown. The soft rule fires only when a card actually hides a label, which is three or more against a default of two, and reads that threshold from params, making it the first shipped rule to use them. On this store: 11 hard findings and 1 soft. The 63-of-137 baseline recorded earlier was wrong; doctor reads the open set, so it is 11 of 25 open tickets and the other 54 unlabelled ones are done or archived.

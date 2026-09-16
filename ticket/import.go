@@ -180,6 +180,21 @@ func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, e
 //
 // It decides nothing. Everything it writes was settled by PlanImport, which is
 // what makes a preview an honest promise rather than a second opinion.
+//
+// It is deliberately not atomic, per plan 7.3: making it transactional needs a
+// scratch branch and a helper that rewrites a worktree, which that section
+// forbids. So a failure partway leaves the tickets already filed in the store,
+// and the result reports them alongside the error naming what stopped it.
+//
+// That pairing is the point. ImportedTicket carries FromID beside the minted
+// ID, and after a partial failure that mapping is the one thing a caller cannot
+// work out for itself: it does not know how many landed, so it cannot re-read
+// the store and match on title without knowing where to stop. Without it the
+// honest report is "some unknown number of tickets may exist in your store, go
+// and look", and the caller cannot even name what to look for.
+//
+// A nil plan is the one error that returns nil, because nothing was filed and
+// an empty result would claim a run that never happened.
 func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, error) {
 	if p == nil {
 		return nil, fmt.Errorf("no import plan")
@@ -207,13 +222,13 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 
 		res, err := s.Create(ctx, create)
 		if err != nil {
-			return nil, fmt.Errorf("filing %s (%s): %w", pt.Incoming.Title, pt.Incoming.ID, err)
+			return out, fmt.Errorf("filing %s (%s): %w", pt.Incoming.Title, pt.Incoming.ID, err)
 		}
 		remap[pt.Incoming.ID] = res.Ticket.ID
 
 		for _, ref := range pt.Refs {
 			if _, err := s.Apply(ctx, res.Ticket.ID, ref, ApplyOptions{Actor: p.Actor}); err != nil {
-				return nil, fmt.Errorf("carrying reference %s to %s: %w", ref.Ref, res.Ticket.ID, err)
+				return out, fmt.Errorf("carrying reference %s to %s: %w", ref.Ref, res.Ticket.ID, err)
 			}
 		}
 		// The ticks go on after the create rather than through it, because
@@ -223,12 +238,12 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 		for _, tick := range pt.Ticks {
 			m := SetChecklistItem{Section: tick.Section, Index: tick.Index, Checked: true}
 			if _, err := s.Apply(ctx, res.Ticket.ID, m, ApplyOptions{Actor: p.Actor}); err != nil {
-				return nil, fmt.Errorf("carrying %s item %d to %s: %w", tick.Section, tick.Index, res.Ticket.ID, err)
+				return out, fmt.Errorf("carrying %s item %d to %s: %w", tick.Section, tick.Index, res.Ticket.ID, err)
 			}
 		}
 		if pt.Record != "" {
 			if _, err := s.Apply(ctx, res.Ticket.ID, AppendNote{Text: pt.Record}, ApplyOptions{Actor: p.Actor}); err != nil {
-				return nil, fmt.Errorf("carrying the work record to %s: %w", res.Ticket.ID, err)
+				return out, fmt.Errorf("carrying the work record to %s: %w", res.Ticket.ID, err)
 			}
 		}
 

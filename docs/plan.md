@@ -3168,10 +3168,21 @@ nullable, per 10.3. Adding `kind` is additive, but a consumer that read `from` a
 always being a path now has to handle null, so this is a break rather than an
 addition. It arrives with the first repair that is not a move.
 
-Both are taken now for the reason this section already gives for staying at
-`v0.x`: nothing consumes these surfaces yet, so this is the cheapest either
-change will ever be. Waiting does not avoid a break, it moves it to a release
-where somebody has to be told.
+`ApplyImport` returns the partial `ImportResult` alongside an error, where it
+returned nil before. The addition is what a caller asked for, but the value's
+meaning changes rather than growing: it went from "nil whenever this failed" to
+"what landed, whenever anything did", so a caller using `res != nil` as a
+success test now reads a partial run as a whole one. That is the same shape as
+the repair `from` above, where a field that was always a path became sometimes
+null, and it is called a break for the same reason. Go's own convention says
+not to read a value beside a non-nil error, so no correct caller is affected,
+and a rule that only bound correct callers would not be worth writing down.
+`PlanImport` is untouched: it writes nothing, so it has no partial state.
+
+All three are taken now for the reason this section already gives for staying at
+`v0.x`: nothing consumes these surfaces yet, so this is the cheapest any of them
+will ever be. Waiting does not avoid a break, it moves it to a release where
+somebody has to be told.
 
 A title over 120 characters is refused, per 5.1 and section 11. `title_long` at
 72 is a warning and additive, but `title_too_long` is an error, and the library

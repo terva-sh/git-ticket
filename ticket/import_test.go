@@ -212,3 +212,93 @@ func TestSameOwnerPlansTheEvidenceAndApplyCarriesIt(t *testing.T) {
 		t.Errorf("%d boxes arrived unticked, want 1:\n%s", n, body)
 	}
 }
+
+// TestApplyImportReturnsWhatLandedBeforeItFailed is the whole of
+// TKT-01M2HVS7V6XN64EHJV0B3Z8ECF. ApplyImport is deliberately not atomic, per
+// plan 7.3, so a failure partway leaves tickets in the store. Returning nil
+// there left a caller holding an error and nothing else, and the honest report
+// it could give was "some unknown number of tickets may exist, go and look".
+//
+// The plan is built by hand rather than parsed from a patch, because the third
+// ticket has to be one this store will refuse and PlanImport would have no way
+// to produce one: every field it fills is already reconciled against this
+// store's own vocabulary.
+func TestApplyImportReturnsWhatLandedBeforeItFailed(t *testing.T) {
+	ctx := context.Background()
+	dst := newTestStore(t)
+
+	planned := func(fromID, title, kind string) PlannedTicket {
+		return PlannedTicket{
+			Incoming: &Ticket{ID: fromID, Title: title},
+			Create:   CreateOptions{Title: title, Type: kind, Actor: testActor},
+		}
+	}
+	plan := &ImportPlan{
+		Actor: testActor,
+		Tickets: []PlannedTicket{
+			planned("TKT-01SENDERAAAAAAAAAAAAAAA", "First one across", "task"),
+			planned("TKT-01SENDERBBBBBBBBBBBBBBB", "Second one across", "task"),
+			// "saga" is not in Types, so Create refuses it and the run stops
+			// here with two tickets already on disk.
+			planned("TKT-01SENDERCCCCCCCCCCCCCCC", "Third one, refused", "saga"),
+			planned("TKT-01SENDERDDDDDDDDDDDDDDD", "Never reached", "task"),
+		},
+	}
+
+	res, err := dst.ApplyImport(ctx, plan)
+	if err == nil {
+		t.Fatal("ApplyImport succeeded; the third ticket should have been refused")
+	}
+	// The error still names what stopped it, which is what it did before.
+	if !strings.Contains(err.Error(), "Third one, refused") {
+		t.Errorf("the error does not name the ticket that failed: %v", err)
+	}
+	if res == nil {
+		t.Fatal("ApplyImport returned no result, so a caller cannot say what landed")
+	}
+	if len(res.Filed) != 2 {
+		t.Fatalf("result carries %d filed tickets, want the 2 that landed: %+v", len(res.Filed), res.Filed)
+	}
+
+	// The FromID mapping is the part a caller cannot reconstruct afterwards: it
+	// does not know how many landed, so it cannot re-read the store and match on
+	// title without knowing where to stop.
+	for i, want := range []struct{ fromID, title string }{
+		{"TKT-01SENDERAAAAAAAAAAAAAAA", "First one across"},
+		{"TKT-01SENDERBBBBBBBBBBBBBBB", "Second one across"},
+	} {
+		got := res.Filed[i]
+		if got.FromID != want.fromID {
+			t.Errorf("filed[%d].FromID = %q, want %q", i, got.FromID, want.fromID)
+		}
+		if got.Title != want.title {
+			t.Errorf("filed[%d].Title = %q, want %q", i, got.Title, want.title)
+		}
+		if got.ID == "" {
+			t.Errorf("filed[%d] carries no minted ID, so the mapping names nothing", i)
+		}
+		// And the mapping is true: the minted ID is a ticket this store holds.
+		if _, err := dst.Get(ctx, got.ID); err != nil {
+			t.Errorf("filed[%d] names %s, which this store cannot read: %v", i, got.ID, err)
+		}
+	}
+
+	// The fourth was never reached, so it is neither filed nor reported.
+	if _, err := dst.Get(ctx, "TKT-01SENDERDDDDDDDDDDDDDDD"); err == nil {
+		t.Error("a ticket after the failure was filed anyway")
+	}
+}
+
+// TestApplyImportReturnsNilForNoPlan keeps the one case that still answers nil.
+// Nothing was filed, and an empty result would claim a run that never happened.
+func TestApplyImportReturnsNilForNoPlan(t *testing.T) {
+	dst := newTestStore(t)
+
+	res, err := dst.ApplyImport(context.Background(), nil)
+	if err == nil {
+		t.Fatal("a nil plan should be refused")
+	}
+	if res != nil {
+		t.Errorf("a refused nil plan returned a result: %+v", res)
+	}
+}

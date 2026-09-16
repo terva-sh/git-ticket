@@ -282,9 +282,21 @@ first two are filed and the error names the third. Recovery is reading what
 landed and removing it. Making it transactional needs a scratch branch, and
 plan 7.3 forbids a helper that rewrites a worktree.
 
-The error path also returns no partial result today, so a caller cannot report
-what did land from the return value alone. If that matters to you, say so and it
-can return the partial `ImportResult` alongside the error.
+The error path now returns the partial `ImportResult` alongside the error, so
+`res.Filed` is what landed and the error is what stopped it. terva asked for
+this in TKT-01M2HVS7V6XN64EHJV0B3Z8ECF and it ships in **v0.19.0**, which is the
+next release and is unreleased as this paragraph is written: until that tag
+exists, pin to what you have and expect nil on the error path.
+
+`res.Filed` carries `FromID` beside each minted `ID`, which is the part that
+could not be reconstructed afterwards. A caller that does not know how many
+tickets landed cannot re-read the store and match on title, because it does not
+know where to stop.
+
+The signature is unchanged, so code written against v0.16.0 still compiles. The
+break, recorded in plan 12.4, is for a caller that used `res != nil` as a
+success test: that now reads a partial run as a whole one. A caller that checks
+`err` first, as Go's convention says, is unaffected.
 
 Every imported ticket is filed as a draft, whatever status it had at the sender.
 

@@ -294,6 +294,23 @@ notes, comments, a summary, a claim, or an archive record. Both refusals name
 what they found, and `--force` overrides them and reports what it broke. Nothing
 is staged either way, so until you commit the deletion Git still has the file.
 
+`--actor` takes an ID, and the display name written beside it comes from the
+`actors` roster in `config.yml` rather than from the flag or from the file:
+
+| `config.yml` says | the write records |
+|---|---|
+| the ID, declared with a name | that name |
+| the ID, declared with `name: ""` | `name: ""` |
+| nothing about the ID | `name: ""`, and the ID still works |
+
+An ID that is not in the roster is usable, which is deliberate: the roster
+names who a store expects, not who may write. The case worth knowing is the
+last row applied twice. **A name already in a ticket file is not carried
+forward.** If a file records `name: "Drew Short"` for an ID the roster does not
+declare, the next write by that ID replaces it with `name: ""`, because the
+roster is the only source for a name and it has nothing to say. Declaring the
+ID is what makes the name stick.
+
 `update` takes as many flags as you like and applies them as one write. Either
 all of them land or none do, so an update that fails partway leaves a ticket in
 a state somebody typed rather than half of one. An empty value clears a field

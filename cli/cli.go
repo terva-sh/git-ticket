@@ -123,7 +123,7 @@ func (g *globals) register(fs *flag.FlagSet) {
 	fs.BoolVar(&g.json, "json", g.json, "emit the JSON envelope on stdout")
 	fs.StringVar(&g.store, "store", g.store, "path to the .tickets store")
 	fs.StringVar(&g.ifRevision, "if-revision", g.ifRevision, "refuse the write unless the ticket is still at this revision")
-	fs.StringVar(&g.actor, "actor", g.actor, "who is making the change, such as human:sothr")
+	fs.StringVar(&g.actor, "actor", g.actor, "who is making the change, such as human:sothr; the display name comes from the config.yml roster")
 	fs.DurationVar(&g.lockTimeout, "lock-timeout", g.lockTimeout, "how long to wait for the store lock")
 }
 

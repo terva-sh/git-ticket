@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2NT7VNBAM5KSAR0QKBT2JQD
 title: Say that --actor resolves its display name from config.yml
 type: task
-status: draft
+status: done
 status_reason: null
 priority: low
 due_on: null
@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-16T19:14:02Z
-updated_at: 2026-09-16T19:20:24Z
+updated_at: 2026-09-16T19:27:49Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -89,3 +89,19 @@ roster that never had the name.
 A store declaring an actor with `name: ""` is the state that produced the
 confusion. Whether `check` should say something about it is a separate question
 and this is not a request for it.
+
+## Acceptance criteria
+
+- [x] The --actor flag help says the display name comes from the config.yml roster
+- [x] The four cases are documented where a reader meets --actor, including that a name already in the ticket file is not carried forward
+- [x] A test fails if the documentation stops saying it
+
+## Notes
+
+**agent:claude/t3code** at 2026-09-16T19:27:49Z
+
+The four-case table was re-probed against this tree before being written down, rather than copied from the ticket. All four hold, including the one most worth knowing: a name already in a ticket file is replaced with the empty string by the next write from an ID the roster does not declare. The mechanism is actorByID in ticket/config.go, which returns Actor{ID: id} for an ID it cannot find, so the roster is the only source for a name and an undeclared ID has none to offer. That row had no test and now has one. Documented in two places rather than one: the --actor flag help, which is generated from the FlagSet and so appears on every command that writes, and a README table with the rule stated underneath. The ticket asked for the help text; the table is where the four cases fit without making a flag description a paragraph.
+
+## Summary
+
+The --actor help now says the display name comes from the config.yml roster, and README carries the four-case table with the surprising row spelled out: a name already in a ticket file is not carried forward, because an undeclared ID resolves to no name at all. Two tests, one holding the help text and one holding the behaviour, which was previously untested.

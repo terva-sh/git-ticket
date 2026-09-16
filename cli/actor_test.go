@@ -233,3 +233,59 @@ func TestConfigPublishesTheDeclaredDefaultActor(t *testing.T) {
 		t.Errorf("defaults.actor = %v, want null when nothing is declared", defaults["actor"])
 	}
 }
+
+// TestActorHelpSaysWhereTheNameComesFrom is TKT-01M2NT7VNBAM5KSAR0QKBT2JQD.
+// --actor takes an ID and the write also fills a display name, resolved from
+// the roster, and nothing said so. terva filed the gap as an open question its
+// author had already had to probe to answer.
+func TestActorHelpSaysWhereTheNameComesFrom(t *testing.T) {
+	dir := t.TempDir()
+
+	got := runCLI(t, dir, nil, "note", "--help")
+	if got.code != exitOK {
+		t.Fatalf("note --help exited %d: %s", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "config.yml roster") {
+		t.Errorf("--actor help does not say where the display name comes from:\n%s", got.stdout)
+	}
+}
+
+// TestAnUndeclaredActorDoesNotKeepAnExistingName is the row of that ticket's
+// table most likely to surprise, and it had no test.
+//
+// The roster is the only source for a display name, so a write by an ID the
+// roster does not declare writes an empty name over whatever the file held,
+// rather than leaving it alone. Declaring the ID is what makes a name stick.
+func TestAnUndeclaredActorDoesNotKeepAnExistingName(t *testing.T) {
+	dir := newStore(t)
+	id := ticketID(t, createTicket(t, dir, "--title", "A ticket somebody named"))
+
+	// A name arrives in the file, the way a hand edit or another store's export
+	// would put one there.
+	path := filepath.Join(dir, ".tickets", "draft", id+".md")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	named := strings.Replace(string(body),
+		"updated_by:\n  id: human:sothr\n  name: \"\"",
+		"updated_by:\n  id: agent:undeclared/z\n  name: \"Hand Written\"", 1)
+	if named == string(body) {
+		t.Fatalf("the fixture did not contain the updated_by block this test rewrites:\n%s", body)
+	}
+	if err := os.WriteFile(path, []byte(named), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if got := runCLI(t, dir, nil, "note", id, "a note", "--actor", "agent:undeclared/z"); got.code != exitOK {
+		t.Fatalf("note: %s%s", got.stdout, got.stderr)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reread: %v", err)
+	}
+	if strings.Contains(string(after), "Hand Written") {
+		t.Errorf("the existing name survived a write by an undeclared ID:\n%s", after)
+	}
+}

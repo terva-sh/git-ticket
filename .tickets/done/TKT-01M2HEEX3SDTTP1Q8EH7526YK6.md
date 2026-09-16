@@ -8,7 +8,7 @@ status_reason: null
 priority: high
 due_on: null
 labels:
-  - format
+  - area/format
 assignees: []
 milestone: null
 parent: null
@@ -19,12 +19,12 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-15T02:31:12Z
-updated_at: 2026-09-15T03:04:41Z
+updated_at: 2026-09-16T19:00:19Z
 created_by:
   id: agent:claude-code/triage
   name: ""
 updated_by:
-  id: agent:terva/invisible-sections
+  id: agent:claude/t3code
   name: ""
 extensions: {}
 ---

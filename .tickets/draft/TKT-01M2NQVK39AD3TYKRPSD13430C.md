@@ -7,18 +7,20 @@ status: draft
 status_reason: null
 priority: normal
 due_on: null
-labels: []
+labels:
+  - area/format
 assignees: []
 milestone: null
 parent: null
 origin: null
-dependencies: []
+dependencies:
+  - TKT-01M2NSHN8JVH60ZJFNFC8N391D
 blocks_on: none
 references: []
 claim: null
 archive: null
 created_at: 2026-09-16T18:32:23Z
-updated_at: 2026-09-16T18:32:23Z
+updated_at: 2026-09-16T19:02:31Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -112,3 +114,62 @@ file, and none of them can lose an original.
 - [ ] Whether the generated half lists the allowlist, the labels in use, or both is decided and recorded
 - [ ] Whether this belongs with a doctor rule about label vocabulary, rather than instead of one, is decided
 - [ ] The 63-of-137 baseline is remeasured afterwards, so the document is known to have worked or not
+- [ ] The written region is the document's point and the generated region serves it, not the reverse
+
+## Notes
+
+**agent:claude/t3code** at 2026-09-16T19:02:31Z
+
+Groomed, and the premise is half wrong. Two sister stores were read, and the
+evidence changes what this should build.
+
+**terva already solved this by hand, and says the generated half is not what
+helped.** It is the largest store using this tool, 123 open tickets, and its
+`.tickets/CONVENTIONS.md` opens the label section with:
+
+> `config.yml` sets `labels: []`, so any value is permitted and nothing
+> validates a typo. What keeps the vocabulary usable is this section, not the
+> store.
+
+So a document that only listed what the store contains would be generating the
+half that was never the problem. This ticket as filed proposed exactly that,
+with the written region as an afterthought. It is the other way round.
+
+**And the two-region shape is vindicated anyway, which is the surprise.**
+terva's document lists its areas "by weight", by hand: `tools`, `core`, `web`,
+`provider`, `docs`, and so on down a frequency ordering that is wrong the moment
+anybody files a ticket. That is exactly the content a generator should own,
+sitting inside a document that is otherwise judgement. terva arrived at a mixed
+file independently and is maintaining both halves by hand, which is the best
+evidence available that the fenced shape is right and the strongest argument for
+mechanising one half of it.
+
+**The store's own question is answered, and both explanations were true.** Of
+the ten unlabelled open tickets here, two fit `question`, which had been in the
+allowlist all along and was simply never used, and six wanted words that did not
+exist. So the vocabulary was too narrow *and* nothing taught what was there.
+
+The measurement in the note above is also corrected: `doctor` reads the open
+set, so the baseline is 11 of 25 open tickets rather than 63 of 137.
+
+**This store migrated to `area/` on 2026-09-16**, following terva, and now
+carries twelve `area/` labels plus bare `question` and `policy`. Every open
+ticket is labelled and `doctor` reports no `label_missing`. That is the
+before-and-after this ticket asked for, achieved without the document, which
+means the document's job is keeping it true rather than making it true.
+
+**Dimensions change what the soft rule is asking.** With a flat vocabulary,
+"is the most descriptive label first" is a per-ticket judgement. With `area/`
+leading by convention, it is a store-level rule that answers most instances at
+once: this store's one soft finding hides `question` behind two `area/` labels,
+which is correct by the convention rather than a question anybody needs to
+re-answer. A document that states the dimension order turns a recurring question
+into a settled one, which is a better argument for this ticket than the original
+one about examples.
+
+**The open question this cannot decide alone.**
+TKT-01M2NSHN8JVH60ZJFNFC8N391D asks whether `init` should seed a conventions
+document at all. If it does, these are probably one file with a fenced label
+section rather than two, and deciding that before either is built is cheaper
+than merging them afterwards. This ticket should not start until that one is
+answered.

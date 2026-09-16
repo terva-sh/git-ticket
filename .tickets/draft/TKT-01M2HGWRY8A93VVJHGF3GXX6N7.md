@@ -8,8 +8,8 @@ status_reason: null
 priority: low
 due_on: null
 labels:
+  - area/format
   - question
-  - format
 assignees: []
 milestone: null
 parent: null
@@ -20,12 +20,12 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-15T03:13:44Z
-updated_at: 2026-09-15T03:13:44Z
+updated_at: 2026-09-16T19:00:20Z
 created_by:
   id: agent:terva/inbox-question
   name: ""
 updated_by:
-  id: agent:terva/inbox-question
+  id: agent:claude/t3code
   name: ""
 extensions: {}
 ---

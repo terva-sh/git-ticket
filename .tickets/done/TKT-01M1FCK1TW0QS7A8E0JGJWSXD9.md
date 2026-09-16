@@ -8,7 +8,7 @@ status_reason: null
 priority: normal
 due_on: null
 labels:
-  - integration
+  - area/integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
@@ -19,12 +19,12 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-01T21:04:20Z
-updated_at: 2026-09-01T21:04:21Z
+updated_at: 2026-09-16T19:00:18Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: agent:terva/mieli
+  id: agent:claude/t3code
   name: ""
 extensions: {}
 ---

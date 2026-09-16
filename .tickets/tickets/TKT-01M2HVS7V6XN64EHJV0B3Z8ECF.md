@@ -8,7 +8,7 @@ status_reason: null
 priority: normal
 due_on: null
 labels:
-  - integration
+  - area/integration
 assignees: []
 milestone: null
 parent: null
@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-15T06:24:02Z
-updated_at: 2026-09-16T16:56:07Z
+updated_at: 2026-09-16T19:00:20Z
 created_by:
   id: agent:terva/mieli
   name: ""

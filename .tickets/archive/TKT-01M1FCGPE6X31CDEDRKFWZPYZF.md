@@ -8,7 +8,7 @@ status_reason: null
 priority: high
 due_on: null
 labels:
-  - integration
+  - area/integration
 assignees: []
 milestone: null
 parent: TKT-01M1FCHH3QN04AYHZAP1M8DNQK
@@ -23,12 +23,12 @@ archive:
   from_status: ready
   reason: "Terva owns this work and terva has no store here, so tracking it in git-ticket's ledger would go stale the moment terva starts. The content moved to docs/handoff-terva-phase-3.md, which is the artifact a terva agent works from. Archived rather than cancelled because none of it was rejected: it is being done, elsewhere. Unarchive if the split changes."
 created_at: 2026-09-01T21:03:03Z
-updated_at: 2026-09-01T22:03:57Z
+updated_at: 2026-09-16T19:00:18Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: agent:terva/mieli
+  id: agent:claude/t3code
   name: ""
 extensions: {}
 ---

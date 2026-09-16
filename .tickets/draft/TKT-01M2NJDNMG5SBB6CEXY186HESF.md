@@ -7,7 +7,9 @@ status: draft
 status_reason: null
 priority: low
 due_on: null
-labels: []
+labels:
+  - area/doctor
+  - question
 assignees: []
 milestone: null
 parent: null
@@ -19,7 +21,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:57:24Z
-updated_at: 2026-09-16T16:57:29Z
+updated_at: 2026-09-16T19:00:20Z
 created_by:
   id: agent:claude/t3code
   name: ""

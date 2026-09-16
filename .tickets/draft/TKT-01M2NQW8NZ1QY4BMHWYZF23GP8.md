@@ -7,7 +7,8 @@ status: draft
 status_reason: null
 priority: normal
 due_on: null
-labels: []
+labels:
+  - area/templates
 assignees: []
 milestone: null
 parent: null
@@ -20,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-16T18:32:45Z
-updated_at: 2026-09-16T18:33:12Z
+updated_at: 2026-09-16T19:00:20Z
 created_by:
   id: agent:claude/t3code
   name: ""

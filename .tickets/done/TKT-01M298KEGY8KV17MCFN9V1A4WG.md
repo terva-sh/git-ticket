@@ -8,7 +8,7 @@ status_reason: null
 priority: high
 due_on: null
 labels:
-  - integration
+  - area/integration
 assignees: []
 milestone: null
 parent: null
@@ -23,13 +23,13 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-11T22:14:54Z
-updated_at: 2026-09-12T00:33:15Z
+updated_at: 2026-09-16T19:00:19Z
 created_by:
   id: agent:terva/mieli
   name: Mieli
 updated_by:
-  id: agent:terva/mieli
-  name: Mieli
+  id: agent:claude/t3code
+  name: ""
 extensions: {}
 ---
 

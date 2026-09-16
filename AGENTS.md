@@ -804,9 +804,29 @@ so the PR carries the ticket file through its whole lifecycle and the store
 never holds a claim for a branch that merged. PRs #102, #104, and #105 are the
 pattern. Before labeling a new ticket, read the allowlist in
 `.tickets/config.yml`: an unlisted label passes the write and then fails CI at
-`check --strict`, and there is no `tui` label, which is why the TUI tickets
-ship unlabeled. `update` has no `--label` flag; labels change through
-`--add-label` and `--remove-label`.
+`check --strict`. `update` has no `--label` flag; labels change through
+`--add-label` and `--remove-label`, and removals apply before additions within
+one write, so `--remove-label X --add-label X` moves a label to the end.
+
+A label names its dimension first. `area/` is where the work lives, and the
+areas are the surfaces this repository already names rather than categories
+invented for the store: `area/cli`, `area/format`, `area/claims`, `area/tui`,
+`area/doctor`, `area/templates`, `area/completion`, `area/integration`,
+`area/mcp`, `area/ci`, `area/release`. `question` and `policy` stay bare,
+because neither says where the work is, only what kind of ticket it is.
+
+The dimension and the separator come from terva, the largest store using this
+tool, which migrated 21 flat labels across 123 open tickets to `area/`, `scope/`
+and `init/` on 2026-09-16 and documented them in its own
+`.tickets/CONVENTIONS.md`. terva-ext-web adopted the same three dimensions with
+`:` rather than `/` the same day, and reconciling that split is
+TKT-01M2NSGX6B1WJ56CSBMEG6SFVH (Reconcile the label separator two sister stores
+chose differently). This store carries `area/` alone; `scope/` and `init/` are
+terva's and are not claimed here.
+
+`git ticket doctor` reports a ticket carrying no label as `label_missing`,
+which is a hard finding, and asks about the order when a card would hide one.
+Give a new ticket an area.
 
 `ready` is half the backlog. Everything filed lands in `draft` and nothing
 promotes it, so `git ticket list --status draft` is the other half and it is

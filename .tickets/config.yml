@@ -3,14 +3,19 @@ actors:
   - id: human:sothr
     name: ""
 labels:
-  - ci
-  - claims
-  - format
-  - integration
-  - mcp
+  - area/ci
+  - area/claims
+  - area/cli
+  - area/completion
+  - area/doctor
+  - area/format
+  - area/integration
+  - area/mcp
+  - area/release
+  - area/templates
+  - area/tui
   - policy
   - question
-  - release
 milestones: []
 series: []
 defaults:

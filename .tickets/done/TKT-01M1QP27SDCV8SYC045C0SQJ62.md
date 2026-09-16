@@ -8,7 +8,7 @@ status_reason: null
 priority: normal
 due_on: null
 labels:
-  - release
+  - area/release
 assignees: []
 milestone: null
 parent: null
@@ -19,12 +19,12 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-05T02:23:51Z
-updated_at: 2026-09-05T02:27:25Z
+updated_at: 2026-09-16T19:00:19Z
 created_by:
   id: agent:terva/mieli
   name: ""
 updated_by:
-  id: agent:terva/mieli
+  id: agent:claude/t3code
   name: ""
 extensions: {}
 ---

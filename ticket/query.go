@@ -18,10 +18,19 @@ import (
 // across fields they all have to hold: status ready or blocked, and priority
 // high.
 type Filter struct {
-	Status    []string
-	Type      []string
-	Priority  []string
-	Labels    []string
+	Status   []string
+	Type     []string
+	Priority []string
+	Labels   []string
+	// NotLabels excludes a ticket carrying any of these, and is applied after
+	// Labels, so a label named in both excludes.
+	//
+	// It exists because an inclusion filter cannot express "everything except".
+	// Naming the set to keep means enumerating the vocabulary, which is a list
+	// that rots the moment somebody coins a label and which silently drops
+	// every unlabelled ticket, and those are exactly the tickets an
+	// everything-except query should return.
+	NotLabels []string
 	Assignees []string
 	Milestone []string
 	// Parent selects the direct children of a ticket. An empty string matches
@@ -101,6 +110,13 @@ func (f Filter) matches(t *Ticket) bool {
 		return false
 	}
 	if !matchesAny(f.Labels, t.Labels) || !matchesAny(f.Assignees, t.Assignees) {
+		return false
+	}
+	// Exclusion after inclusion, so naming one label on both is a refusal
+	// rather than a contradiction the caller has to think about. A ticket with
+	// no labels matches nothing here and is kept, which is the whole point:
+	// everything-except has to mean everything.
+	if excludesAny(f.NotLabels, t.Labels) {
 		return false
 	}
 	if !matchesOne(f.Milestone, deref(t.Milestone)) ||
@@ -270,6 +286,21 @@ func matchesOne(wanted []string, value string) bool {
 
 // matchesAny reports whether the ticket carries at least one of the wanted
 // values.
+// excludesAny reports whether have carries any of unwanted. An empty unwanted
+// excludes nothing, and a ticket with no labels is excluded by nothing, which
+// is why this is not matchesAny negated: that would drop every unlabelled
+// ticket the moment a caller named one label to avoid.
+func excludesAny(unwanted, have []string) bool {
+	for _, u := range unwanted {
+		for _, h := range have {
+			if u == h {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func matchesAny(wanted, have []string) bool {
 	if len(wanted) == 0 {
 		return true
@@ -530,6 +561,16 @@ type ReadyOptions struct {
 	// section 8. A live claim on any scanned ref makes a ticket not ready, and
 	// no claim is ever adjudicated against another.
 	CrossBranch bool
+	// Labels and NotLabels filter the queue the way Filter does, per plan
+	// section 8: a ticket matching any of Labels is kept, and one carrying any
+	// of NotLabels is dropped whatever Labels said.
+	//
+	// The queue needs them for the reason a listing does, and one reason more.
+	// `ready` answers "what should I start", and a store that labels work it
+	// cannot start right now, because the label marks a dependency on something
+	// outside the store, has no way to say so without them.
+	Labels    []string
+	NotLabels []string
 }
 
 // ReadyWith is Ready with the options above.
@@ -550,9 +591,13 @@ func (s *Store) ReadyWith(ctx context.Context, o ReadyOptions) ([]*Ticket, error
 	ready := readinessOf(all, s.now(), elsewhere)
 	out := make([]*Ticket, 0, len(all))
 	for _, t := range all {
-		if ready[t.ID].Ready {
-			out = append(out, t)
+		if !ready[t.ID].Ready {
+			continue
 		}
+		if !matchesAny(o.Labels, t.Labels) || excludesAny(o.NotLabels, t.Labels) {
+			continue
+		}
+		out = append(out, t)
 	}
 	// Always, and with no flag to ask for it. This command recommends what to
 	// start next, so the ranking is part of what it answers, per plan 8. List

@@ -20,7 +20,10 @@ git ticket note TKT-01ABCD "..." --actor agent:yourtool/session-3
 
 ### Finding work
 
-`git ticket ready` is the queue: open, unblocked, every dependency closed.
+`git ticket ready` is the queue: open, unblocked, every dependency closed. It
+and `list` both take `--label` to narrow and `--not-label` to exclude, which is
+how you ask for the queue minus work this project has labelled as not startable
+today.
 
 `git ticket list --status draft` is the rest of the backlog and is usually the
 larger half, because everything filed lands in `draft` and stays there until a

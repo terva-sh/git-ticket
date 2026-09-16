@@ -1412,8 +1412,17 @@ do.
   today's date answers what is late. It is a bound and not a set, so the
   alternatives rule above does not apply to it, and a ticket carrying no
   `due_on` is not due by any date and never matches
+- `--not-label` excludes, on `list` and on `ready`, and is applied after
+  `--label`, so a label named on both excludes. It exists because inclusion
+  cannot express "everything except": naming the set to keep means enumerating a
+  vocabulary that rots when somebody coins a label, and it drops every ticket
+  carrying no labels at all. Those are exactly the tickets such a query wants,
+  so a ticket with no labels is excluded by nothing
 - `ready`: status `ready`, no live claim, and every dependency satisfied per 6.3.
-  Only direct dependencies are read, so a dependency cycle cannot make this loop
+  Only direct dependencies are read, so a dependency cycle cannot make this
+  loop. It takes `--label` and `--not-label` for the reason `list` does and one
+  more: this command answers "what should I start", and a store that labels work
+  it cannot start today has no other way to say so
 - `show` for one complete ticket
 - `search` over title, description, acceptance criteria, definition of done,
   notes, comments, summary, and references. Case-insensitive substring by
@@ -2766,8 +2775,8 @@ That is the smaller price.
 git ticket init   [--instructions]
 git ticket install-merge-driver
 git ticket merge-driver BASE OURS THEIRS
-git ticket list   [--status S --type T --priority P --label L --assignee A --milestone M --parent P --series S --origin ID --due-by DATE --sort id|due_on|priority|updated_at|status --ids series|store|full]
-git ticket ready
+git ticket list   [--status S --type T --priority P --label L --not-label L --assignee A --milestone M --parent P --series S --origin ID --due-by DATE --sort id|due_on|priority|updated_at|status --ids series|store|full]
+git ticket ready  [--label L --not-label L]
 git ticket ui       # browse the store interactively; no --json form
 git ticket show   ID [--body]
 git ticket copy   ID     # put the body on the system clipboard, per 12.7

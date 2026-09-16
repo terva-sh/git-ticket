@@ -659,3 +659,100 @@ func TestRefsRejectsAnEmptyQuery(t *testing.T) {
 		t.Fatalf("err = %v, want an invalid_field Error", err)
 	}
 }
+
+// TestNotLabelsExcludesAndKeepsTheUnlabelled is
+// TKT-01M2NT7VMDC9C88MRZA7AVKC5T. An inclusion filter cannot express
+// "everything except": naming the set to keep means enumerating a vocabulary
+// that rots when somebody coins a label, and it silently drops every
+// unlabelled ticket, which is exactly what everything-except should return.
+func TestNotLabelsExcludesAndKeepsTheUnlabelled(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	bare := mustCreate(t, s, "No labels at all")
+	live := mustCreate(t, s, "Needs a paid model call")
+	mustApply(t, s, live.ID, AddLabel{Label: "live-test"})
+	other := mustCreate(t, s, "Ordinary work")
+	mustApply(t, s, other.ID, AddLabel{Label: "core"})
+
+	got, err := s.List(ctx, Filter{NotLabels: []string{"live-test"}})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	ids := map[string]bool{}
+	for _, tk := range got {
+		ids[tk.ID] = true
+	}
+	if ids[live.ID] {
+		t.Error("the excluded ticket came back")
+	}
+	if !ids[other.ID] {
+		t.Error("a ticket with a different label was dropped")
+	}
+	// The row that makes this more than a negated match.
+	if !ids[bare.ID] {
+		t.Error("a ticket with no labels was dropped; everything-except must mean everything")
+	}
+}
+
+// TestNotLabelsWinsOverLabels settles the one combination a caller can write
+// that contradicts itself, rather than leaving the answer to evaluation order.
+func TestNotLabelsWinsOverLabels(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	tk := mustCreate(t, s, "Labelled both ways")
+	mustApply(t, s, tk.ID, AddLabel{Label: "core"})
+
+	got, err := s.List(ctx, Filter{Labels: []string{"core"}, NotLabels: []string{"core"}})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("naming one label on both flags returned %d tickets, want none", len(got))
+	}
+}
+
+// TestReadyFiltersByLabel is the half terva actually asked for: ready had no
+// label filter at all, so the daily "what is ready, minus the live-test ones"
+// needed a JSON pipeline in terva's own conventions.
+func TestReadyFiltersByLabel(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	ready := func(title string, labels ...string) *Ticket {
+		tk := mustCreate(t, s, title)
+		for _, l := range labels {
+			mustApply(t, s, tk.ID, AddLabel{Label: l})
+		}
+		mustApply(t, s, tk.ID, SetStatus{Status: "ready"})
+		return tk
+	}
+	live := ready("Waits on a paid call", "live-test")
+	plain := ready("Startable now", "core")
+	bare := ready("Startable, unlabelled")
+
+	got, err := s.ReadyWith(ctx, ReadyOptions{NotLabels: []string{"live-test"}})
+	if err != nil {
+		t.Fatalf("ReadyWith: %v", err)
+	}
+	ids := map[string]bool{}
+	for _, tk := range got {
+		ids[tk.ID] = true
+	}
+	if ids[live.ID] {
+		t.Error("the excluded ticket is still on the queue")
+	}
+	if !ids[plain.ID] || !ids[bare.ID] {
+		t.Errorf("the queue lost work it should still offer: %v", ids)
+	}
+
+	// And the inclusion half, which ready did not have either.
+	only, err := s.ReadyWith(ctx, ReadyOptions{Labels: []string{"live-test"}})
+	if err != nil {
+		t.Fatalf("ReadyWith: %v", err)
+	}
+	if len(only) != 1 || only[0].ID != live.ID {
+		t.Errorf("--label on ready did not narrow to the one: %v", only)
+	}
+}

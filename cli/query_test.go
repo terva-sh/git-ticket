@@ -476,3 +476,40 @@ func TestHelpCoversTheAdvisoryCaveat(t *testing.T) {
 		}
 	}
 }
+
+// TestReadyAndListTakeNotLabel is terva's query, expressed in one command
+// rather than the JSON pipeline its conventions carried.
+func TestReadyAndListTakeNotLabel(t *testing.T) {
+	dir := newStore(t)
+
+	live := ticketID(t, createTicket(t, dir, "--title", "Waits on a paid call", "--label", "live-test"))
+	plain := ticketID(t, createTicket(t, dir, "--title", "Startable now", "--label", "core"))
+	bare := ticketID(t, createTicket(t, dir, "--title", "Startable, unlabelled"))
+	for _, id := range []string{live, plain, bare} {
+		if got := runCLI(t, dir, nil, "status", id, "ready", "--actor", "human:sothr"); got.code != exitOK {
+			t.Fatalf("status: %s%s", got.stdout, got.stderr)
+		}
+	}
+
+	got := runCLI(t, dir, nil, "ready", "--not-label", "live-test")
+	if got.code != exitOK {
+		t.Fatalf("ready --not-label exited %d: %s", got.code, got.stderr)
+	}
+	if strings.Contains(got.stdout, "Waits on a paid call") {
+		t.Errorf("the excluded ticket is still on the queue:\n%s", got.stdout)
+	}
+	for _, want := range []string{"Startable now", "Startable, unlabelled"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("the queue lost %q:\n%s", want, got.stdout)
+		}
+	}
+
+	// list takes it too, and the unlabelled ticket survives there as well.
+	got = runCLI(t, dir, nil, "list", "--not-label", "live-test")
+	if strings.Contains(got.stdout, "Waits on a paid call") {
+		t.Errorf("list did not exclude:\n%s", got.stdout)
+	}
+	if !strings.Contains(got.stdout, "Startable, unlabelled") {
+		t.Errorf("list dropped the unlabelled ticket:\n%s", got.stdout)
+	}
+}

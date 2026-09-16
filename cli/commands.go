@@ -547,6 +547,7 @@ func runList(ctx *cmdContext, args []string) error {
 		parent    stringList
 		origin    stringList
 		series    stringList
+		notLabels stringList
 		dueBy     string
 		sortBy    string
 		all       bool
@@ -558,6 +559,7 @@ func runList(ctx *cmdContext, args []string) error {
 		fs.Var(&kind, "type", "a type to include, repeatable")
 		fs.Var(&priority, "priority", "a priority to include, repeatable")
 		fs.Var(&labels, "label", "a label to match, repeatable")
+		fs.Var(&notLabels, "not-label", "a label to exclude, repeatable; wins over --label")
 		fs.Var(&assignees, "assignee", "an assignee to match, repeatable")
 		fs.Var(&milestone, "milestone", "a milestone to match, repeatable")
 		fs.Var(&parent, "parent", "a parent whose children to list, or "+parentNone+" for tickets with no parent, repeatable")
@@ -642,6 +644,7 @@ func runList(ctx *cmdContext, args []string) error {
 		Type:        kind,
 		Priority:    priority,
 		Labels:      labels,
+		NotLabels:   notLabels,
 		Assignees:   assignees,
 		Milestone:   milestone,
 		Parent:      parents,
@@ -1105,8 +1108,11 @@ func runSearch(ctx *cmdContext, args []string) error {
 func runReady(ctx *cmdContext, args []string) error {
 	var cross bool
 	var ids idsOption
+	var labels, notLabels stringList
 	rest, err := ctx.parseFlags("ready", args, func(fs *flag.FlagSet) {
 		fs.BoolVar(&cross, "cross-branch", false, "also read the recent local and remote-tracking refs, per plan 8")
+		fs.Var(&labels, "label", "a label to match, repeatable")
+		fs.Var(&notLabels, "not-label", "a label to exclude, repeatable; wins over --label")
 		ids.register(fs)
 	})
 	if err != nil {
@@ -1126,7 +1132,9 @@ func runReady(ctx *cmdContext, args []string) error {
 	// With --cross-branch a live claim on any scanned ref makes a ticket not
 	// ready, which is the whole point: the failure this guards against is two
 	// agents claiming one ticket because neither could see the other.
-	tickets, err := s.ReadyWith(context.Background(), ticket.ReadyOptions{CrossBranch: cross})
+	tickets, err := s.ReadyWith(context.Background(), ticket.ReadyOptions{
+		CrossBranch: cross, Labels: labels, NotLabels: notLabels,
+	})
 	if err != nil {
 		return err
 	}

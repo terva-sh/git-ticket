@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2NT7VMDC9C88MRZA7AVKC5T
 title: Filter ready by label, and let a label filter exclude
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-16T19:14:02Z
-updated_at: 2026-09-16T19:20:24Z
+updated_at: 2026-09-16T19:31:17Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -87,3 +87,29 @@ terva's store carries 123 open tickets under a three-dimension label vocabulary
 (`area/`, `scope/`, `init/`) minted on 2026-09-16. Composing inclusions works
 well: `--label area/permissions --label scope/structural` returns exactly the
 careful-review pile. Every exclusion in that vocabulary is a JSON pipeline.
+
+## Acceptance criteria
+
+- [x] ready takes --label, matching what list already accepts
+- [x] Both commands take --not-label, repeatable, excluding a ticket that carries any named label
+- [x] A ticket carrying no labels is included by --not-label, since everything-except must mean everything
+- [x] --label and --not-label compose in one query, and --not-label wins when a label is named on both
+- [x] terva's live-test query is expressible in one command, and the JSON pipeline in its conventions is no longer needed
+
+## Notes
+
+**agent:claude/t3code** at 2026-09-16T19:31:03Z
+
+Built as --not-label on both commands, repeatable, settled with the user against a bang or caret prefix. The prefix form would need shell quoting and would foreclose any label starting with that character, and this store now uses area/ prefixes, so punctuation in a label is not hypothetical here.
+
+One correction to this ticket, measured rather than argued. It says list --label repeating 'ANDs rather than negates'. It ORs: matchesAny in ticket/query.go returns on the first match, and against this store --label area/cli gives 4, --label area/tui gives 2, and both flags together give 6.
+
+The conclusion survives and is stronger than the reason given for it. With OR you can name the keep-set in one command, so the problem is not that you cannot express it. It is that the keep-set is a hardcoded vocabulary that rots the moment somebody coins a label, which is the same complaint this ticket makes about greps, and that enumerating labels silently drops every unlabelled ticket. An everything-except query wants those tickets. That case is the one the implementation is built around and the one the test names: a ticket with no labels is excluded by nothing.
+
+ready gained --label as well as --not-label. The ticket only asked for a filter, and inclusion was missing too, so shipping half would have left the next person to file the other half.
+
+Exclusion is applied after inclusion, so a label named on both flags excludes. That combination is the only self-contradicting query a caller can write and it is settled by a test rather than left to evaluation order.
+
+## Summary
+
+list and ready both take --label and --not-label, repeatable. ready had neither. Exclusion is applied after inclusion so a label on both flags excludes, and a ticket carrying no labels is excluded by nothing, which is the case that makes this more than a negated match. Filter.NotLabels and ReadyOptions.Labels/NotLabels are the library half. terva's query is now git ticket ready --not-label live-test. The ticket's claim that repeating --label ANDs was wrong and is corrected in a note: it ORs, and the real argument is that an enumerated keep-set rots and drops unlabelled tickets.

@@ -241,6 +241,7 @@ git ticket create --title "Refresh fails when the clock jumps backward" \
 git ticket list --status ready --type bug
 git ticket search "clock jump" --type bug
 git ticket ready                  # what could be started right now
+git ticket ready --not-label live-test   # the queue, minus work you cannot start today
 git ticket files auth/verify.go   # which tickets reference this path
 git ticket show TKT-01K3ZZ2J      # a unique prefix, with or without TKT-
 
@@ -310,6 +311,17 @@ forward.** If a file records `name: "Drew Short"` for an ID the roster does not
 declare, the next write by that ID replaces it with `name: ""`, because the
 roster is the only source for a name and it has nothing to say. Declaring the
 ID is what makes the name stick.
+
+`--label` includes and `--not-label` excludes, both repeatable, on `list` and on
+`ready`. Repeating either one ORs, so `--label a --label b` is "carries a or b",
+and exclusion is applied after inclusion, so a label named on both flags
+excludes.
+
+`--not-label` exists because inclusion cannot express "everything except". Naming
+the set to keep means enumerating the vocabulary, which is a list that rots the
+moment somebody coins a label, and which drops every ticket carrying no labels at
+all. Those are exactly the tickets an everything-except query wants, so
+`--not-label` keeps them: a ticket with no labels is excluded by nothing.
 
 `update` takes as many flags as you like and applies them as one write. Either
 all of them land or none do, so an update that fails partway leaves a ticket in

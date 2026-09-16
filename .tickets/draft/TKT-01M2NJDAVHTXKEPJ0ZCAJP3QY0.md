@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:57:13Z
-updated_at: 2026-09-16T16:58:00Z
+updated_at: 2026-09-16T17:31:11Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -78,3 +78,44 @@ renamed casually afterwards.
 - [ ] Labels are ordered most-descriptive first ships as the first soft rule
 - [ ] The soft finding reads as a question rather than a verdict, and does not affect the exit code
 - [ ] The hard rule reports presence only, and does not restate check's label_unknown
+- [ ] The level each rule ships at is chosen against what it does to a real store, not in the abstract
+
+## Notes
+
+**agent:claude/t3code** at 2026-09-16T17:31:11Z
+
+Both rules were run against this store before either was built, because a
+default is an opinion and an opinion should know what it does to the store that
+ships it. 137 tickets, counted across `draft/`, `tickets/`, `done/` and
+`archive/`.
+
+**The hard rule would fire on 63 of 137 tickets, 46% of the store, on the day it
+ships.** That is not by itself an argument against it. It is an argument that
+the level it ships at matters more than the description assumed, because a
+finding on half the store is one a reader learns to skim, which is the exact
+failure the second note on the framework ticket warns about.
+
+There is a second-order problem underneath it. AGENTS.md says this store's
+allowlist has no `tui` label, "which is why the TUI tickets ship unlabeled". So
+a narrow enforced allowlist pushes tickets toward carrying no label, and a rule
+demanding one then argues with the allowlist rather than with the person. The
+two config features interact, and this ticket and the framework both treat them
+as independent. Worth deciding whether the hard rule should say something
+different in a store whose allowlist is enforced and small.
+
+**The soft rule has almost no subjects here. Ten tickets carry more than one
+label and exactly one carries three.** The rule's justification is that the
+canvas renders `labels.slice(0, 2)` and hides the rest behind a `+N` disclosure,
+so order decides what a person sees at a glance. With a maximum of three labels
+on one ticket, that disclosure essentially never appears in this store, and
+label order changes what is visible on exactly nothing.
+
+The rule may still be right for a store that labels heavily. This store is not
+evidence for it, and it is the flagship soft rule: the one whose job is to prove
+that hard and soft is a real distinction rather than two words for severity. A
+flagship that is a no-op in its own repository proves the distinction to nobody.
+
+Neither finding changes the plan yet, per the decision taken with the user: keep
+both rules, record what they do here, and let the level each ships at absorb it.
+But whoever builds this should look at the numbers again first, because they are
+the only measurement anyone has of what these defaults actually say.

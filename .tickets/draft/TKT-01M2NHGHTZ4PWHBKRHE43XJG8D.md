@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:41:30Z
-updated_at: 2026-09-16T16:57:54Z
+updated_at: 2026-09-16T17:30:57Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -63,7 +63,6 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 
 ## Acceptance criteria
 
-- [ ] Hygiene rules are reported by level, highest first
 - [ ] check keeps answering only whether the store is valid, and doctor never fails a build by default
 - [ ] Each finding names the ticket and says what would resolve it
 - [ ] Rules are marked hard or soft, and a soft finding reads as a question rather than a verdict
@@ -72,6 +71,10 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 - [ ] A store turns a rule off, changes its level, or sets its parameters in .tickets/config.yml
 - [ ] Every rule has a stable identifier that configuration refers to
 - [ ] Configuring shipped rules does not foreclose a store defining its own later
+- [ ] Hard findings are reported before soft ones, and hard or soft is the only axis a rule has
+- [ ] A doctor finding carries its rule identifier and level, in its own type, leaving check's four-key contract untouched
+- [ ] A rule identifier named in config that this binary does not know is reported rather than silently unused, by whichever of check or doctor is decided to own it
+- [ ] Whether doctor has a --json form is decided: either a published envelope kind or a recorded reason there is none
 
 ## Notes
 
@@ -145,3 +148,66 @@ claim, an epic with no children, a dependency on something already done, a draft
 untouched since it was filed. Those are the opinionated default set the second
 note argues for, and they want their own ticket once the framework has shipped
 and the config format has been exercised by the two rules that go first.
+
+**agent:claude/t3code** at 2026-09-16T17:30:50Z
+
+Reviewed against the tree before promotion, with the user, and three decisions
+were taken. Each closes an ambiguity that would have been discovered in code.
+
+**Hard and soft are the only axis. There is no separate severity.** "Reported by
+level, highest first" therefore means every hard finding before every soft one,
+and a store that "changes a rule's level" is moving it between the two. The
+alternative was a severity attribute ordering the report independently, and it
+was declined because `check` already spends that vocabulary: `Report` is
+`Errors` and `Warnings` with `--strict` promoting one to the other, so a second
+command using "level" and "warning" for a different idea would teach a reader
+that the two words mean whatever the command they are in wants.
+
+The first criterion said, verbatim:
+
+- [ ] Hygiene rules are reported by level, highest first
+
+It is reworded below to name the two levels, because with exactly two of them
+"highest" was a comparative with nothing to compare.
+
+**Doctor gets its own finding type. `Finding` is not reused.** `ticket/check.go`
+marshals exactly four keys, and the comment there is explicit that the fixture
+sidecars record those four and a fifth "rewrites the corpus for something no
+consumer asked for". A doctor finding has to carry at least a rule identifier
+and a level, so reusing that type means either growing a recorded contract or
+smuggling the rule ID into `Code`. A second type that resembles the first is the
+cheaper of the three, and it keeps `check`'s corpus untouched.
+
+**Rule identifiers follow the `Finding.Code` convention**, which is what
+`label_unknown`, `location_mismatch`, `unknown_series` and `origin_missing`
+already look like. Whether the two share one namespace is still open, and it is
+worth settling in the same change: sharing means a doctor rule can never take a
+name `check` might want later, and separating means a reader has to know which
+command a code came from.
+
+### Two gaps this review found, now criteria
+
+**An unknown rule ID in config is silently unused today.** `ParseConfig` calls
+`yaml.Unmarshal` with no `KnownFields`, so unknown keys are ignored, and a
+`rules:` map keyed by rule ID accepts any key at all. A store that configures a
+rule this binary does not know gets no rule and no complaint. `check` already
+has `label_unknown` and `unknown_series` for exactly this shape, so the pattern
+exists; what is undecided is which command reports it, since `check` owns
+validity and `doctor` owns hygiene and a misspelled rule name is arguably both.
+
+The good news, measured rather than assumed: the block needs no schema bump. An
+older binary ignores the unknown top-level key, and an older binary has no
+`doctor` to misreport with.
+
+**`--json` needs a section 10 ruling.** `envelopeKinds` in `cli/commands.go` is a
+closed list guarded in both directions by `envelopekinds_test.go`, so a
+`doctor-report` kind is a contract addition and not a detail. The other honest
+answer is the one `note --list` took: ship with no JSON form and record why.
+
+### Left alone deliberately
+
+The second criterion carries two ideas, that `check` stays a validity question
+and that `doctor` does not fail a build by default. They were not split, because
+they are one separation stated from both sides. But "by default" implies a
+`--strict` of doctor's own that nothing else in this ticket mentions, and
+whoever builds it should either add that flag deliberately or drop the words.

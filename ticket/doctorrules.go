@@ -23,6 +23,15 @@ const (
 	// which of `auth` and `ui` describes a ticket better. The tool can see that
 	// a choice was available and cannot see whether it was made well, which is
 	// exactly the boundary the levels exist to draw.
+	//
+	// It asks wherever a choice exists, which is any ticket carrying two or
+	// more labels, rather than only where a card hides one. The first label is
+	// the primary one: it leads every rendering of the list, and
+	// git-ticket-canvas states the same convention independently in
+	// TKT-01M27EPDKKW6HGKNKS7A98EQER, "the first label is the ticket's primary
+	// label". A ticket with two labels has a real choice about which leads even
+	// though both are on screen, so a threshold tied to hiding was asking about
+	// visibility when the question is about primacy.
 	RuleLabelOrder = "label_order"
 )
 
@@ -33,7 +42,25 @@ const (
 // labels.slice(0, 2), and three when the cards are compact. A store whose board
 // is compact, or which reads its tickets somewhere else entirely, sets `visible`
 // in params rather than living with this number.
+//
+// It no longer decides whether the rule fires, only what the finding can say.
+// A ticket with more labels than this has some out of sight, which is worth
+// naming; one with fewer still has a first label, which is the part the rule is
+// actually about.
 const labelsShownDefault = 2
+
+// labelOrderMinimum is how many labels it takes for the order to be a choice at
+// all. One label is not an ordering.
+//
+// It is a parameter, `min`, and this is the default rather than the rule. A
+// store whose convention already settles which dimension leads has answered this
+// question once for every ticket, and asking it again per ticket is the noise
+// the framework's configurability exists to let a store switch off. Measured
+// when this default moved from 3 to 2: terva, which documents `area/` before
+// `scope/` and carries two labels on nearly every ticket, went from 0 soft
+// findings to 48. Raising `min` is the narrow answer there; disabling the rule
+// is the blunt one, and a store should not have to reach for the blunt one.
+const labelOrderMinimum = 2
 
 // DefaultRules is the set that ships with the binary, on by default. A store
 // that configures nothing gets exactly this.
@@ -75,8 +102,15 @@ func labelOrderRule() Rule {
 	return Rule{
 		ID:      RuleLabelOrder,
 		Level:   LevelSoft,
-		Summary: "a ticket has more labels than a card shows, so the order decides which are seen",
+		Summary: "a ticket carries more than one label, so which one leads is a choice",
 		Check: func(rc RuleContext) []DoctorFinding {
+			minLabels := paramInt(rc.Params, "min", labelOrderMinimum)
+			if minLabels < labelOrderMinimum {
+				// Below two there is no ordering to ask about, so a store
+				// setting that is asking for a finding on every labelled
+				// ticket and would get no information from any of them.
+				minLabels = labelOrderMinimum
+			}
 			visible := paramInt(rc.Params, "visible", labelsShownDefault)
 			if visible < 1 {
 				// A store that set this to zero or less is asking for a finding
@@ -88,25 +122,29 @@ func labelOrderRule() Rule {
 
 			var out []DoctorFinding
 			for _, t := range rc.Tickets {
-				// Only when a label is actually hidden. With two labels and a
-				// card that shows two, order changes nothing a reader sees, and
-				// a rule that fired there would be asking about a choice that
-				// does not exist.
-				if len(t.Labels) <= visible {
+				// Wherever the order is a choice. One label is not an ordering,
+				// and nothing below asks about a ticket that has no decision to
+				// make.
+				if len(t.Labels) < minLabels {
 					continue
 				}
-				hidden := t.Labels[visible:]
+				// A question, not a verdict. The tool can see that a choice was
+				// available and cannot see whether it was made well, so it names
+				// the label that leads and asks about that one thing.
+				msg := fmt.Sprintf("%q leads its %d labels: is that the one that describes it best?",
+					t.Labels[0], len(t.Labels))
+				if len(t.Labels) > visible {
+					// Some are out of sight, which is worth naming because it is
+					// a consequence of the order rather than a second question.
+					msg = fmt.Sprintf("%q leads its %d labels and a card shows only %d, hiding %s: is that the one that describes it best?",
+						t.Labels[0], len(t.Labels), visible, quoteList(t.Labels[visible:]))
+				}
 				out = append(out, DoctorFinding{
-					Rule:   RuleLabelOrder,
-					Level:  rc.Level,
-					Ticket: t.ID,
-					File:   ticketPath(t),
-					// A question, not a verdict. The tool can say which labels
-					// are out of sight and cannot say whether that is wrong, so
-					// it reports the first and asks about the second.
-					Message: fmt.Sprintf(
-						"a card shows the first %d of its %d labels, hiding %s: is %q the one that describes it best?",
-						visible, len(t.Labels), quoteList(hidden), t.Labels[0]),
+					Rule:    RuleLabelOrder,
+					Level:   rc.Level,
+					Ticket:  t.ID,
+					File:    ticketPath(t),
+					Message: msg,
 					Remedy: fmt.Sprintf(
 						"if not, move a label to the end with `git ticket update %s --remove-label NAME --add-label NAME`",
 						t.ID),

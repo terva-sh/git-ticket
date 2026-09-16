@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:57:13Z
-updated_at: 2026-09-16T18:37:44Z
+updated_at: 2026-09-16T19:49:58Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -199,6 +199,56 @@ a question mark is in `TestLabelOrderFiresOnlyWhenALabelIsHidden`.
 **agent:claude/t3code** at 2026-09-16T18:37:44Z
 
 draft to done: Worked straight from draft at the user's request, without passing through ready or in-progress. The work is this branch: ticket/doctorrules.go and ticket/doctorrules_test.go, committed with this ticket's ID.
+
+**agent:claude/t3code** at 2026-09-16T19:49:58Z
+
+The soft rule's threshold moved from "a card hides a label" to "the order is a
+choice", which is two or more labels. Decided with the user, against the
+alternative of recording it and revisiting when canvas ships.
+
+**The trigger.** git-ticket-canvas TKT-01M26XAVP3 ("Give labels project-wide
+colors and inherit them on cards") rules that a card body inherits the colour of
+the ticket's *first* label and explicitly does not scan later ones. That makes
+order visible at two labels, where the old threshold was silent. Its split-out
+sibling TKT-01M27EPDKKW6HGKNKS7A98EQER states the convention this rule assumes,
+in its own words: "the first label is the ticket's primary label". Both are
+drafts, so the rule now fires ahead of the reason being true, which was the
+argument against and was overruled deliberately.
+
+**Two criteria were reworded.** Verbatim, as they stood on this ticket:
+
+- [ ] Labels are ordered most-descriptive first ships as the first soft rule
+
+That one is unchanged in substance. What changed is the test names beneath it:
+`TestLabelOrderFiresOnlyWhenALabelIsHidden` became
+`TestLabelOrderAsksWhereverTheOrderIsAChoice`, and
+`TestLabelOrderTakesItsThresholdFromParams` became
+`TestLabelOrderNamesWhatACardHides`, because `visible` no longer decides whether
+the rule fires, only what the finding may claim.
+
+**The cost was measured across three real stores, before and after.**
+
+| store | open | soft before | soft after |
+|---|---|---|---|
+| git-ticket | 27 | 1 | 8 |
+| terva | 114 | 0 | 48 |
+| git-ticket-canvas | 30 | 10 | 19 |
+
+terva is the one that matters. It went from zero to forty-eight, and it is the
+store doing labels best: `area/` then `scope/` on nearly every ticket, with
+`CONVENTIONS.md` settling which leads. Every one of those 48 findings asks a
+question terva answered once, in writing, which is precisely the noise the
+framework's second note warned turns a report into something people skim.
+
+**So `min` is now a parameter.** The old threshold was reachable through
+`visible`; the new one was hardcoded, which took away the only narrow answer and
+left "disable the rule" as the blunt one. A store whose convention settles the
+dimension order sets `min: 3` and keeps the rule for the tickets where a real
+choice remains. Default stays at 2, as decided.
+
+That gap was mine: moving a threshold into a constant removed a knob that had
+been configurable, and a rule system whose whole argument is that stores differ
+should not lose one silently.
 
 ## Summary
 

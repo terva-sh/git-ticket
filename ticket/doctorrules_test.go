@@ -76,57 +76,72 @@ func TestDoctorReadsTheOpenSet(t *testing.T) {
 	}
 }
 
-// TestLabelOrderFiresOnlyWhenALabelIsHidden is the threshold the rule's whole
-// justification rests on. With two labels and a card that shows two, order
-// changes nothing a reader sees, and a rule that fired there would be asking
-// about a choice that does not exist.
-func TestLabelOrderFiresOnlyWhenALabelIsHidden(t *testing.T) {
+// TestLabelOrderAsksWhereverTheOrderIsAChoice is the threshold, changed from
+// "a label is hidden" to "a choice exists" on 2026-09-16.
+//
+// The first label is the primary one, and git-ticket-canvas states the same
+// convention independently. A ticket with two labels has a real decision about
+// which leads even though both are on screen, so a rule tied to hiding was
+// asking about visibility when the question is about primacy.
+func TestLabelOrderAsksWhereverTheOrderIsAChoice(t *testing.T) {
 	s := newTestStore(t)
-	two := mustCreate(t, s, "Two labels, both visible")
+
+	one := mustCreate(t, s, "One label, no ordering to make")
+	mustApply(t, s, one.ID, AddLabel{Label: "alpha"})
+
+	two := mustCreate(t, s, "Two labels, both on screen, still a choice")
 	mustApply(t, s, two.ID, AddLabel{Label: "alpha"})
 	mustApply(t, s, two.ID, AddLabel{Label: "beta"})
 
-	three := mustCreate(t, s, "Three labels, one hidden")
-	mustApply(t, s, three.ID, AddLabel{Label: "alpha"})
-	mustApply(t, s, three.ID, AddLabel{Label: "beta"})
-	mustApply(t, s, three.ID, AddLabel{Label: "gamma"})
-
 	r := shippedReport(t, s)
-	if f := findingFor(r, RuleLabelOrder, two.ID); f != nil {
-		t.Errorf("label_order fired where nothing is hidden: %q", f.Message)
+	if f := findingFor(r, RuleLabelOrder, one.ID); f != nil {
+		t.Errorf("label_order fired on a single label, which is not an ordering: %q", f.Message)
 	}
-	f := findingFor(r, RuleLabelOrder, three.ID)
+	f := findingFor(r, RuleLabelOrder, two.ID)
 	if f == nil {
-		t.Fatal("label_order did not fire where a label is hidden")
+		t.Fatal("label_order did not fire on two labels, where the choice is real")
 	}
 	if f.Level != LevelSoft {
 		t.Errorf("level = %q, want soft", f.Level)
 	}
-	// It names what is out of sight, which is the part it can see.
-	if !strings.Contains(f.Message, "gamma") {
-		t.Errorf("the finding does not name the hidden label: %q", f.Message)
+	if !strings.Contains(f.Message, "alpha") {
+		t.Errorf("the finding does not name the label that leads: %q", f.Message)
 	}
-	// And asks rather than rules, which is the part it cannot.
 	if !strings.HasSuffix(strings.TrimSpace(f.Message), "?") {
 		t.Errorf("a soft finding did not read as a question: %q", f.Message)
 	}
 }
 
-// TestLabelOrderTakesItsThresholdFromParams is the first shipped rule to read a
-// parameter, and the reason the framework carries them: the number comes from
-// how a board renders, and not every store reads its tickets on the same one.
-func TestLabelOrderTakesItsThresholdFromParams(t *testing.T) {
+// TestLabelOrderNamesWhatACardHides keeps the visible parameter meaningful. It
+// no longer decides whether the rule fires, only what the finding can say, so a
+// ticket with more labels than a card shows gets them named.
+func TestLabelOrderNamesWhatACardHides(t *testing.T) {
 	s := newTestStore(t)
 	three := mustCreate(t, s, "Three labels")
 	for _, l := range []string{"alpha", "beta", "gamma"} {
 		mustApply(t, s, three.ID, AddLabel{Label: l})
 	}
-	// Compact cards show three, so nothing is hidden and the rule says nothing.
+
+	f := findingFor(shippedReport(t, s), RuleLabelOrder, three.ID)
+	if f == nil {
+		t.Fatal("label_order did not fire on three labels")
+	}
+	if !strings.Contains(f.Message, "gamma") {
+		t.Errorf("the finding does not name the hidden label: %q", f.Message)
+	}
+
+	// Compact cards show three, so nothing is hidden. The rule still asks,
+	// because the order is still a choice, and the message stops claiming
+	// anything is out of sight.
 	s = writeDoctorConfig(t, s,
 		"\ndoctor:\n  rules:\n    label_order:\n      params:\n        visible: 3\n")
 
-	if f := findingFor(shippedReport(t, s), RuleLabelOrder, three.ID); f != nil {
-		t.Errorf("label_order ignored the store's threshold: %q", f.Message)
+	f = findingFor(shippedReport(t, s), RuleLabelOrder, three.ID)
+	if f == nil {
+		t.Fatal("label_order stopped asking when the store widened the card")
+	}
+	if strings.Contains(f.Message, "hiding") {
+		t.Errorf("the finding still claims a label is hidden on a card that shows three: %q", f.Message)
 	}
 }
 
@@ -180,5 +195,44 @@ func TestTheTwoRulesDoNotFireOnTheSameTicketTwice(t *testing.T) {
 	}
 	if findingFor(r, RuleLabelMissing, bare.ID) == nil {
 		t.Error("label_missing did not fire on a ticket with no labels")
+	}
+}
+
+// TestLabelOrderMinimumIsAParameter is the escape hatch for a store whose
+// convention already settles which dimension leads.
+//
+// Measured when the default moved from three labels to two: terva, which
+// documents area/ before scope/ and carries two labels on nearly every ticket,
+// went from 0 soft findings to 48. Every one of those asks a question terva
+// answered once, in writing. Raising min is the narrow answer; turning the rule
+// off is the blunt one, and a store should not have to reach for the blunt one.
+func TestLabelOrderMinimumIsAParameter(t *testing.T) {
+	s := newTestStore(t)
+	two := mustCreate(t, s, "Two labels, order settled by convention")
+	mustApply(t, s, two.ID, AddLabel{Label: "area/core"})
+	mustApply(t, s, two.ID, AddLabel{Label: "scope/contained"})
+
+	if findingFor(shippedReport(t, s), RuleLabelOrder, two.ID) == nil {
+		t.Fatal("label_order did not fire at the default of two")
+	}
+
+	s = writeDoctorConfig(t, s,
+		"\ndoctor:\n  rules:\n    label_order:\n      params:\n        min: 3\n")
+	if f := findingFor(shippedReport(t, s), RuleLabelOrder, two.ID); f != nil {
+		t.Errorf("a store that raised min still got asked: %q", f.Message)
+	}
+}
+
+// TestLabelOrderMinimumRefusesToGoBelowTwo keeps a store from configuring noise
+// it can learn nothing from: below two labels there is no ordering to ask about.
+func TestLabelOrderMinimumRefusesToGoBelowTwo(t *testing.T) {
+	s := newTestStore(t)
+	one := mustCreate(t, s, "A single label")
+	mustApply(t, s, one.ID, AddLabel{Label: "alpha"})
+
+	s = writeDoctorConfig(t, s,
+		"\ndoctor:\n  rules:\n    label_order:\n      params:\n        min: 1\n")
+	if f := findingFor(shippedReport(t, s), RuleLabelOrder, one.ID); f != nil {
+		t.Errorf("min below two produced a finding with nothing to ask: %q", f.Message)
 	}
 }

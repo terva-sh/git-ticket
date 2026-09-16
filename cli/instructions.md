@@ -185,7 +185,7 @@ doctor:
       enabled: false
     label_order:
       params:
-        visible: 3
+        min: 3
 ```
 
 If a rule is wrong for this project, that block is the answer and it is a change

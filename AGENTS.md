@@ -120,8 +120,115 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.17.1, where an export with no trailing newline survives
-its own import. `ParseAddedFiles` skipped git's `\ No newline at end of file`
+Releases run through v0.19.0, where a store can be untidy without being invalid.
+`git ticket doctor` reports what a person would call sloppy, and everything it
+says is advisory: it never edits, never refuses a write, and exits 0 unless
+`--strict` asks otherwise. `check` keeps the other half, what the format forbids.
+
+Hard and soft grade a finding on an objectivity axis, not a severity one, and
+that distinction is the design. Hard means the store's own configuration already
+settled the question, so the finding states a fact about that store. Soft means
+the answer is a judgement no rule can make, and those are phrased as questions.
+Severity is `check`'s axis and stays there. Getting this wrong would have made
+doctor a second `check --strict` with a worse name.
+
+`label_missing` is the hard rule and tests presence only. A label outside the
+allowlist is already `label_unknown` in `check`, and repeating it here would
+teach a reader that two commands disagree about whose job that is.
+`label_order` is the soft one and asks whether the first of several labels is
+the one that describes the ticket best, because the leading label is what a
+narrow card shows and nothing else votes on it.
+
+Its threshold is the decision worth carrying. It first fired only where a card
+hid a label, which tied the question to visibility when the question is about
+primacy: a ticket with two labels has a real choice about which leads even
+though both are on screen. Moving the default to two was the user's call against
+my recommendation, and the cost was measured rather than argued: terva went from
+0 soft findings to 48. That is why `min` is a parameter. A store whose
+convention already settles which dimension leads should raise `min`, which is
+the narrow answer, rather than disable the rule, which is the blunt one.
+
+Rules resolve against a `doctor:` block in `config.yml`. A rule can be disabled,
+moved between levels, or given parameters, and an entry naming something this
+binary does not ship is reported as `rule_unknown` rather than refusing the run,
+which leaves the door open for a store to author its own. `RenderConfig` emits
+that block and has to: `migrate` and `series add` both rewrite `config.yml`
+through it, so a key the emitter did not know about was a key those commands
+silently deleted. That was found by writing the round-trip test, not by hitting
+it, and it would have presented as a store's rule configuration quietly coming
+back on after an unrelated command.
+
+Doctor reads the open set, which is what `Filter{}` means under section 8, and
+on this repository's own store that choice is the whole feature. Of 144 ticket
+files, 25 are open and 55 carry no label, and every one of those 55 is done or
+archived. Reading every file would report 55 findings against work nobody is
+going back to re-label.
+
+`--strict` spends the graded informational bucket of 10.2: 20 when only soft
+findings fired, 21 when anything hard did, with 10 through 12 still reserved for
+`self-update`. `--json` emits a `doctor-report`, `schema` publishes the rule
+table, and doctor rule IDs share one namespace with check finding codes under a
+test that fails if they ever collide.
+
+`git ticket actor` is the release's other command and exists because an empty
+roster refuses any write that names no actor, whose remedy was to open
+`config.yml` in an editor an agent host may not have. It lists the roster, and
+`actor add ID` writes to it with `--name` and `--default`. There is no
+`RemoveActor`: an ID appears in `created_by` and `updated_by` across the store,
+and dropping it from the roster does not drop it from the record. Note that the
+roster refuses only writes naming no actor. `create --actor human:someone`
+succeeds against an empty roster, and terva's ticket said otherwise.
+
+`ready` gains `--label` and both `ready` and `list` gain `--not-label`. Repeated
+`--label` values OR rather than AND, which terva's ticket also had backwards;
+measured on this store, 4 + 2 = 6.
+
+One break, in 12.4. `ApplyImport` returns the partial `ImportResult` at every
+error site where it returned nil, so `res.Filed` is what landed and the error is
+what stopped it, with `FromID` beside each minted `ID`. A caller using
+`res != nil` as a success test now reads a partial run as a whole one.
+
+The verification followed the v0.15.0 pattern and is worth reading for the one
+step that could not be run as written. Both forges published six assets;
+`sha256sum -c` passed on both linux_amd64 archives and both binaries reported
+`v0.19.0 (1d3ca0655f7a, ...)`, go1.25.12 on Forgejo and go1.25.0 on GitHub,
+which is the expected alpine-versus-ubuntu split. The proxy resolves the tag to
+`1d3ca0655f7aeab89d329be68707d546aef960fd`. Then the feature, in the shipped
+binary rather than from source: an empty roster refused a create, `actor add`
+fixed it with no editor, and doctor returned 21 on a hard finding, 20 with only
+a soft one, and 0 once `config.yml` disabled the rule. `not_a_real_rule` in that
+block reported `rule_unknown`. `series add` was run against a store carrying a
+doctor block with nested params, and the block survived, which is the data-loss
+fix proven in the artifact rather than in a test.
+
+The image step could not be run as this file describes it. `podman` and
+`buildah` are not installed on this machine, whatever the container section
+below says, so the three tags were resolved through the ghcr API instead. An
+anonymous pull token, then `Docker-Content-Digest` for each: `0.19.0`, `0.19`
+and `latest` all answer `sha256:7adf3cae`. The `v`-prefixed forms do not exist,
+which is what "the full version, the minor, and `latest`" means. That check is
+weaker than running the image and should be redone with podman when there is a
+machine that has it.
+
+v0.18.1 counts adopted tickets that are already finished, and v0.18.0 is the
+release it fixed: `import --same-owner`, where one owner moving one ticket
+between two stores they both own keeps the ticks, the status and the filing
+instant, because that evidence is theirs and unticking it destroys a record
+nothing else holds. v0.18.0 also gave `show` the newest note with the rest
+indexed, split the agent block into a short and a long form, taught `init` to
+adopt a `.tickets` directory that has no config, and taught `check` to report a
+subheading named for a section the format owns.
+
+Neither was narrated here when it shipped, and the cost of that showed up during
+this release. The sentence below about the heading exception said the advice was
+wrong "until v0.19.0". It was written in the same commit as the fix, guessed at
+the next tag, and the release went out two hours later as v0.18.0, so for two
+releases this file told readers on a corrected binary that they were on a broken
+one. `git tag --contains` settles that question in one command and nobody ran
+it. Write the version down after the tag exists, not before.
+
+v0.17.1 is where an export with no trailing newline survives its own import.
+`ParseAddedFiles` skipped git's `\ No newline at end of file`
 marker and appended a newline to every line it read, so it rebuilt a file one
 byte longer than `AddedFileHunk` wrote, failed its own blob check, and told the
 receiver the patch had been altered when nobody had touched it. It now honours
@@ -571,8 +678,25 @@ tar -xzf /tmp/imgctx/git-ticket_*.tar.gz -C /tmp/imgctx
 podman build -f Dockerfile -t git-ticket-test:local /tmp/imgctx
 ```
 
-There is no docker daemon on this machine. `podman` and `buildah` are installed
-and rootless, and every image check recorded here was run with podman.
+There is no docker daemon on this machine, and do not assume a container tool
+instead. `podman` and `buildah` were installed when the checks above were
+written and were absent at v0.19.0, so test for one rather than reaching for it.
+
+Without either, a tag's images can still be verified through the registry API,
+which is enough to prove what was published and not enough to prove it runs:
+
+```sh
+tok=$(curl -sS "https://ghcr.io/token?scope=repository:terva-sh/git-ticket:pull&service=ghcr.io" \
+      | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+curl -sS -o /dev/null -D - -H "Authorization: Bearer $tok" \
+  -H 'Accept: application/vnd.oci.image.index.v1+json' \
+  -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+  https://ghcr.io/v2/terva-sh/git-ticket/manifests/0.19.0 \
+  | tr -d '\r' | awk -F': ' 'tolower($1)=="docker-content-digest"{print $2}'
+```
+
+The tags carry no `v`. `0.19.0`, `0.19` and `latest` are the three to compare,
+and they should answer one digest.
 
 The image ships the `safe.directory` exception switched off rather than absent.
 git refuses a mounted repository owned by another uid, and a CI image usually

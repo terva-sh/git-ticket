@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:57:13Z
-updated_at: 2026-09-16T17:31:11Z
+updated_at: 2026-09-16T18:16:49Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -76,9 +76,9 @@ renamed casually afterwards.
 
 - [ ] Every ticket carries at least one label ships as the first hard rule
 - [ ] Labels are ordered most-descriptive first ships as the first soft rule
-- [ ] The soft finding reads as a question rather than a verdict, and does not affect the exit code
 - [ ] The hard rule reports presence only, and does not restate check's label_unknown
 - [ ] The level each rule ships at is chosen against what it does to a real store, not in the abstract
+- [ ] The soft finding reads as a question rather than a verdict, and does not make the run fail
 
 ## Notes
 
@@ -119,3 +119,19 @@ Neither finding changes the plan yet, per the decision taken with the user: keep
 both rules, record what they do here, and let the level each ships at absorb it.
 But whoever builds this should look at the numbers again first, because they are
 the only measurement anyone has of what these defaults actually say.
+
+**agent:claude/t3code** at 2026-09-16T18:16:49Z
+
+The exit-status decision on TKT-01M2NHGHTZ4PWHBKRHE43XJG8D falsified this
+ticket's third criterion the same day it was written. It said, verbatim:
+
+- [ ] The soft finding reads as a question rather than a verdict, and does not
+  affect the exit code
+
+`doctor --strict` now exits by a graded informational bucket, and the grade is
+the worst level that fired, so a soft finding does affect the exit code: it is
+what puts a run in the soft-only grade rather than the clean one. What a soft
+finding still may not do is make the run fail.
+
+The first half of the criterion is untouched. The soft rule reads as a question
+either way, and that was never about the exit status.

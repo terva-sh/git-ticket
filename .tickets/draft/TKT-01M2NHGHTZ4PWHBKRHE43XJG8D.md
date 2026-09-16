@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:41:30Z
-updated_at: 2026-09-16T17:30:57Z
+updated_at: 2026-09-16T18:16:39Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -66,7 +66,6 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 - [ ] check keeps answering only whether the store is valid, and doctor never fails a build by default
 - [ ] Each finding names the ticket and says what would resolve it
 - [ ] Rules are marked hard or soft, and a soft finding reads as a question rather than a verdict
-- [ ] A soft rule can never be what makes the command exit non-zero
 - [ ] Rules ship on by default and a store that configures nothing gets them
 - [ ] A store turns a rule off, changes its level, or sets its parameters in .tickets/config.yml
 - [ ] Every rule has a stable identifier that configuration refers to
@@ -75,6 +74,10 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 - [ ] A doctor finding carries its rule identifier and level, in its own type, leaving check's four-key contract untouched
 - [ ] A rule identifier named in config that this binary does not know is reported rather than silently unused, by whichever of check or doctor is decided to own it
 - [ ] Whether doctor has a --json form is decided: either a published envelope kind or a recorded reason there is none
+- [ ] A soft rule can never be what makes the run fail, though it may put the command in the informational bucket
+- [ ] Rule identifiers and check's finding codes share one namespace, and schema publishes both
+- [ ] doctor --strict exits by a graded informational bucket: clean, soft findings only, and hard findings are distinguishable without parsing output
+- [ ] Plan 10.2 is edited to reserve doctor's numbers, which do not collide with self-update's 10 through 12, and that edit ships with the code
 
 ## Notes
 
@@ -211,3 +214,53 @@ and that `doctor` does not fail a build by default. They were not split, because
 they are one separation stated from both sides. But "by default" implies a
 `--strict` of doctor's own that nothing else in this ticket mentions, and
 whoever builds it should either add that flag deliberately or drop the words.
+
+**agent:claude/t3code** at 2026-09-16T18:16:39Z
+
+Two more decisions, taken with the user, closing the questions the review above
+left open.
+
+**Rule identifiers and check's finding codes share one namespace.** The reason is
+that doctor referring to a check code is not hypothetical: the first hard rule
+already has to know about `label_unknown`, because
+TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0's fourth criterion tells it to report label
+presence and not restate what `check` already says about membership. A rule that
+must name another command's code to define its own boundary is a rule living in
+that command's namespace already. Two namespaces would have made that reference
+ambiguous in the one place it matters.
+
+The cost is accepted rather than overlooked: a doctor rule can never take a name
+`check` might want later, and `schema` publishes the whole space, so every
+identifier on either side is spent once and permanently.
+
+**`doctor --strict` exits by a graded informational bucket, not by 0 and 1.**
+
+Plan 10.2's default is one bit, with detail left to the envelope, and it says so
+in as many words. But it already reserves one exception, 10 through 12 for
+`self-update --check`, and gives the test a new bucket has to pass: the
+precedent is "the reserved informational bucket of zypper and terraform's
+`-detailed-exitcode`, not fsck's bitmask", because a grade is one ordered
+category and a mask is several independent ones.
+
+Doctor's grade is the worst level that fired. Clean, soft findings only, and
+hard findings are three states of one ordered category, which is a grade and not
+a mask, so it passes the test 10.2 sets. What CI gets from it is the thing a
+single bit cannot give: telling a store with nothing to say from one with only
+questions, without parsing anything.
+
+This is a plan change and not a command's own choice. AGENTS.md is explicit that
+admitting a row a plan section does not have is a maintainer's decision, per the
+format-patch ruling in section 15. The maintainer made it here. It is recorded
+as a criterion below so the edit to 10.2 ships with the code rather than after
+it, and the reserved numbers must not collide with self-update's 10 through 12.
+
+**The fourth criterion had to be reworded for it.** Verbatim, as it stood:
+
+- [ ] A soft rule can never be what makes the command exit non-zero
+
+That was written when 0 and 1 were the only outcomes, where "exits non-zero" and
+"fails" were the same sentence. With a bucket they are not, and the distinction
+is one this codebase already draws: `cli/cli.go` comments at the self-update
+branch that in the graded bucket "the command answered", which is the opposite
+of a failure. A soft finding may put the command in the informational bucket.
+It still may not fail the run.

@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:41:30Z
-updated_at: 2026-09-16T16:49:47Z
+updated_at: 2026-09-16T16:57:54Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -68,8 +68,6 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 - [ ] Each finding names the ticket and says what would resolve it
 - [ ] Rules are marked hard or soft, and a soft finding reads as a question rather than a verdict
 - [ ] A soft rule can never be what makes the command exit non-zero
-- [ ] Every ticket carries at least one label ships as the first hard rule
-- [ ] Labels are ordered most-descriptive first ships as the first soft rule
 - [ ] Rules ship on by default and a store that configures nothing gets them
 - [ ] A store turns a rule off, changes its level, or sets its parameters in .tickets/config.yml
 - [ ] Every rule has a stable identifier that configuration refers to
@@ -111,3 +109,39 @@ Ship configuration of built-ins. Leave authoring to its own ticket, and do not d
 ### What the defaults are for is worth saying
 
 The default set is the tool's opinion about what a well-kept store looks like, which is the only reason to have a hygiene command rather than a linter people write themselves. Defaults that try to offend nobody say nothing. They should be opinionated enough to be worth overriding.
+
+**agent:claude/t3code** at 2026-09-16T16:57:54Z
+
+Groomed. Split before promotion, because the note above turned this from a
+command into a rule system and a rule system does not fit one ticket. This
+ticket keeps the framework: the command, the hard and soft levels and their exit
+semantics, stable rule identifiers, and the `.tickets/config.yml` override
+format. Identifiers and the config format are the compatibility surface, so they
+are what has to be right first and what the carve-offs wait on.
+
+Two acceptance criteria moved out. Their original wording, verbatim, so a reader
+does not have to run `git log` to learn what was asked here:
+
+- [ ] Every ticket carries at least one label ships as the first hard rule
+- [ ] Labels are ordered most-descriptive first ships as the first soft rule
+
+Both now live on TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0, which records this ticket as
+its origin and depends on it. The "Hard rules and soft rules", "Why label order
+is worth a rule at all" and "The two example rules, written out" sections of the
+description above are the argument for that ticket rather than for this one, and
+were copied there. They stay here because the hard-versus-soft passage is also
+the justification for the level system this ticket builds.
+
+This supersedes the "Authoring new rules is a separate question" heading in the
+note above, which said to leave authoring to its own ticket. That ticket now
+exists: TKT-01M2NJDNMG5SBB6CEXY186HESF, a spike, also with this one as its
+origin. The last criterion here, that configuring shipped rules does not
+foreclose a store defining its own, is the seam between them.
+
+Still unassigned to any ticket: the hygiene conditions the first paragraph of
+the description enumerates, which never became criteria anywhere. No acceptance
+criteria, no description beyond a title, `in-progress` with no claim, an expired
+claim, an epic with no children, a dependency on something already done, a draft
+untouched since it was filed. Those are the opinionated default set the second
+note argues for, and they want their own ticket once the framework has shipped
+and the config format has been exercised by the two rules that go first.

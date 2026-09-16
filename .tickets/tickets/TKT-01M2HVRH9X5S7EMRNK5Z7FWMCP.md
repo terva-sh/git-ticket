@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2HVRH9X5S7EMRNK5Z7FWMCP
 title: note --show and --list are absent from the help that documents note
 type: bug
-status: draft
+status: ready
 status_reason: null
 priority: normal
 due_on: null
@@ -20,12 +20,12 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-15T06:23:39Z
-updated_at: 2026-09-15T06:24:07Z
+updated_at: 2026-09-16T16:56:07Z
 created_by:
   id: agent:terva/mieli
   name: ""
 updated_by:
-  id: agent:terva/mieli
+  id: agent:claude/t3code
   name: ""
 extensions: {}
 ---

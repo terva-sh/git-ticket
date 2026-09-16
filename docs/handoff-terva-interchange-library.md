@@ -284,9 +284,8 @@ plan 7.3 forbids a helper that rewrites a worktree.
 
 The error path now returns the partial `ImportResult` alongside the error, so
 `res.Filed` is what landed and the error is what stopped it. terva asked for
-this in TKT-01M2HVS7V6XN64EHJV0B3Z8ECF and it ships in **v0.19.0**, which is the
-next release and is unreleased as this paragraph is written: until that tag
-exists, pin to what you have and expect nil on the error path.
+this in TKT-01M2HVS7V6XN64EHJV0B3Z8ECF and it ships in **v0.19.0**. Against any
+earlier tag, expect nil on the error path.
 
 `res.Filed` carries `FromID` beside each minted `ID`, which is the part that
 could not be reconstructed afterwards. A caller that does not know how many

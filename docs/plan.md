@@ -3231,6 +3231,23 @@ All three are taken now for the reason this section already gives for staying at
 will ever be. Waiting does not avoid a break, it moves it to a release where
 somebody has to be told.
 
+`label_order` changes what it reports in v0.19.1, and it is recorded here as a
+decision rather than as a break. The rule identifier is unchanged, the
+`doctor-report` kind is unchanged, and `confidence` and `sample` are added
+beside `min` and `visible` rather than replacing them, so nothing that worked
+stops working. Config parameters are not Go API and add no exported name, which
+is why this is a patch under the v0.14.2 bucket and not a minor under the
+v0.11.0 precedent.
+
+What does change is how many findings a store gets, and the drop is steep enough
+that a consumer counting them across the upgrade would be right to ask. The rule
+fired on 120 of terva's 121 open tickets and all 131 of ketju's; it now reports
+4 and 1. That is the rule getting quieter, not the stores getting cleaner, and
+the release notes have to say so or the numbers will be read as a regression in
+the other direction. Human-readable output is not a covered surface and the
+finding count never was one, so no promise is broken; the note exists because a
+silent tenfold change in output is indistinguishable from a bug.
+
 A title over 120 characters is refused, per 5.1 and section 11. `title_long` at
 72 is a warning and additive, but `title_too_long` is an error, and the library
 refuses the write with `invalid_field` and exit status 1 rather than reporting

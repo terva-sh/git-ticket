@@ -120,7 +120,47 @@ is open reads `a.top()`; there is no `a.detail` left to check.
 `cmd/git-ticket/main.go`, so they must stay field-for-field identical. A new
 field goes last in both structs, and the compiler is the test.
 
-Releases run through v0.19.0, where a store can be untidy without being invalid.
+Releases run through v0.19.1, where `label_order` reads the store's convention
+instead of asserting one, and the correction is worth more than the rule.
+
+Shipped in v0.19.0 it asked, on every ticket with two or more labels, whether
+the right one led. That fired on 120 of terva's 121 open tickets and on all 131
+of ketju's. A rule that fires on everything cannot guide a change, which is the
+only thing doctor is for, and the noise was the whole of what it produced.
+
+**The number this file recorded for that decision was wrong.** The paragraph
+below said terva went from 0 soft findings to 48 when the default moved from
+three labels to two. 48 came from terva's working tree, which sits on another
+branch 68 commits behind `origin/sothr-main`. The real figure was 120. So the
+threshold was moved against a cost less than half its true size, and the check
+that would have caught it is one command: read a sibling store from its ref,
+`git archive origin/BRANCH .tickets | tar -x -C /tmp/somewhere`, never from
+whatever its working tree happens to be checked out at. A measurement from a
+stale tree is not a weaker measurement, it is a different store's.
+
+What replaced it keys on the same evidence. terva leads with `area/` on 116 of
+its 120 ordered tickets and ketju with `area:` on 130 of 131, so the store has
+already answered the question the rule was asking and the four and the one that
+disagree are exactly the tickets worth a question. The rule now takes the
+dimension of each leading label, finds the one that leads most often, and
+reports the tickets that depart from it. terva 120 to 4, ketju 131 to 1,
+git-ticket-canvas 19 to 0, git-ticket 8 to 1.
+
+Two guards keep it from inventing a convention. `sample` is how many ordered
+tickets it takes before a majority counts as a practice, default five, because
+three agreeing is a coincidence and a floor of ten would silence git-ticket's
+own store. `confidence` is how dominant the leading dimension must be, default
+four fifths, and the measurement says the value hardly matters: a store with a
+convention has a very strong one, and anything from 0.70 to 0.95 gives terva and
+ketju the same answer. Below either guard the rule says nothing, which is the
+right answer for a store that has not settled the question rather than a missed
+finding. Canvas is that store and gets zero, correctly: silence beats nineteen
+unanswerable questions.
+
+Leading with undimensioned labels counts as a convention too, so a store that
+never prefixes still hears about the one ticket that suddenly does.
+
+v0.19.0 is where a store can be untidy without being invalid.
 `git ticket doctor` reports what a person would call sloppy, and everything it
 says is advisory: it never edits, never refuses a write, and exits 0 unless
 `--strict` asks otherwise. `check` keeps the other half, what the format forbids.
@@ -139,14 +179,13 @@ teach a reader that two commands disagree about whose job that is.
 the one that describes the ticket best, because the leading label is what a
 narrow card shows and nothing else votes on it.
 
-Its threshold is the decision worth carrying. It first fired only where a card
-hid a label, which tied the question to visibility when the question is about
-primacy: a ticket with two labels has a real choice about which leads even
-though both are on screen. Moving the default to two was the user's call against
-my recommendation, and the cost was measured rather than argued: terva went from
-0 soft findings to 48. That is why `min` is a parameter. A store whose
-convention already settles which dimension leads should raise `min`, which is
-the narrow answer, rather than disable the rule, which is the blunt one.
+Its threshold was the decision worth carrying, and it was the wrong one. It
+first fired only where a card hid a label, which tied the question to visibility
+when the question is about primacy. Moving the default to two was the user's
+call against my recommendation, and the cost was measured rather than argued,
+except that the measurement was taken from a stale working tree and read 48
+where the truth was 120. v0.19.1 replaces the threshold entirely; the account is
+at the top of this section.
 
 Rules resolve against a `doctor:` block in `config.yml`. A rule can be disabled,
 moved between levels, or given parameters, and an entry naming something this
@@ -949,8 +988,9 @@ chose differently). This store carries `area/` alone; `scope/` and `init/` are
 terva's and are not claimed here.
 
 `git ticket doctor` reports a ticket carrying no label as `label_missing`,
-which is a hard finding, and asks about the order when a card would hide one.
-Give a new ticket an area.
+which is a hard finding, and reports a ticket leading with a dimension this
+store rarely leads with as `label_order`, which is soft. Give a new ticket an
+area, and lead with it.
 
 `ready` is half the backlog. Everything filed lands in `draft` and nothing
 promotes it, so `git ticket list --status draft` is the other half and it is

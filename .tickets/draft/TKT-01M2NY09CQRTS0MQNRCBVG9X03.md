@@ -47,7 +47,7 @@ Worth weighing: a draft is where a ticket is filed before anybody has thought it
 
 ### Measure before choosing a default
 
-The v0.19.0 `label_order` threshold is the precedent. Its default moved and terva went from 0 soft findings to 48, which was measured rather than argued, and the parameter `min` exists because of it. Do the same here: count what this rule would report against git-ticket, terva, terva-ext-web and git-ticket-canvas before picking a default, and record the numbers.
+The v0.19.0 `label_order` threshold is the precedent, including how it went wrong. Its default moved on a measurement of 48 findings against terva that was taken from a stale working tree; the real figure was 120, and v0.19.1 replaced the threshold entirely. Measure from a sibling store's ref, never from whatever its working tree is checked out at. Do the same here: count what this rule would report against git-ticket, terva, terva-ext-web and git-ticket-canvas before picking a default, and record the numbers.
 
 ## Acceptance criteria
 

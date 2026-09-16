@@ -22,12 +22,12 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-16T20:44:56Z
-updated_at: 2026-09-16T20:45:44Z
+updated_at: 2026-09-16T21:10:30Z
 created_by:
   id: human:sothr
   name: ""
 updated_by:
-  id: human:sothr
+  id: agent:claude/t3code
   name: ""
 extensions: {}
 ---
@@ -45,6 +45,49 @@ asked for:
 terva reached for the blunt one. `enabled: false`, in this change:
 terva-sh/terva, `.tickets/config.yml`. Not because the narrow answer was
 unpleasant, but because no value of `min` expresses what terva needs.
+
+## Notes
+
+**agent:claude/t3code** at 2026-09-16T21:10:30Z
+
+v0.19.1 answers the noise half of this and leaves the `order:` proposal open.
+
+The rule no longer thresholds on label count. It reads the dimension each ticket
+leads with, finds the one this store leads with most often, and reports only the
+tickets that disagree. Measured on the store this ticket describes, read from
+`origin/sothr-main`: **120 findings become 4**, and the 4 are exactly the
+`live-test` and `flake` tickets found by hand here. That is the part worth
+noting, because it says the inferred convention and the written one agree.
+
+Confirming the numbers independently: 121 open, 120 multi-label, `area/` leading
+116 of them. This ticket counted 127 open and 120 multi-label against a slightly
+different snapshot; the multi-label figure, which is the one the rule keys on,
+matches exactly.
+
+**What this does not do, and the ticket stays open for it.** There is no
+`order:` parameter. The rule infers one dominant leading dimension rather than
+reading a total order, so it cannot express `area/` before `init/` before
+`scope/`, and it says nothing about the sequence after the first label. The
+argument for inferring was that it needs no configuration and is therefore
+already true of every store, including ones with no written convention; the
+argument for declaring is that a store that has written the order down should
+not have it guessed at, and that a total order catches a mis-sorted third label
+that a leading-dimension rule cannot see. Those are not in conflict and the
+second is still unbuilt.
+
+Two observations from this ticket that the new rule does not reach:
+
+- The 34 tickets carrying two `area/` labels, where the alphabet chose which
+  leads. Both lead with `area/`, so the new rule is silent on all 34. This
+  ticket already says that is a separate question, and it is filed separately.
+- `visible` is still meaningless for a store with no board. It now only changes
+  the wording of findings that are rare rather than universal, so the cost is
+  smaller, but the parameter still cannot be set to anything useful here.
+
+The `enabled: false` in terva's config and the by-hand fix to the five tickets
+are both still unpushed as this note is written; `origin/sothr-main` is at
+1977238d. Re-enabling after upgrading to v0.19.1 is worth trying, since the
+thing it was switched off for is the thing that changed.
 
 ## What the store actually looks like
 

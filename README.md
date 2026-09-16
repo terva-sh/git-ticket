@@ -575,14 +575,22 @@ doctor:
       enabled: false
     label_order:
       params:
-        min: 3       # only ask on tickets with three or more labels
-        visible: 3   # how many labels your board shows before hiding the rest
+        confidence: 0.9   # how dominant a leading dimension must be to count
+        sample: 10        # how many multi-label tickets before it counts at all
+        min: 3            # how many labels make the order a choice
+        visible: 3        # how many labels your board shows before hiding the rest
 ```
 
-`label_order` asks, on every ticket carrying two or more labels, whether the one
-that leads is the most descriptive. A store whose convention already settles
-that, such as one that always writes `area/` before `scope/`, has answered the
-question once and can raise `min` rather than disabling the rule.
+`label_order` reads your convention rather than asserting one. It takes the
+dimension each ticket leads with, the part before the first `/` or `:`, finds
+the one that leads most often, and reports only the tickets that disagree. A
+store that always writes `area/` before `scope/` hears nothing until a ticket
+breaks that habit, and a store that has not settled the question hears nothing
+at all, because tickets disagreeing with each other is not a mistake when
+nothing said they should agree.
+
+Leading with undimensioned labels is a convention too, so a store that never
+prefixes still gets told about the one ticket that suddenly does.
 
 Rule identifiers are a promise, since they are what a config file refers to, so
 `git ticket schema` publishes them. They share one namespace with the finding

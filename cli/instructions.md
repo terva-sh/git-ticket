@@ -164,11 +164,13 @@ so `doctor` states it and you can act on it without deciding anything.
 A **soft** rule is a judgement the tool can raise and cannot settle. Nothing
 mechanical knows which of `auth` and `ui` describes a ticket better, so the
 finding reads as a question and can never fail a run. The trap is treating it
-like the hard one. A soft finding that says a card hides two of a ticket's
-labels and asks whether the first is the most descriptive is asking you to
-think about that ticket; reordering the labels to make the finding go away
-answers nothing and loses the question. Answer it with your judgement, record
-what you decided if it was interesting, or leave it and say why.
+like the hard one. A soft finding that says this ticket leads with a dimension
+the rest of the store rarely leads with is asking you to think about that
+ticket, not handing you an edit: the store's habit is the fact, and whether this
+ticket meant to depart from it is the judgement. Reordering the labels to make
+the finding go away answers nothing and loses the question. Answer it with your
+judgement, record what you decided if it was interesting, or leave it and say
+why.
 
 Keeping the two apart is the whole reason the levels exist. A tool that reported
 a judgement in the same voice as a fact would teach everybody to skim both.
@@ -185,8 +187,16 @@ doctor:
       enabled: false
     label_order:
       params:
-        min: 3
+        confidence: 0.9
+        sample: 10
 ```
+
+`label_order` reads this project's own convention rather than asserting one. It
+takes the dimension each ticket leads with, the part before the first `/` or
+`:`, finds the one that leads most often, and reports only the tickets that
+disagree. A project that has not settled the question hears nothing, because
+tickets disagreeing with each other is not a mistake when nothing said they
+should agree.
 
 If a rule is wrong for this project, that block is the answer and it is a change
 to propose to the person you are working with, not one to make on your own while

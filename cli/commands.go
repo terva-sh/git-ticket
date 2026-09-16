@@ -1250,6 +1250,18 @@ func noteReadArgs(args []string) (list bool, show string, rest []string, ok bool
 
 // runNoteRead prints an index of a ticket's notes, or the text of a range.
 func runNoteRead(ctx *cmdContext, list bool, show string, rest []string) error {
+	// What noteReadArgs did not claim is still a command's worth of arguments,
+	// so it is parsed here rather than treated as positionals. Without this the
+	// globals were accepted in their pre-command position only, and `note ID
+	// --list --store PATH` failed as though it had named two tickets, which
+	// contradicts the promise the top-level usage makes that a global may come
+	// before or after the command. noteReadArgs is unchanged: it still takes the
+	// two reading flags out before runTextEntry could append one as prose, and
+	// this parse only reads what it left behind.
+	rest, err := ctx.parseFlags("note", rest, nil)
+	if err != nil {
+		return err
+	}
 	if list && show != "" {
 		return usageErr("note --list and --show ask for different things; run one")
 	}

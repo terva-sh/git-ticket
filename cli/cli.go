@@ -162,7 +162,7 @@ func commands() []command {
 		{"ac", "edit the acceptance criteria", "ID [--add T] [--check N] [--uncheck N] [--remove N]", runAC},
 		{"dod", "edit the definition of done", "ID [--add T] [--check N] [--uncheck N] [--remove N]", runDoD},
 		{"plan", "set the implementation plan, replacing it", "ID TEXT", runPlan},
-		{"note", "append a note", "ID TEXT", runNote},
+		{"note", "append a note, or read the ones already there", "ID TEXT", runNote},
 		{"comment", "append a comment", "ID TEXT", runComment},
 		{"summary", "set the summary, replacing it", "ID TEXT", runSummary},
 		{"archive", "archive a ticket, moving its file", "ID [--reason R]", runArchive},
@@ -542,7 +542,11 @@ func writeCommandUsage(w io.Writer, name string, fs *flag.FlagSet) {
 		fmt.Fprintf(w, "%s\n\n", c.summary)
 		break
 	}
-	fmt.Fprintf(w, "usage: git ticket %s\n\nflags:\n", line)
+	fmt.Fprintf(w, "usage: git ticket %s\n", line)
+	for _, form := range commandUsageForms(name) {
+		fmt.Fprintf(w, "       git ticket %s\n", form)
+	}
+	fmt.Fprint(w, "\nflags:\n")
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fs.VisitAll(func(f *flag.Flag) {
 		// Two dashes, because that is the form every other page of this
@@ -559,6 +563,30 @@ func writeCommandUsage(w io.Writer, name string, fs *flag.FlagSet) {
 	}
 }
 
+// commandUsageForms is the argument lines a command takes beyond the one in the
+// dispatch table, printed under it so that `--help` opens on every form.
+//
+// It exists because a command's reading flags can be real without being on its
+// FlagSet. `note` parses --list and --show in noteReadArgs before the shared
+// flag parser sees them, deliberately, so the FlagSet walk below cannot find
+// them and no care taken there ever will. Writing the forms here documents them
+// without moving the parse that keeps a stray --list from being appended as
+// prose.
+//
+// A lookup for the same reason commandEpilogue is one: the dispatch table is
+// written as unkeyed literals, so a fifth field would have to be spelled out on
+// every command to teach one command a second line.
+func commandUsageForms(name string) []string {
+	switch name {
+	case "note":
+		return []string{
+			"note ID --list",
+			"note ID --show N | N-M | all",
+		}
+	}
+	return nil
+}
+
 // commandEpilogue is the paragraph a few commands print under their flags,
 // where the flag list alone would leave a reader with the wrong idea.
 //
@@ -567,6 +595,15 @@ func writeCommandUsage(w io.Writer, name string, fs *flag.FlagSet) {
 // to teach one command a sentence.
 func commandEpilogue(name string) string {
 	switch name {
+	case "note":
+		// The two reading flags are absent from the list above and a reader who
+		// notices deserves the reason rather than a suspicion that the page is
+		// stale.
+		return `--list and --show are read before the flags above are parsed, which is what
+stops a stray --list from being appended as the note's text. Everything after --
+is text by your own instruction, so ` + "`git ticket note ID -- --list`" + ` appends that
+word rather than reading anything.
+`
 	case "export":
 		// Without this the flag list reads as though an export can only ever
 		// carry tickets. There is no --patch flag, per plan 12.8, so the only

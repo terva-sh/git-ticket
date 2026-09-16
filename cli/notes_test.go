@@ -220,3 +220,66 @@ func TestNoteListAndShowAreDifferentQuestions(t *testing.T) {
 		t.Errorf("--list with --show should be refused:\n%s", got.stdout)
 	}
 }
+
+// TestNoteHelpDocumentsTheReadingForms is the whole point of
+// TKT-01M2HVRH9X5S7EMRNK5Z7FWMCP. The only place --list and --show were
+// written down was the stand-in line `show` prints when a ticket has more than
+// one note, so a reader who met `note --help` first was told that note appends
+// and nothing else. They cannot come from the FlagSet walk, because
+// noteReadArgs takes them out before any FlagSet exists, so this holds the
+// hand-written forms to naming them.
+func TestNoteHelpDocumentsTheReadingForms(t *testing.T) {
+	// A bare directory, because asking what a command takes must not need a
+	// store, the same rule TestSubcommandHelp holds every other command to.
+	dir := t.TempDir()
+
+	got := runCLI(t, dir, nil, "note", "--help")
+	if got.code != exitOK {
+		t.Fatalf("note --help exited %d: %s", got.code, got.stderr)
+	}
+	for _, want := range []string{
+		"usage: git ticket note ID TEXT",
+		"git ticket note ID --list",
+		"git ticket note ID --show N | N-M | all",
+	} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("note --help omits %q:\n%s", want, got.stdout)
+		}
+	}
+	// The epilogue says why the two are absent from the flag list, so a reader
+	// who notices is given the reason rather than a stale-looking page.
+	if !strings.Contains(got.stdout, "before the flags above are parsed") {
+		t.Errorf("note --help does not say why the reading flags are not listed:\n%s", got.stdout)
+	}
+}
+
+// TestNoteReadingTakesGlobalsAfterTheCommand holds the reading forms to the
+// promise the top-level usage makes for every command: a global may come before
+// or after the command name.
+//
+// They did not. noteReadArgs hands everything it did not claim to runNoteRead,
+// which counted the words and refused anything but one, so `note ID --list
+// --store PATH` failed as though two tickets had been named. Parsing what was
+// left behind fixed it without touching the split that keeps a stray --list out
+// of a note's text, which TestNoteWritesTextThatLooksLikeAFlag still proves.
+func TestNoteReadingTakesGlobalsAfterTheCommand(t *testing.T) {
+	dir := newStore(t)
+	id := noteTicket(t, dir, 2)
+
+	for _, args := range [][]string{
+		{"note", id, "--list", "--actor", "human:sothr"},
+		{"note", id, "--show", "1", "--actor", "human:sothr"},
+		{"note", id, "--list", "--lock-timeout", "5s"},
+	} {
+		got := runCLI(t, dir, nil, args...)
+		if got.code != exitOK {
+			t.Errorf("%v exited %d, want 0: %s", args, got.code, got.stderr)
+		}
+	}
+
+	// Two tickets are still two tickets. The parse must not have turned the
+	// count check into something that accepts anything.
+	if got := runCLI(t, dir, nil, "note", id, id, "--list"); got.code == exitOK {
+		t.Errorf("two IDs should still be refused:\n%s", got.stdout)
+	}
+}

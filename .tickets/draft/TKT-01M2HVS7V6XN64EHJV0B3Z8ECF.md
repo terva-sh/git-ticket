@@ -21,7 +21,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-15T06:24:02Z
-updated_at: 2026-09-15T06:24:11Z
+updated_at: 2026-09-16T19:14:20Z
 created_by:
   id: agent:terva/mieli
   name: ""
@@ -100,3 +100,29 @@ path to say what the success path already says.
 ## Definition of done
 
 - [ ] The worked example in docs/handoff-terva-interchange-library.md still compiles against the published module, as that document's status section requires.
+
+## Notes
+
+**agent:terva/mieli** at 2026-09-16T19:14:20Z
+
+This moved from "would be useful" to load-bearing on 2026-09-16, and upstream
+should know the change.
+
+terva decided against building a `ticket_move` tool over the interchange API,
+and this ticket is one of the three stated reasons. That reasoning is now in
+terva's **shipped** documentation, `docs/cli.md`, under "Moving a ticket between
+stores":
+
+> The interchange library is also not atomic: `ApplyImport` files tickets one at
+> a time and reports nothing about what landed when one fails part-way, so a
+> tool built on it today could not tell a user what to clean up.
+
+So a published page in another repository now says this API cannot be wrapped
+honestly. That is not an argument for urgency by itself, and terva is not asking
+for one. It is a fact about who is relying on the answer: if this lands, terva
+has a recorded decision to revisit rather than a preference to re-litigate.
+
+Nothing about the ask has changed. Return the partial `ImportResult` alongside
+the error, so a caller can report what was filed. Atomicity is still not wanted,
+for the reason the original note gave: making it transactional needs a scratch
+branch, and plan 7.3 forbids a helper that rewrites a worktree.

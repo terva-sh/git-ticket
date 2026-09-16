@@ -1271,7 +1271,7 @@ after it in `body.extra`. Write `###` instead: the prefix test carries the
 trailing space, so three hashes do not match. A `## ` inside a fenced code block
 is already safe, because `parseBody` tracks fences.
 
-That advice has one exception, and until v0.19.0 this file and the CLI both gave
+That advice has one exception, and until v0.18.0 this file and the CLI both gave
 it without the exception, which is how a ticket ends up with criteria nobody can
 tick. If the heading names a section the format owns, `## Acceptance criteria`
 opens the real section and its items tick, while `### Acceptance criteria` is

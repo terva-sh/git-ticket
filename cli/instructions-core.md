@@ -77,7 +77,9 @@ epic.
 
 Run `git ticket config` before you invent a label. It prints what this store
 permits, and a label outside that set is a warning that fails
-`check --strict`. `git ticket schema` prints the types, priorities, statuses and
+`check --strict`. Give every ticket you file at least one, since a title is
+otherwise the only thing saying what it is about; `doctor` reports the ones
+carrying none. `git ticket schema` prints the types, priorities, statuses and
 error codes every store shares.
 
 Write prose longer than a line to a file and pass the file: `--description-file`
@@ -112,6 +114,22 @@ changed.
 
 If this project runs the check in CI, it reports the repair and does not commit
 it for you.
+
+### Hygiene, which is a different question
+
+`git ticket doctor` reports what is untidy rather than what is broken: a ticket
+that is valid and that nobody could pick up. It exits zero however much it has
+to say, unless you pass `--strict`, which exits 20 when only soft findings fired
+and 21 when a hard one did.
+
+A **hard** finding is a fact you can act on. A **soft** finding is a question the
+tool cannot settle, so answer it with your judgement or leave it, but do not edit
+a ticket only to silence one: reordering labels without deciding anything loses
+the question rather than answering it.
+
+If a rule is wrong for this project, `.tickets/config.yml` turns it off or
+retunes it. That is a change to propose, not one to make while tidying something
+else.
 
 ### Driving it from a script
 

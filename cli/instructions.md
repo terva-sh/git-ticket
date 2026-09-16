@@ -139,6 +139,65 @@ principle that reports unformatted code rather than reformatting it behind your
 back. Where it does not, running the check yourself before you commit is what
 keeps the store clean.
 
+### Hygiene, which is a different question from validity
+
+`git ticket check` answers whether the store is *valid*. `git ticket doctor`
+answers whether it is *tidy*, and those are different enough to be different
+commands. A ticket can be perfectly valid and still be one nobody can pick up:
+no labels, no acceptance criteria, `in-progress` with a claim that expired weeks
+ago. None of that is broken and all of it costs the next reader time.
+
+The two stay apart on purpose. `check` is what CI runs and what `--fix` repairs,
+so it has to keep answering a yes-or-no question. Hygiene is advice, it is
+opinionated by design, and an untidy store should not fail a build. So `doctor`
+exits zero however much it has to say, unless you ask for `--strict`, which
+exits 20 when only soft findings fired and 21 when a hard one did. The two
+numbers are a grade rather than a mask: 21 means something objective is wrong,
+20 means there are only questions, and a shell can tell them apart without
+parsing anything.
+
+That grade is the thing to get right when you read a report.
+
+A **hard** rule is checkable. Whether a ticket carries a label is true or false,
+so `doctor` states it and you can act on it without deciding anything.
+
+A **soft** rule is a judgement the tool can raise and cannot settle. Nothing
+mechanical knows which of `auth` and `ui` describes a ticket better, so the
+finding reads as a question and can never fail a run. The trap is treating it
+like the hard one. A soft finding that says a card hides two of a ticket's
+labels and asks whether the first is the most descriptive is asking you to
+think about that ticket; reordering the labels to make the finding go away
+answers nothing and loses the question. Answer it with your judgement, record
+what you decided if it was interesting, or leave it and say why.
+
+Keeping the two apart is the whole reason the levels exist. A tool that reported
+a judgement in the same voice as a fact would teach everybody to skim both.
+
+Rules ship on by default, at the level this tool thinks right, because a hygiene
+command with no opinion is a linter you could have written yourself. A store
+overrides any of them in `.tickets/config.yml`, beside the label and milestone
+allowlists:
+
+```yaml
+doctor:
+  rules:
+    label_missing:
+      enabled: false
+    label_order:
+      params:
+        visible: 3
+```
+
+If a rule is wrong for this project, that block is the answer and it is a change
+to propose to the person you are working with, not one to make on your own while
+tidying something else. `git ticket schema` lists every rule this binary ships,
+with its level and what it is for, and the identifiers there are what the config
+refers to.
+
+`doctor` reads the open set: draft, ready, in-progress, blocked and review, and
+not done or archived. Hygiene is about a ticket somebody might pick up, and
+nobody picks up an archived one.
+
 ### Filing new work
 
 `git ticket create --title "..." --type bug --priority high` files a ticket.

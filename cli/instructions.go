@@ -20,8 +20,8 @@ var instructionsText string
 //
 // The two exist because the written block is loaded in every session of every
 // project that adopts this tool, which makes it the largest standing context
-// cost here: the full text is 2,434 words and most of them are the reason for a
-// rule rather than the rule. An agent needs the rule every time and the reason
+// cost here: the full text is close to 3,000 words and most of them are the
+// reason for a rule rather than the rule. An agent needs the rule every time and the reason
 // when a rule surprises it, so the summary goes in the file and the argument
 // stays one command away. That is the same split `show` makes for note history.
 //

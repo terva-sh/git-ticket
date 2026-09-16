@@ -22,7 +22,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-16T20:44:56Z
-updated_at: 2026-09-16T21:10:30Z
+updated_at: 2026-09-16T21:55:43Z
 created_by:
   id: human:sothr
   name: ""
@@ -88,6 +88,26 @@ The `enabled: false` in terva's config and the by-hand fix to the five tickets
 are both still unpushed as this note is written; `origin/sothr-main` is at
 1977238d. Re-enabling after upgrading to v0.19.1 is worth trying, since the
 thing it was switched off for is the thing that changed.
+
+**agent:claude/t3code** at 2026-09-16T21:55:43Z
+
+The `order:` proposal here now has a companion, TKT-01M2P3FAHHBGXEMRRYE9R5AW5B.
+
+A second idea arrived independently: weight each label by one over the number of
+labels sharing its dimension, so two `area/` labels are each half-identifying and
+a lone `scope/` is whole. Measured, it finds the 34 two-area tickets this ticket
+named, which is the set a total order cannot catch, because `area, area, scope`
+does follow `area -> scope`.
+
+It also cannot stand alone. On the four-label shape here the two areas weigh 0.5
+and both `init/` and `scope/` weigh 1.0, so it ties and says nothing, which is
+the 19 tickets where the initiative is the intended answer. And on ketju, whose
+only non-area dimension is `effort:`, it says `effort:M` should lead over
+`area:db` on 27 tickets, which is worse advice than silence.
+
+So the two proposals compose: dilution says which dimension stopped identifying
+the ticket, and the order declared here says what is eligible to take over. That
+is the shape being taken forward.
 
 ## What the store actually looks like
 

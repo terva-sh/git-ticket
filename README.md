@@ -269,6 +269,8 @@ git ticket note TKT-01K3ZZ2J --show 2-4  # read a range of them in full
 git ticket remove TKT-01K3ZZ2J    # a ticket filed by mistake, before anybody worked it
 
 git ticket series add LED         # a second ID prefix this store may mint
+git ticket actor                  # who this store records writes as
+git ticket actor add human:you --default   # fills an empty roster without an editor
 git ticket export TKT-01K3ZZ2J --out ./handoff   # hand tickets to another project
 git ticket import ./handoff       # preview what an export carries
 git ticket import ./handoff --adopt --same-owner # file it, keeping your own evidence
@@ -294,6 +296,23 @@ ticket names this one in `dependencies` or `parent`, and when the ticket carries
 notes, comments, a summary, a claim, or an archive record. Both refusals name
 what they found, and `--force` overrides them and reports what it broke. Nothing
 is staged either way, so until you commit the deletion Git still has the file.
+
+`git ticket actor` lists who a store records writes as, and `actor add ID` fills
+the roster. It exists for one awkward state: `init` with no `--actor` and no
+terminal leaves an empty roster, which is right for a script, and a write naming
+nobody is then refused because `updated_by` would say nothing. The repair used to
+be a text editor.
+
+Both forms work against that store, because they read and write `config.yml`
+rather than a ticket. `--default` also sets `defaults.actor`; without it the
+store resolves writes to whoever heads the roster and warns on every one, and
+that warning's advice is to set `defaults.actor`, which would send you back to
+the editor this command replaces.
+
+There is no `actor remove`. An actor is recorded in `created_by`, `updated_by`,
+every note and every claim, and that is history rather than vocabulary: removing
+the roster entry cannot rewrite it, and leaving it means a display name quietly
+empties on the next write to any of those tickets.
 
 `--actor` takes an ID, and the display name written beside it comes from the
 `actors` roster in `config.yml` rather than from the flag or from the file:

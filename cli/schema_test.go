@@ -173,6 +173,9 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		// The bare read. add and remove answer with the same kind, per 10.9,
 		// and this table only has to reach the kind once.
 		{"the series", []string{"--json", "series"}},
+		// The bare read, for the same reason the series row takes one: add
+		// answers with the same kind, per the actor verb's own doc.
+		{"the actors", []string{"--json", "actor"}},
 		{"the instructions", []string{"--json", "instructions"}},
 		// A dry run, so this writes nothing. The store newStore builds is
 		// already at the current level, which is the answer that exercises the

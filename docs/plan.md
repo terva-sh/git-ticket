@@ -1841,7 +1841,7 @@ Every machine-readable operation emits a versioned envelope on stdout:
 
 Kinds are `ticket`, `ticket-list`, `mutation-result`, `migrate-result`,
 `check-report`, `doctor-report`, `error`, `schema`, `config`, `series`,
-`instructions`, `self-update`, and `version`. Absent scalars are `null` and absent collections
+`actor`, `instructions`, `self-update`, and `version`. Absent scalars are `null` and absent collections
 are `[]`, always present rather than omitted, so a consumer never has to
 distinguish missing from empty.
 
@@ -2257,7 +2257,7 @@ values without reading this document or hard-coding them:
   "schemaVersion": 1,
   "kind": "schema",
   "ticketSchema": 1,
-  "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "doctor-report", "error", "schema", "config", "series", "instructions", "self-update", "version"],
+  "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "doctor-report", "error", "schema", "config", "series", "actor", "instructions", "self-update", "version"],
   "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
   "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
@@ -2507,6 +2507,43 @@ person runs, so gating a job on this command would be gating on a decision no
 job is allowed to take. `check` is where CI learns a store is behind, through
 `migration_incomplete`, and a second gate reporting the same fact through a
 different command is how two answers come to disagree.
+
+#### The actor kind
+
+`actor` and `actor add ID` both answer with this, per 4.1, on the same rule the
+series kind follows: what a caller wants back from either is the roster the
+store now declares.
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "actor",
+  "actors": [{ "id": "human:you", "name": "You" }],
+  "default": "human:you",
+  "changed": true,
+  "pathsChanged": [".tickets/config.yml"]
+}
+```
+
+`default` is `defaults.actor`, and null when the store declares none. `changed`
+is false when the write found nothing to do, so a caller running `actor add` to
+be sure does not special-case success.
+
+`actor add` writes `config.yml` rather than a ticket, which is what makes it one
+of the few writes outside section 9 and is load-bearing rather than incidental.
+A store whose roster is empty refuses a mutation that names no actor, because
+`updated_by` would say nothing, so a section 9 mutation would be refused by the
+emptiness it was trying to fix. `init` with no `--actor` and no terminal leaves
+exactly that store, which is the right outcome for a script and previously had a
+text editor as its only repair.
+
+There is no `actor remove`. It is not the mirror of `series remove`: a series
+lives in the ID of every ticket carrying it and can be counted, while an actor is
+recorded in `created_by`, `updated_by`, every note and comment, and every claim,
+and those are history rather than vocabulary. Removing a roster entry cannot
+rewrite them, and leaving them means a display name silently empties on the next
+write to any of those tickets. That is a decision about history and belongs to
+its own ticket.
 
 ### 10.9 The series kind
 
@@ -2808,6 +2845,7 @@ git ticket instructions [--write] [--core] [--full]
 git ticket schema
 git ticket config   # what this store configured, including the allowlists
 git ticket series [add NAME | remove NAME]   # the ID prefixes this store uses, per 5.6
+git ticket actor  [add ID [--name N] [--default]]   # who this store records writes as, per 4.1
 git ticket self-update [--check | --dry-run]   # replace this binary with the latest release, per 12.6
 ```
 

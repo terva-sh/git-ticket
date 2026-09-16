@@ -274,6 +274,8 @@ git ticket import ./handoff --adopt --same-owner # file it, keeping your own evi
 
 git ticket check --strict         # safe in CI: offline, read-only
 git ticket check --fix            # repair the two findings that have one repair
+git ticket doctor                 # what is untidy rather than invalid, and never fails a build
+git ticket doctor --strict        # exit 20 for questions, 21 for the objective ones
 git ticket schema                 # the values and codes this binary enforces
 git ticket config                 # what this store configured: labels, milestones, defaults
 git ticket instructions           # the agent workflow block, for an AGENTS.md
@@ -499,6 +501,42 @@ edge or by creating what it names, and an unknown label is either a typo or a
 gap in the allowlist. Each needs a person, so `--fix` does not guess. That also
 covers a move onto a path already taken: the repair is dropped and the finding
 stays.
+
+`doctor` answers the other question. `check` says whether the store is *valid*:
+a ticket under the wrong filename, a file in a directory its status does not
+imply, an unresolved reference. Those are broken. A ticket can be perfectly
+valid and still be one nobody can pick up, and nothing asked about that.
+
+Hygiene is advice, so `doctor` never fails a build by default however untidy the
+store is. `--strict` exits by a grade instead: 20 when only soft findings fired,
+21 when a hard one did. A **hard** rule is checkable, and doctor states its
+finding. A **soft** rule is a judgement doctor can prompt and cannot settle,
+such as whether a ticket's labels are ordered with the most descriptive first,
+so its finding reads as a question and can never fail a run. Keeping the two
+apart is the point: a tool that reports a judgement in the same voice as a fact
+teaches people to skim both.
+
+Every rule ships on, at the level this tool thinks right, because a hygiene
+command with no opinion is a linter you could have written yourself. A store
+overrides any of them in `config.yml` beside the label and milestone allowlists:
+
+```yaml
+doctor:
+  rules:
+    some_rule:
+      enabled: false
+    another_rule:
+      level: soft
+      params:
+        after: 90d
+```
+
+Rule identifiers are a promise, since they are what a config file refers to, so
+`git ticket schema` publishes them. They share one namespace with the finding
+codes `check` reports, which is what lets a rule name a check code when it has
+to say where its own boundary ends. An identifier configured here that the
+binary does not know is reported rather than refused, so a misspelling is
+visible and a store defining its own rules later is not foreclosed.
 
 `instructions` prints a workflow block to paste into a project's `AGENTS.md`,
 telling an agent how to find work, claim it, record what it learned, and finish.

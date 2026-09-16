@@ -23,6 +23,33 @@ type Config struct {
 	Series   []string   `yaml:"series"`
 	Defaults Defaults   `yaml:"defaults"`
 	Lock     LockConfig `yaml:"lock"`
+	// Doctor is what the store said about the hygiene rules. It is advisory in
+	// the strongest sense: it changes what doctor reports and nothing else, and
+	// a store that omits it gets every shipped rule at the level it ships at.
+	Doctor DoctorSettings `yaml:"doctor"`
+}
+
+// DoctorSettings is the doctor block of config.yml.
+//
+// Rules stays an open map on purpose. An entry naming something this binary
+// does not ship is reported as rule_unknown rather than refused, because
+// refusing would foreclose a store ever authoring its own rules, and that
+// question is still open.
+type DoctorSettings struct {
+	Rules map[string]RuleConfig `yaml:"rules"`
+}
+
+// RuleConfig is what a store said about one rule. Every field is a pointer or a
+// map so that "the store said nothing" and "the store said the zero value" stay
+// distinguishable, which is the distinction permitted() below could not make
+// for the label allowlist and the one thing this block copies from nowhere.
+type RuleConfig struct {
+	Enabled *bool  `yaml:"enabled"`
+	Level   *Level `yaml:"level"`
+	// Params is whatever the rule takes. It is a nested key rather than
+	// inlined beside enabled and level, so that a field added here later is
+	// never ambiguous with a parameter a rule already reads.
+	Params map[string]any `yaml:"params"`
 }
 
 // Defaults are the values a create uses when the caller names none.
@@ -148,6 +175,34 @@ func RenderConfig(c Config) []byte {
 	l := &ymap{}
 	l.addString("timeout", c.Lock.Timeout.String())
 	m.add("lock", l)
+
+	// The doctor block is rendered back or it is destroyed. migrate and
+	// `series add` both rewrite config.yml through this function, so a key this
+	// emitter does not know about is a key those commands delete: a store that
+	// turned a rule off would find it on again after an unrelated command, with
+	// nothing said. Emitted only when the store set something, for the reason
+	// the series list above is: a store that configured nothing should not grow
+	// a block it never asked for.
+	if len(c.Doctor.Rules) > 0 {
+		rules := &ymap{}
+		for _, id := range sortedRuleIDs(c.Doctor.Rules) {
+			rc := c.Doctor.Rules[id]
+			e := &ymap{}
+			if rc.Enabled != nil {
+				e.add("enabled", yscalar{fmt.Sprint(*rc.Enabled)})
+			}
+			if rc.Level != nil {
+				e.addString("level", string(*rc.Level))
+			}
+			if len(rc.Params) > 0 {
+				e.add("params", yany(rc.Params))
+			}
+			rules.add(id, e)
+		}
+		d := &ymap{}
+		d.add("rules", rules)
+		m.add("doctor", d)
+	}
 
 	var b strings.Builder
 	m.writeTo(&b, 0)

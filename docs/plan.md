@@ -1831,8 +1831,8 @@ Every machine-readable operation emits a versioned envelope on stdout:
 ```
 
 Kinds are `ticket`, `ticket-list`, `mutation-result`, `migrate-result`,
-`check-report`, `error`, `schema`, `config`, `series`, `instructions`,
-`self-update`, and `version`. Absent scalars are `null` and absent collections
+`check-report`, `doctor-report`, `error`, `schema`, `config`, `series`,
+`instructions`, `self-update`, and `version`. Absent scalars are `null` and absent collections
 are `[]`, always present rather than omitted, so a consumer never has to
 distinguish missing from empty.
 
@@ -2086,7 +2086,7 @@ needs to tell those apart reads the code from the error envelope.
 `check --strict` promotes warnings to errors, so a store carrying only warnings
 exits zero without it and one with it.
 
-One graded bucket is reserved on top of that rule: 10 through 12 mean "an
+Two graded buckets are reserved on top of that rule. 10 through 12 mean "an
 update is available", and only the no-op modes of `self-update` use them, per
 12.6. 10 is a patch-sized gap, 11 minor, 12 major, so
 `self-update --check || notify` works in a cron job with no parsing, and a
@@ -2097,6 +2097,17 @@ version gap is one category, the highest component that moved, so a grade
 carries everything a mask would and stays readable in a shell comparison.
 Under v0.x this composes with 12.4: a minor is where breaks land, so tooling
 that waits on 11 gets exactly the caution that numbering promises.
+
+20 and 21 are `doctor --strict`, and mean "soft findings only" and "hard
+findings". The grade is the worst level that fired, which is one ordered
+category and passes the same test the update bucket does: `doctor --strict ||
+test $? -lt 21` asks "did anything objective fail" with no parsing, and a store
+with only questions on it is distinguishable from a clean one, which a single
+bit cannot do. Doctor without `--strict` always exits zero, because hygiene is
+advice and advice that fails a build is a rule. A soft finding may put the
+command in 20; it may never produce 1, since a soft rule is a judgement the tool
+cannot settle and a failure is a claim that it did. The gap from 12 to 20 is
+deliberate: neither bucket has to move if either grows.
 
 ### 10.3 A check report
 
@@ -2184,6 +2195,49 @@ A store with findings is a successful check, not a failed command. The report
 goes to stdout and the exit status is one. An `error` envelope comes back only
 when the check could not run at all, such as `store_not_found`.
 
+#### A doctor report
+
+The `doctor-report` kind carries hygiene, which is a different question from
+validity and therefore a different kind rather than more keys on a check:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "doctor-report",
+  "grade": "soft",
+  "findings": [
+    {
+      "rule": "rule_unknown",
+      "level": "hard",
+      "ticket": "",
+      "file": ".tickets/config.yml",
+      "message": "config.yml configures \"labl_presnt\", which this binary does not know",
+      "remedy": "correct the spelling, remove the entry, or upgrade git-ticket to a version that ships it"
+    }
+  ]
+}
+```
+
+A doctor finding carries `rule`, `level`, `ticket`, `file`, `message` and
+`remedy`. It is not the finding of 10.3: that one marshals exactly four keys and
+every fixture sidecar records them, and a doctor finding has to carry the rule
+that raised it and that rule's level, so it brings its own shape rather than
+growing a recorded contract for keys no check finding will ever have.
+
+`level` is `hard` or `soft` and is the only axis a rule has. A hard rule is
+checkable and doctor may state its finding; a soft rule is a judgement doctor
+can prompt and cannot settle, so its `message` reads as a question. Findings are
+ordered hard first.
+
+`grade` is the worst level that fired, one of `clean`, `soft` or `hard`. It is
+spelled rather than numbered because a consumer reading the envelope has no use
+for the exit status of 10.2, and the spelling survives those reserved numbers
+moving.
+
+`rule` identifiers share one namespace with the finding codes of section 11, so
+a rule may name a check code when it has to say where its own boundary ends, and
+neither side may spend a name the other has. `schema` publishes both.
+
 ### 10.4 The schema kind
 
 `schema` prints what this binary enforces, so a consumer can learn the legal
@@ -2194,7 +2248,7 @@ values without reading this document or hard-coding them:
   "schemaVersion": 1,
   "kind": "schema",
   "ticketSchema": 1,
-  "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "error", "schema", "config", "series", "instructions", "self-update", "version"],
+  "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "doctor-report", "error", "schema", "config", "series", "instructions", "self-update", "version"],
   "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
   "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
@@ -2204,7 +2258,8 @@ values without reading this document or hard-coding them:
   "seriesLimits": { "minLength": 2, "maxLength": 8, "pattern": "^[A-Z][A-Z0-9]{1,7}$" },
   "transitions": { "draft": ["ready", "archived"] },
   "errorCodes": ["store_not_found", "usage"],
-  "findingCodes": [{ "code": "duplicate_id", "severity": "error" }]
+  "findingCodes": [{ "code": "duplicate_id", "severity": "error" }],
+  "doctorRules": [{ "id": "rule_unknown", "level": "hard", "summary": "config.yml configures a rule this binary does not know" }]
 }
 ```
 
@@ -2216,7 +2271,11 @@ the file format can move independently.
 may go, which is the table in 6.2. `errorCodes` is the section 10 list with the
 CLI's `usage` appended. `findingCodes` pairs each section 11 code with the
 severity that section assigns it, so a consumer reading a report knows whether
-a code it has never seen is an error or a warning.
+a code it has never seen is an error or a warning. `doctorRules` publishes the
+hygiene rule identifiers beside them, because the two share one namespace and a
+consumer reads both to learn which names are spent. An identifier is what a
+store writes into `config.yml`, so publishing it is what makes it a promise
+rather than an implementation detail.
 
 `openStatuses` is what a listing answers with by default, per section 8. It is
 published for the same reason the rest of this envelope is: a consumer that

@@ -166,6 +166,7 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		{"a listing", []string{"--json", "list"}},
 		{"a mutation", []string{"--json", "update", id, "--priority", "high", "--actor", "human:sothr"}},
 		{"a check", []string{"--json", "check"}},
+		{"a doctor run", []string{"--json", "doctor"}},
 		{"a failure", []string{"--json", "show", "TKT-01ZZZZZZZZZZZZZZZZZZZZZZZZ"}},
 		{"the schema", []string{"--json", "schema"}},
 		{"the config", []string{"--json", "config"}},

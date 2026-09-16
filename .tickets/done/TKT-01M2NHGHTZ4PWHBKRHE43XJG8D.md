@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2NHGHTZ4PWHBKRHE43XJG8D
 title: Add a doctor command for ticket hygiene
 type: task
-status: draft
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -15,10 +15,16 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim: null
+claim:
+  actor: agent:claude/t3code
+  branch: t3code/review-new-tickets
+  worktree: /home/sothr/.t3/worktrees/git-ticket/t3code-6907238f
+  commit: 7396b9e3ba043345142a80f2408575a110fd80d7
+  claimed_at: 2026-09-16T18:21:09Z
+  expires_at: null
 archive: null
 created_at: 2026-09-16T16:41:30Z
-updated_at: 2026-09-16T18:16:39Z
+updated_at: 2026-09-16T18:29:49Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -63,21 +69,71 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 
 ## Acceptance criteria
 
-- [ ] check keeps answering only whether the store is valid, and doctor never fails a build by default
-- [ ] Each finding names the ticket and says what would resolve it
+- [x] check keeps answering only whether the store is valid, and doctor never fails a build by default
+- [x] Each finding names the ticket and says what would resolve it
 - [ ] Rules are marked hard or soft, and a soft finding reads as a question rather than a verdict
-- [ ] Rules ship on by default and a store that configures nothing gets them
-- [ ] A store turns a rule off, changes its level, or sets its parameters in .tickets/config.yml
-- [ ] Every rule has a stable identifier that configuration refers to
-- [ ] Configuring shipped rules does not foreclose a store defining its own later
-- [ ] Hard findings are reported before soft ones, and hard or soft is the only axis a rule has
-- [ ] A doctor finding carries its rule identifier and level, in its own type, leaving check's four-key contract untouched
-- [ ] A rule identifier named in config that this binary does not know is reported rather than silently unused, by whichever of check or doctor is decided to own it
-- [ ] Whether doctor has a --json form is decided: either a published envelope kind or a recorded reason there is none
-- [ ] A soft rule can never be what makes the run fail, though it may put the command in the informational bucket
-- [ ] Rule identifiers and check's finding codes share one namespace, and schema publishes both
-- [ ] doctor --strict exits by a graded informational bucket: clean, soft findings only, and hard findings are distinguishable without parsing output
-- [ ] Plan 10.2 is edited to reserve doctor's numbers, which do not collide with self-update's 10 through 12, and that edit ships with the code
+- [x] Rules ship on by default and a store that configures nothing gets them
+- [x] A store turns a rule off, changes its level, or sets its parameters in .tickets/config.yml
+- [x] Every rule has a stable identifier that configuration refers to
+- [x] Configuring shipped rules does not foreclose a store defining its own later
+- [x] Hard findings are reported before soft ones, and hard or soft is the only axis a rule has
+- [x] A doctor finding carries its rule identifier and level, in its own type, leaving check's four-key contract untouched
+- [x] A rule identifier named in config that this binary does not know is reported rather than silently unused, by whichever of check or doctor is decided to own it
+- [x] Whether doctor has a --json form is decided: either a published envelope kind or a recorded reason there is none
+- [x] A soft rule can never be what makes the run fail, though it may put the command in the informational bucket
+- [x] Rule identifiers and check's finding codes share one namespace, and schema publishes both
+- [x] doctor --strict exits by a graded informational bucket: clean, soft findings only, and hard findings are distinguishable without parsing output
+- [x] Plan 10.2 is edited to reserve doctor's numbers, which do not collide with self-update's 10 through 12, and that edit ships with the code
+
+## Implementation plan
+
+`ticket/doctor.go` carries the library half, beside `check.go`, because terva
+consumes the library and a hygiene report a host cannot read is half a feature.
+`cli/doctor.go` carries the command.
+
+**Types.** `Level` is `hard` or `soft` and is the only axis. `DoctorFinding`
+carries `Rule`, `Level`, `Ticket`, `File`, `Message` and `Remedy`: a separate
+type from `Finding`, so check's four-key contract and its fixture sidecars are
+untouched. `Remedy` is its own field rather than prose inside `Message` because
+"says what would resolve it" is a criterion and a field can be asserted on.
+
+**Registry.** A `Rule` is an ID, the level it ships at, a summary, and a func
+over a `RuleContext` holding the tickets, the config, the rule's params and a
+clock. Store-wide rules and per-ticket rules are then the same shape, which an
+`epic with no children` rule needs and a per-ticket one does not mind.
+`DefaultRules()` is the shipped set and is what makes a rule on by default.
+
+**Config.** A `doctor.rules` map keyed by rule ID, each entry carrying
+`enabled`, `level` and a nested `params`. `params` is explicit rather than
+inline so a future key beside it is not ambiguous. The map stays open: an entry
+naming something not shipped is reported, not refused, which is what keeps
+TKT-01M2NJDNMG5SBB6CEXY186HESF's door open. Refusing would foreclose it.
+
+**Doctor owns the unknown rule ID**, not `check`. `check` answers whether the
+store is valid, and if it had to know the rule registry then a store would
+become invalid the day a rule is renamed, which makes validity a property of the
+binary rather than of the store. `label_unknown` and `unknown_series` compare
+two things inside the store; a rule ID compares the store against this binary,
+which is a different relation. It reports as `rule_unknown`, hard, since whether
+an ID is in the registry is exactly the kind of thing a hard rule settles.
+
+**Exit.** Without `--strict`, always zero. With it, the graded bucket: 0 clean,
+20 soft findings only, 21 hard findings. 20 and 21 leave self-update's 10
+through 12 alone and leave room between the two buckets. `exitStatusErr` already
+exists and `Run` already maps it, so no new mechanism. Plan 10.2 gains the
+reservation in the same change.
+
+**`--json` ships**, as a `doctor-report` kind added to `envelopeKinds` and to
+plan section 10. The alternative, recording that there is none, was rejected
+because terva is the consumer that most needs this and `check-report` already
+sets the shape. `schema` publishes the rule identifiers alongside the finding
+codes they share a namespace with.
+
+**The framework ships with no rules of its own.** The two that would prove it
+belong to TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0, which depends on this. The machinery
+is exercised by test-only rules registered through the same registry a shipped
+rule uses, so nothing is untested; `rule_unknown` is the one finding a store
+gets before that ticket lands.
 
 ## Notes
 
@@ -264,3 +320,52 @@ is one this codebase already draws: `cli/cli.go` comments at the self-update
 branch that in the graded bucket "the command answered", which is the opposite
 of a failure. A soft finding may put the command in the informational bucket.
 It still may not fail the run.
+
+**agent:claude/t3code** at 2026-09-16T18:29:44Z
+
+Built. `ticket/doctor.go` is the library half beside `check.go`, `cli/doctor.go`
+the command, and the rule identifiers are published by `schema`.
+
+**The third criterion ships unticked, honestly.** The marking half is done: a
+rule declares a level, a store can move it, and the level it runs at reaches the
+rule through `RuleContext.Level` so a rule moved to soft can phrase itself
+differently. `TestAStoreChangesARulesLevel` proves the value arrives. What
+cannot be ticked is "a soft finding reads as a question rather than a verdict",
+because no soft rule ships: the first one is
+TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0's, and a box ticked on a mechanism nobody has
+used would be a false one.
+
+**One nuance on the second criterion, ticked but worth stating.** Every finding
+carries a remedy, and a finding about a ticket names it. `rule_unknown` is about
+`config.yml` rather than about any ticket, so it names the file instead and the
+human output prints a dash in the ticket column. "Names the ticket" is
+unsatisfiable for a store-level finding; naming what it is about is the version
+that is true of all of them.
+
+**A data-loss hazard turned up that was not in the ticket.** `migrate` and
+`series add` both rewrite `config.yml` through `RenderConfig`, which emits
+field by field, so a block the emitter does not know is a block those commands
+delete. A store that turned a rule off would have found it on again after an
+unrelated `series add`, with nothing said. `RenderConfig` now renders the doctor
+block back, params included, through a structural renderer rather than a typed
+one, because params are the one part of that file this package deliberately has
+no type for. Proven twice: `TestRenderConfigKeepsTheDoctorBlock` round-trips it,
+and a real `series add` against a scratch store was run and the block survived.
+
+**The framework ships with no rules of its own**, which is what the split left
+here. Every level, grade, override and ordering below is exercised by rules
+registered in tests through the same `Rule` shape a shipped rule uses, and
+`cli/doctor.go` carries a `doctorRules` seam for the same reason. `rule_unknown`
+is the one finding a real store can get today. `doctor` on this repository's own
+store prints "Nothing to tidy." and exits 0, which is honest and will stay true
+until TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0 lands.
+
+**Numbers.** 20 is soft-only, 21 is hard, leaving self-update's 10 through 12
+alone with a deliberate gap so neither bucket has to move if either grows. Plan
+10.2 now reserves them and says why a grade rather than a mask, and section 10.3
+gained a `doctor-report` subsection rather than a new numbered section, so
+nothing downstream renumbered.
+
+## Summary
+
+git ticket doctor ships: a rule framework with hard and soft as its only axis, stable identifiers sharing check's namespace and published by schema, per-rule configuration in .tickets/config.yml for enabling, level and params, a doctor-report envelope kind, and --strict exiting by a graded bucket reserved in plan 10.2 at 20 for soft and 21 for hard. check is untouched. No rules ship yet, by the split: the first two are TKT-01M2NJDAVHTXKEPJ0ZCAJP3QY0, so the framework is exercised by test-registered rules and the third criterion is honestly unticked. RenderConfig now writes the doctor block back, which stops series add and migrate silently deleting a store's rule configuration.

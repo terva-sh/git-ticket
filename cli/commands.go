@@ -1941,7 +1941,8 @@ func count(n int, noun string) string {
 // any Go type in this package.
 var envelopeKinds = []string{
 	"ticket", "ticket-list", "mutation-result", "migrate-result", "check-report",
-	"error", "schema", "config", "series", "instructions", "self-update", "version",
+	"doctor-report", "error", "schema", "config", "series", "instructions",
+	"self-update", "version",
 }
 
 // runSchema prints the values a consumer would otherwise have to read the plan
@@ -1980,6 +1981,19 @@ func runSchema(ctx *cmdContext, args []string) error {
 		findings = append(findings, findingCodeJSON{Code: c, Severity: "warning"})
 	}
 
+	// The rule identifiers share findingCodes' namespace, so they are published
+	// beside them: a name spent on either side is spent for both.
+	rules := []doctorRuleJSON{{
+		ID:      ticket.RuleUnknown,
+		Level:   string(ticket.LevelHard),
+		Summary: "config.yml configures a rule this binary does not know",
+	}}
+	for _, r := range ticket.DefaultRules() {
+		rules = append(rules, doctorRuleJSON{
+			ID: r.ID, Level: string(r.Level), Summary: r.Summary,
+		})
+	}
+
 	if ctx.g.json {
 		writeJSON(ctx.out, schemaEnvelope{
 			SchemaVersion:  schemaVersion,
@@ -2001,6 +2015,7 @@ func runSchema(ctx *cmdContext, args []string) error {
 			Transitions:  transitions,
 			ErrorCodes:   errorCodes,
 			FindingCodes: findings,
+			DoctorRules:  rules,
 		})
 		return nil
 	}
@@ -2037,6 +2052,15 @@ func runSchema(ctx *cmdContext, args []string) error {
 	tw = tabwriter.NewWriter(ctx.out, 0, 0, 2, ' ', 0)
 	for _, f := range findings {
 		fmt.Fprintf(tw, "  %s\t%s\n", f.Code, f.Severity)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+
+	fmt.Fprintln(ctx.out, "\ndoctor rules")
+	tw = tabwriter.NewWriter(ctx.out, 0, 0, 2, ' ', 0)
+	for _, r := range rules {
+		fmt.Fprintf(tw, "  %s\t%s\t%s\n", r.ID, r.Level, r.Summary)
 	}
 	return tw.Flush()
 }

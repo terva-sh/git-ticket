@@ -2,6 +2,7 @@ package ticket
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -319,5 +320,45 @@ func scalarText(n *yaml.Node) string {
 		return quoteScalar(n.Value)
 	default:
 		return quoteScalar(n.Value)
+	}
+}
+
+// yany renders a value a rule's params carried, whatever shape the store wrote
+// it in.
+//
+// Params are the one part of config.yml this package does not have a type for,
+// because the whole point is that a rule this binary may not even ship decides
+// what its own parameters mean. So they round-trip structurally rather than
+// field by field: what the store wrote is what RenderConfig writes back.
+//
+// Map keys are sorted, because a Go map has no order and config.yml having a
+// stable one is what keeps an unrelated rewrite from showing up as a diff.
+func yany(v any) ynode {
+	switch t := v.(type) {
+	case map[string]any:
+		m := &ymap{}
+		keys := make([]string, 0, len(t))
+		for k := range t {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			m.add(k, yany(t[k]))
+		}
+		return m
+	case []any:
+		items := make([]ynode, 0, len(t))
+		for _, e := range t {
+			items = append(items, yany(e))
+		}
+		return &yseq{items}
+	case string:
+		return yscalar{quoteScalar(t)}
+	case nil:
+		return yscalar{"null"}
+	default:
+		// Numbers and booleans render as YAML writes them, which is what
+		// fmt.Sprint already produces for every type yaml.v3 decodes into.
+		return yscalar{fmt.Sprint(t)}
 	}
 }

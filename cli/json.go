@@ -173,6 +173,20 @@ type schemaEnvelope struct {
 	Transitions  map[string][]string `json:"transitions"`
 	ErrorCodes   []string            `json:"errorCodes"`
 	FindingCodes []findingCodeJSON   `json:"findingCodes"`
+	// DoctorRules publishes the hygiene rule identifiers. They share one
+	// namespace with findingCodes above, so a consumer reads both to learn
+	// which names are spent.
+	DoctorRules []doctorRuleJSON `json:"doctorRules"`
+}
+
+// doctorRuleJSON is one hygiene rule as schema publishes it. The identifier is
+// the compatibility surface of the whole feature, because it is what a store
+// writes in config.yml, so publishing it is what makes it a promise rather
+// than an implementation detail.
+type doctorRuleJSON struct {
+	ID      string `json:"id"`
+	Level   string `json:"level"`
+	Summary string `json:"summary"`
 }
 
 // titleLimitsJSON carries the title length thresholds. Warn is where

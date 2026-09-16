@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2P0FWJ1BEDGV3603X5YKR5G
 title: label_order fires on nearly every ticket, so it guides nothing
 type: bug
-status: review
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -18,16 +18,10 @@ blocks_on: none
 references:
   - ref: ticket:report
     path: .tickets/draft/TKT-01M2NZE9Z4G033QJDFG62N4Y9D.md
-claim:
-  actor: agent:claude/t3code
-  branch: fix/label-order-reads-the-store-convention
-  worktree: /home/sothr/.t3/worktrees/git-ticket/t3code-6907238f
-  commit: ad8423139cbe24b007f459bb44288f1024628fef
-  claimed_at: 2026-09-16T21:03:30Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-16T21:03:17Z
-updated_at: 2026-09-16T21:11:58Z
+updated_at: 2026-09-16T21:14:14Z
 created_by:
   id: agent:claude/t3code
   name: ""

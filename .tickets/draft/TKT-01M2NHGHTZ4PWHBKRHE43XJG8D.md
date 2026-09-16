@@ -18,7 +18,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-16T16:41:30Z
-updated_at: 2026-09-16T16:49:10Z
+updated_at: 2026-09-16T16:49:47Z
 created_by:
   id: agent:claude/t3code
   name: ""
@@ -70,6 +70,10 @@ A store whose `config.yml` enforces a label allowlist gives the hard rule someth
 - [ ] A soft rule can never be what makes the command exit non-zero
 - [ ] Every ticket carries at least one label ships as the first hard rule
 - [ ] Labels are ordered most-descriptive first ships as the first soft rule
+- [ ] Rules ship on by default and a store that configures nothing gets them
+- [ ] A store turns a rule off, changes its level, or sets its parameters in .tickets/config.yml
+- [ ] Every rule has a stable identifier that configuration refers to
+- [ ] Configuring shipped rules does not foreclose a store defining its own later
 
 ## Notes
 
@@ -85,3 +89,25 @@ That second one is why rule levels exist at all, and it is a more interesting re
 One correction to the reasoning, made while filing rather than left to be discovered. The rationale given was that the canvas colours a card by its first label. It does not: labels render as uniform chips and the card's colour comes from its status.
 
 The rule survives on a better fact. `CardView` renders `labels.slice(0, 2)`, or three when cards are compact, and puts the rest behind a `+N` disclosure. Label order decides which labels are visible at a glance at all, which is a stronger argument than colour would have been.
+
+**agent:claude/t3code** at 2026-09-16T16:49:47Z
+
+**This is a rule system with shipped defaults, not a command with a fixed list.** That is a bigger thing than the description was written for, and it changes what has to exist first.
+
+Every store is different. A store where one person works alone does not want to be told its tickets have no assignees; a store with an enforced label allowlist wants more said about labels than one with none; a store that files everything as draft on purpose does not want a finding about untouched drafts. A hygiene tool that cannot be told any of that gets its output ignored, and an ignored report is worse than no report because it trains people to skim.
+
+So:
+
+- **Rules ship with the binary** and are on by default, at the level the tool thinks right. A store that configures nothing gets the house opinion, which is the whole point of shipping an opinion.
+- **A store overrides them in `.tickets/config.yml`**, beside the label and milestone allowlists that already live there. Turn a rule off, move it between hard and soft, or set whatever it takes as a parameter.
+- **Every rule therefore needs a stable identifier**, because configuration refers to rules by name and a name in somebody's config file cannot be renamed casually. That is the part the current description does not account for and the part that constrains everything after it: identifiers are the compatibility surface of this feature.
+
+### Authoring new rules is a separate question
+
+Configuring shipped rules and letting a store define its own are not the same size. The first is a map in a config file. The second is an expression language, or a plugin mechanism, or shelling out — each with its own trust and portability problems, and a ticket store is a git repository somebody clones, so a rule that executes is a rule that executes on somebody else's machine.
+
+Ship configuration of built-ins. Leave authoring to its own ticket, and do not design the config format in a way that forecloses it.
+
+### What the defaults are for is worth saying
+
+The default set is the tool's opinion about what a well-kept store looks like, which is the only reason to have a hygiene command rather than a linter people write themselves. Defaults that try to offend nobody say nothing. They should be opinionated enough to be worth overriding.

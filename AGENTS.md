@@ -1717,3 +1717,10 @@ the user's choice, and `go build` cannot stamp a version in one at all. When
 that happens, keep the outcome the decision was about, which here was that the
 checkout must not be touched, substitute the mechanism, and say so in the note,
 the PR, and the summary rather than quietly shipping something else.
+
+## PR review workflow
+
+Follow [targeted PR reviews](docs/pr-reviews.md). Request a review when ready or
+after substantive changes; preserve the reviewed revisions and finding decisions
+in the ticket. Do not run the model for every bookkeeping commit. Review success
+does not authorize merging. Keep reviewer credentials away from PR code.

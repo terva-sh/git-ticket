@@ -1,7 +1,9 @@
 package layout
 
 import (
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -94,7 +96,24 @@ func TestMatchReportsMissingInRuleOrder(t *testing.T) {
 	if got := Match(pen, []string{"b"}); !reflect.DeepEqual(got, []string{"a", "c"}) {
 		t.Fatalf("missing = %v, want [a c]", got)
 	}
-	if got := Match(pen, []string{"c", "a", "b", "extra"}); got != nil {
+	if got := Match(pen, []string{"c", "a", "b", "extra"}); len(got) != 0 {
 		t.Fatalf("missing = %v, want none; extra labels are allowed", got)
+	}
+}
+
+// The envelope contract in plan 10.10 promises arrays, so a matched candidate
+// carries an empty missingLabels and a pen with no rule carries an empty
+// requiredLabels, never null. A test on the Go value would pass with nil.
+func TestCandidatesSerializeArraysNotNull(t *testing.T) {
+	b := routingBoard()
+	b.Pens["open"] = Pen{Title: "Anything"}
+	b.RuleOrder = append(b.RuleOrder, "open")
+	e := Explain(b, RuleTicket{ID: "T-1", Labels: []string{"frontend", "bug"}})
+	data, err := json.Marshal(e.Candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "null") {
+		t.Fatalf("candidates carry null:\n%s", data)
 	}
 }

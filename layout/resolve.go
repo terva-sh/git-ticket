@@ -69,12 +69,16 @@ func (e Explanation) Inbox() bool { return e.Destination == "" }
 // Match reports which of a pen's required labels a ticket lacks. An empty
 // result is a match. The order follows the pen's rule, so the answer reads the
 // way the rule was written.
+//
+// The result is never nil, because it is serialized as missingLabels in the
+// canvas-explain envelope, per plan 10.10, and a consumer reading a match
+// there is promised an empty array rather than null.
 func Match(pen Pen, labels []string) []string {
 	have := make(map[string]bool, len(labels))
 	for _, l := range labels {
 		have[l] = true
 	}
-	var missing []string
+	missing := []string{}
 	for _, want := range pen.RequiredLabels {
 		if !have[want] {
 			missing = append(missing, want)
@@ -98,7 +102,7 @@ func Explain(b *Board, t RuleTicket) Explanation {
 			// reported rather than crashed on, and the rule is skipped.
 			continue
 		}
-		c := Candidate{Pen: id, Order: i, Required: append([]string(nil), pen.RequiredLabels...), Missing: Match(pen, t.Labels)}
+		c := Candidate{Pen: id, Order: i, Required: append([]string{}, pen.RequiredLabels...), Missing: Match(pen, t.Labels)}
 		switch {
 		case len(c.Missing) > 0:
 			c.Outcome = MissingLabels

@@ -186,3 +186,23 @@ func TestCanvasRefusesAnUnknownWord(t *testing.T) {
 		t.Fatalf("canvas draw exited %d: %s%s", got.code, got.stdout, got.stderr)
 	}
 }
+
+// --board is documented after the word and the ID, and parseFlags reads flags
+// on either side of positionals, so the documented form is the tested form.
+func TestCanvasTakesBoardAfterTheWord(t *testing.T) {
+	dir, feBug, _, _ := canvasStore(t)
+	for _, args := range [][]string{
+		{"canvas", "show", "--board", "default"},
+		{"canvas", "pens", "--board", "default"},
+		{"canvas", "explain", feBug, "--board", "default"},
+		{"canvas", "--board", "default", "show"},
+	} {
+		if got := runCLI(t, dir, nil, args...); got.code != exitOK || strings.Contains(got.stdout, "no layout file") {
+			t.Errorf("%v exited %d:\n%s%s", args, got.code, got.stdout, got.stderr)
+		}
+	}
+	got := runCLI(t, dir, nil, "--json", "canvas", "show", "--board", "other")
+	if env := decode(t, got.stdout); got.code != exitOK || env["board"] != "other" || env["exists"] != false {
+		t.Fatalf("other board: exit %d, %v", got.code, env)
+	}
+}

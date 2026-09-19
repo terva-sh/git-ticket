@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-19T23:37:58Z
-updated_at: 2026-09-19T23:48:19Z
+updated_at: 2026-09-19T23:53:29Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -72,3 +72,7 @@ The board and explain envelopes carry applied:false so a consumer reads the fact
 **agent:claude/t3code-a6d0ff31** at 2026-09-19T23:48:19Z
 
 PR 211 https://git.local.sothr.com/terva-sh/git-ticket/pulls/211. Terva review 43 reviewed ef95affeac8688e686d00ef7a72cd09d239eb692 against e568e5af38ffab0c2eccd76fe5551fd396c12b1f with two medium findings. Trailing --board parsed as positional: declined, parseFlags re-parses after positionals and the form exits 0 against a real store; a test now holds it. missingLabels null on a match: accepted, fixed in 53d59bb with a marshal test. Fresh review dispatched on 53d59bb.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-19T23:53:29Z
+
+Terva review 44 reviewed 96d2f8279629 against e568e5af38ff. Board-name traversal (high): declined, layout.Load applies boardNameOK before any path is built; five names tested at the CLI. pens fails on listing failure (medium): accepted in part, the page form no longer lists, the JSON form must because canvas-board carries catches; Store.List tolerates malformed and missing tickets so the described failure did not occur. Fixed in 4ba9e4b and 0d726e3. Lesson recorded: an && chain does not stop a push when just ci fails inside a pipeline; gate the push on the recipe's own exit.

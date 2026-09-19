@@ -25,7 +25,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-19T16:01:59Z
-updated_at: 2026-09-19T16:02:17Z
+updated_at: 2026-09-19T16:03:54Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -46,9 +46,15 @@ Two facts about this repository that the canvas did not have to think about. Its
 ## Acceptance criteria
 
 - [x] The terva-review workflow, docs/pr-reviews.md, and the AGENTS.md section are in the tree, with the reviewer, Terva binary, and checkout helper pinned to the same revisions the canvas uses
-- [ ] A manual dispatch against a real PR completes and publishes a review or a clean summary, proving the repo-level BOT_TOKEN reaches the private reviewer
-- [ ] The review's findings on that PR carry dispositions in the ticket
+- [x] A manual dispatch against a real PR completes and publishes a review or a clean summary, proving the repo-level BOT_TOKEN reaches the private reviewer
+- [x] The review's findings on that PR carry dispositions in the ticket
 
 ## Implementation plan
 
 Copy .forgejo/workflows/terva-review.yml from git-ticket-canvas at 0021a8d byte for byte; nothing in it names the repository. Copy docs/pr-reviews.md and change the one sentence that names the canvas's parity and release checks to name this repository's lint, race tests, and store check. Append the canvas's PR review workflow section to AGENTS.md. Ride on PR 208 so the first real dispatch reviews a substantive diff. The comment trigger activates only after the workflow is on main.
+
+## Notes
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-19T16:03:54Z
+
+First dispatch worked: run against PR 208 head ef11378209e9d680643565f82c8213fc682fc1b1 checked out the private reviewer with the repo-level BOT_TOKEN, ran Terva, and published review 32 with one medium finding, so criterion 2 is met. The finding's disposition is on TKT-01M2WD5XZKM5XBYP41ZRF2P0SK and deferred to TKT-01M2X6HV.

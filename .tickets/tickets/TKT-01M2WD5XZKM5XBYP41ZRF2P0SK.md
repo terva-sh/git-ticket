@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-19T08:40:28Z
-updated_at: 2026-09-19T08:41:45Z
+updated_at: 2026-09-19T16:03:54Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -61,3 +61,7 @@ Copy the six files of internal/layout from git-ticket-canvas at 9d1f6ed212230074
 **agent:claude/t3code-a6d0ff31** at 2026-09-19T08:41:45Z
 
 Evidence: diff -r of the six files against git-ticket-canvas internal/layout at 0021a8d (unchanged since 9d1f6ed) shows only the seven added package-comment lines, so the renderer is the same code and produces the same bytes by construction. just ci passed: gofmt clean, go vet clean, go test -race across cli, layout, ticket, tui, tui/view, and check --fix --dry-run --strict found no problems. Not run: the canvas against this package, which is the canvas ticket's verification once v0.20.0 exists.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-19T16:03:54Z
+
+Terva review 32 on PR 208 (head ef11378209e9d680643565f82c8213fc682fc1b1): Boards returns filenames that Load refuses. Real and pre-existing in the canvas copy; deferred rather than fixed here because this ticket's second criterion is byte-identical behaviour with the source. Filed as TKT-01M2X6HV in this store.

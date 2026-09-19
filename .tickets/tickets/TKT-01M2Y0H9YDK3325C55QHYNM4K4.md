@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-19T23:37:58Z
-updated_at: 2026-09-19T23:45:15Z
+updated_at: 2026-09-19T23:48:19Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -68,3 +68,7 @@ show lists every status, archived included, because the canvas board does: its s
 **agent:claude/t3code-a6d0ff31** at 2026-09-19T23:45:15Z
 
 The board and explain envelopes carry applied:false so a consumer reads the fact rather than a release number; when the canvas places by rules the flag flips and nothing changes shape. A pinned card's explain still reports a destination: where it would go if released, which is the question asked before releasing it.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-19T23:48:19Z
+
+PR 211 https://git.local.sothr.com/terva-sh/git-ticket/pulls/211. Terva review 43 reviewed ef95affeac8688e686d00ef7a72cd09d239eb692 against e568e5af38ffab0c2eccd76fe5551fd396c12b1f with two medium findings. Trailing --board parsed as positional: declined, parseFlags re-parses after positionals and the form exits 0 against a real store; a test now holds it. missingLabels null on a match: accepted, fixed in 53d59bb with a marshal test. Fresh review dispatched on 53d59bb.

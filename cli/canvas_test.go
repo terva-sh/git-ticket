@@ -219,4 +219,3 @@ func TestCanvasRefusesABoardNameThatIsAPath(t *testing.T) {
 		}
 	}
 }
-

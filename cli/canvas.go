@@ -2,11 +2,9 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -107,19 +105,16 @@ type boardView struct {
 
 func readBoard(s *ticket.Store, name string) (*boardView, error) {
 	ls := layout.New(s.Path())
-	// Load refuses a name outside the board grammar, letters, digits, - and _,
-	// before any path is built from it, so nothing below joins a name that
-	// could leave the canvas directory.
-	b, err := ls.Load(name)
+	// Read refuses a name outside the board grammar, letters, digits, - and _,
+	// before any path is built from it, so the join below never sees a name
+	// that could leave the canvas directory. It answers exists from the same
+	// read as the board, so the two cannot describe different files.
+	b, exists, err := ls.Read(name)
 	if err != nil {
 		return nil, err
 	}
 	path := filepath.Join(ls.Dir(), name+".yml")
-	_, statErr := os.Stat(path)
-	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
-		return nil, statErr
-	}
-	return &boardView{board: b, path: displayPath(s, path), exists: statErr == nil}, nil
+	return &boardView{board: b, path: displayPath(s, path), exists: exists}, nil
 }
 
 // boardSummary is the board read the way show prints it: each pen with the

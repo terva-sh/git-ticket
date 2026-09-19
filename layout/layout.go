@@ -111,19 +111,32 @@ func (s *Store) path(board string) (string, error) {
 // an empty board, because the first card placed on a canvas should not have to
 // be preceded by a command that creates the file.
 func (s *Store) Load(board string) (*Board, error) {
+	b, _, err := s.Read(board)
+	return b, err
+}
+
+// Read is Load and whether a file was read, from the one read. A caller that
+// reports both, the way `git ticket canvas` does, must not learn the second
+// from a separate stat: a save is a rename, and between a read and a stat the
+// file can appear or go, leaving a populated board reported as absent or an
+// empty one as present.
+func (s *Store) Read(board string) (*Board, bool, error) {
 	p, err := s.path(board)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	b := Empty(board)
 	data, err := os.ReadFile(p)
 	if errors.Is(err, os.ErrNotExist) {
-		return b, nil
+		return Empty(board), false, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return Parse(board, data)
+	b, err := Parse(board, data)
+	if err != nil {
+		return nil, true, err
+	}
+	return b, true, nil
 }
 
 // Save writes a board, replacing what was there.

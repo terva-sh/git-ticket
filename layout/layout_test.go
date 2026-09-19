@@ -150,3 +150,21 @@ func readLines(t *testing.T, s *Store, board string) []string {
 	}
 	return strings.Split(strings.TrimRight(string(data), "\n"), "\n")
 }
+
+// Read says whether a file was read, from the one read, so a caller reporting
+// a board and its existence together cannot describe two different files.
+func TestReadReportsWhetherAFileWasRead(t *testing.T) {
+	s := New(t.TempDir())
+	b, exists, err := s.Read("default")
+	if err != nil || exists || len(b.Cards) != 0 {
+		t.Fatalf("missing board: exists=%v cards=%d err=%v", exists, len(b.Cards), err)
+	}
+	b.Cards["T-1"] = Card{X: 1, Y: 2}
+	if err := s.Save(b); err != nil {
+		t.Fatal(err)
+	}
+	b, exists, err = s.Read("default")
+	if err != nil || !exists || len(b.Cards) != 1 {
+		t.Fatalf("saved board: exists=%v cards=%d err=%v", exists, len(b.Cards), err)
+	}
+}

@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-19T23:37:58Z
-updated_at: 2026-09-19T23:53:29Z
+updated_at: 2026-09-19T23:56:36Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -76,3 +76,7 @@ PR 211 https://git.local.sothr.com/terva-sh/git-ticket/pulls/211. Terva review 4
 **agent:claude/t3code-a6d0ff31** at 2026-09-19T23:53:29Z
 
 Terva review 44 reviewed 96d2f8279629 against e568e5af38ff. Board-name traversal (high): declined, layout.Load applies boardNameOK before any path is built; five names tested at the CLI. pens fails on listing failure (medium): accepted in part, the page form no longer lists, the JSON form must because canvas-board carries catches; Store.List tolerates malformed and missing tickets so the described failure did not occur. Fixed in 4ba9e4b and 0d726e3. Lesson recorded: an && chain does not stop a push when just ci fails inside a pipeline; gate the push on the recipe's own exit.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-19T23:56:36Z
+
+Terva review 45 reviewed 11fc2a0bb334 against e568e5af38ff. exists from a second stat after Load could describe a different file than the board, because a save is a rename (medium): accepted. layout.Read returns the board and whether a file was read from the one read; Load wraps it; the CLI drops its stat. Rule for the next round: ticket notes go in the same commit as the fix, because a push after the dispatch fails the review run.

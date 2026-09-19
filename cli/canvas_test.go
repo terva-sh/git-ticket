@@ -206,3 +206,17 @@ func TestCanvasTakesBoardAfterTheWord(t *testing.T) {
 		t.Fatalf("other board: exit %d, %v", got.code, env)
 	}
 }
+
+// A board name is a file name under .tickets/canvas, so anything that could
+// leave that directory is refused before a path is built, by the layout
+// package's grammar rather than by a check here.
+func TestCanvasRefusesABoardNameThatIsAPath(t *testing.T) {
+	dir := newStore(t)
+	for _, name := range []string{"../../other", "/etc/passwd", "a/b", ".", ".."} {
+		got := runCLI(t, dir, nil, "canvas", "pens", "--board", name)
+		if got.code == exitOK || !strings.Contains(got.stderr, "invalid board name") {
+			t.Errorf("--board %q exited %d:\n%s%s", name, got.code, got.stdout, got.stderr)
+		}
+	}
+}
+

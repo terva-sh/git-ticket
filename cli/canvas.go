@@ -76,6 +76,13 @@ func runCanvas(ctx *cmdContext, args []string) error {
 		return nil
 	}
 
+	// pens on the page reads the rules alone, so it does not list tickets. Its
+	// envelope is canvas-board, which carries what each pen catches, so the
+	// JSON form does list, per 10.10.
+	if word == "pens" && !ctx.g.json {
+		writeCanvasPens(ctx.out, view)
+		return nil
+	}
 	tickets, err := s.List(context.Background(), ticket.Filter{All: true})
 	if err != nil {
 		return err
@@ -83,10 +90,6 @@ func runCanvas(ctx *cmdContext, args []string) error {
 	summary := summarize(view, tickets)
 	if ctx.g.json {
 		writeJSON(ctx.out, newCanvasBoardEnvelope(view, summary))
-		return nil
-	}
-	if word == "pens" {
-		writeCanvasPens(ctx.out, view)
 		return nil
 	}
 	writeCanvasShow(ctx.out, view, summary)
@@ -104,6 +107,9 @@ type boardView struct {
 
 func readBoard(s *ticket.Store, name string) (*boardView, error) {
 	ls := layout.New(s.Path())
+	// Load refuses a name outside the board grammar, letters, digits, - and _,
+	// before any path is built from it, so nothing below joins a name that
+	// could leave the canvas directory.
 	b, err := ls.Load(name)
 	if err != nil {
 		return nil, err

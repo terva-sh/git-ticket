@@ -3922,9 +3922,11 @@ toward.
 
 Routing, the answer to where a card nobody placed by hand belongs, has one
 implementation, `layout.Route`, and the contract is three steps in order: a
-card with a saved coordinate is pinned and no rule is consulted; otherwise the
+card with a saved coordinate is pinned and no rule places it; otherwise the
 first pen in `ruleOrder` whose `requiredLabels` the ticket all carries;
-otherwise the inbox. First match in order, not most specific: a person who
+otherwise the inbox. A pinned card's explanation still reports the rules'
+answer, as where it would go if released, per 10.10; a consumer that places
+cards reads the pin first and the rules only for a card without one. First match in order, not most specific: a person who
 wants a narrower rule to win writes it higher, which is a fact they can read
 back, where specificity is a number they would have to compute. The canvas does
 not place cards by this yet, and every command that reports routing says so

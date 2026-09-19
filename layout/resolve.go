@@ -10,13 +10,18 @@ import "sort"
 // The contract, in order, and the order is the whole of it:
 //
 //  1. A card with a saved coordinate is pinned. Explicit beats implicit, so no
-//     rule is consulted.
+//     rule places it.
 //  2. Otherwise the first pen in RuleOrder whose rule the ticket satisfies.
 //  3. Otherwise the Inbox.
 //
 // A rule is satisfied when the ticket carries every one of the pen's
 // RequiredLabels. Nothing here computes a position; that is the canvas's, and
 // the one thing this package must never grow is a second copy of it.
+//
+// An Explanation for a pinned card still carries the rules' answer, marked by
+// Pinned, because the question asked of a pin is what would happen on
+// releasing it, per plan 10.10. That answer is hypothetical: a consumer that
+// places cards reads Pinned first and the rules' answer only when it is nil.
 
 // RuleTicket is what routing needs to know about a ticket.
 type RuleTicket struct {
@@ -58,7 +63,9 @@ type Explanation struct {
 	// rather than hidden because that is the question a person asks before
 	// releasing a pin.
 	Pinned *Card `json:"pinned"`
-	// Destination is the winning pen's id, or empty for the Inbox.
+	// Destination is the winning pen's id, or empty for the Inbox. When Pinned
+	// is set it is where the card would go if released, and nothing places by
+	// it.
 	Destination string      `json:"destination"`
 	Candidates  []Candidate `json:"candidates"`
 }
@@ -87,7 +94,8 @@ func Match(pen Pen, labels []string) []string {
 	return missing
 }
 
-// Explain routes one ticket against a board.
+// Explain routes one ticket against a board. A pinned card is reported with
+// its pin and with the rules' hypothetical answer; see the file comment.
 func Explain(b *Board, t RuleTicket) Explanation {
 	e := Explanation{ID: t.ID, Candidates: make([]Candidate, 0, len(b.RuleOrder))}
 	if c, ok := b.Cards[t.ID]; ok {

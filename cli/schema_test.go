@@ -173,6 +173,9 @@ func TestEveryEmittedKindIsPublished(t *testing.T) {
 		// The bare read. add and remove answer with the same kind, per 10.9,
 		// and this table only has to reach the kind once.
 		{"the series", []string{"--json", "series"}},
+		// The board with no layout file, per 10.10: the same kind as with one.
+		{"the board", []string{"--json", "canvas", "show"}},
+		{"a card explained", []string{"--json", "canvas", "explain", id}},
 		// The bare read, for the same reason the series row takes one: add
 		// answers with the same kind, per the actor verb's own doc.
 		{"the actors", []string{"--json", "actor"}},

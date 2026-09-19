@@ -1950,7 +1950,7 @@ func count(n int, noun string) string {
 var envelopeKinds = []string{
 	"ticket", "ticket-list", "mutation-result", "migrate-result", "check-report",
 	"doctor-report", "error", "schema", "config", "series", "actor",
-	"instructions", "self-update", "version",
+	"instructions", "self-update", "version", "canvas-board", "canvas-explain",
 }
 
 // runSchema prints the values a consumer would otherwise have to read the plan

@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2WD5XZKM5XBYP41ZRF2P0SK
 title: Add the layout package for the canvas board file
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -17,16 +17,10 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim:
-  actor: agent:claude/t3code-a6d0ff31
-  branch: t3code/layout-package
-  worktree: /home/sothr/.t3/worktrees/git-ticket/t3code-a6d0ff31-layout
-  commit: 61a13cdfbe7a640dac764c2d40e0b4ead4c690d8
-  claimed_at: 2026-09-19T08:40:42Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-19T08:40:28Z
-updated_at: 2026-09-19T16:03:54Z
+updated_at: 2026-09-19T18:09:19Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -65,3 +59,7 @@ Evidence: diff -r of the six files against git-ticket-canvas internal/layout at 
 **agent:claude/t3code-a6d0ff31** at 2026-09-19T16:03:54Z
 
 Terva review 32 on PR 208 (head ef11378209e9d680643565f82c8213fc682fc1b1): Boards returns filenames that Load refuses. Real and pre-existing in the canvas copy; deferred rather than fixed here because this ticket's second criterion is byte-identical behaviour with the source. Filed as TKT-01M2X6HV in this store.
+
+## Summary
+
+Landed in PR 208, merged as c70a6b9 and released as v0.20.0 on both forges. The package is the canvas's internal/layout at 9d1f6ed plus a package-comment origin note; plan.md 12.10 records it. The canvas imports it from v0.20.0 in its PR 14 with byte-identical board files proven there. Review 32's finding, Boards listing files Load refuses, is deferred to TKT-01M2X6HVX8N3H93JPWS43ZWCVF.

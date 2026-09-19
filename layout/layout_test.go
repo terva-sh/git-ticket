@@ -3,6 +3,7 @@ package layout
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -149,4 +150,32 @@ func readLines(t *testing.T, s *Store, board string) []string {
 		t.Fatal(err)
 	}
 	return strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+}
+
+func TestBoardsListsOnlyNamesLoadAccepts(t *testing.T) {
+	dir := t.TempDir()
+	s := New(dir)
+	for _, name := range []string{"default", "ok-2"} {
+		if err := s.Save(Empty(name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, stray := range []string{"with space.yml", "bad.name.yml", ".default.1.tmp"} {
+		if err := os.WriteFile(filepath.Join(s.Dir(), stray), []byte("schema: 3\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.Boards()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"default", "ok-2"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Boards() = %v, want %v", got, want)
+	}
+	for _, name := range got {
+		if _, err := s.Load(name); err != nil {
+			t.Fatalf("Boards listed %q but Load refused it: %v", name, err)
+		}
+	}
 }

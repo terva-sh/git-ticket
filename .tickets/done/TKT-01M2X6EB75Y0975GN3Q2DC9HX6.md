@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2X6EB75Y0975GN3Q2DC9HX6
 title: Install targeted Terva PR reviews
 type: chore
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -16,16 +16,10 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim:
-  actor: agent:claude/t3code-a6d0ff31
-  branch: t3code/layout-package
-  worktree: /home/sothr/.t3/worktrees/git-ticket/t3code-a6d0ff31-layout
-  commit: 70d2a379482a7a39571d5723be618de714a2a33c
-  claimed_at: 2026-09-19T16:01:59Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-19T16:01:59Z
-updated_at: 2026-09-19T16:03:54Z
+updated_at: 2026-09-19T18:09:19Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -58,3 +52,7 @@ Copy .forgejo/workflows/terva-review.yml from git-ticket-canvas at 0021a8d byte 
 **agent:claude/t3code-a6d0ff31** at 2026-09-19T16:03:54Z
 
 First dispatch worked: run against PR 208 head ef11378209e9d680643565f82c8213fc682fc1b1 checked out the private reviewer with the repo-level BOT_TOKEN, ran Terva, and published review 32 with one medium finding, so criterion 2 is met. The finding's disposition is on TKT-01M2WD5XZKM5XBYP41ZRF2P0SK and deferred to TKT-01M2X6HV.
+
+## Summary
+
+Landed in PR 208, merged as c70a6b9. The workflow, docs/pr-reviews.md, and the AGENTS.md section are the canvas's, with the docs page naming this repository's CI. The first dispatch, run against PR 208 head ef11378, checked out the private reviewer with the repo-level BOT_TOKEN and published review 32, whose finding carries a disposition on TKT-01M2WD5XZKM5XBYP41ZRF2P0SK. Comment-triggered reviews are live now that the workflow is on main.

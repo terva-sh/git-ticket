@@ -3828,6 +3828,37 @@ ticket is and `note ID --list` answers what was written on it, and those are two
 questions rather than two formats of one. It also leaves `show` with one job as
 its output grows.
 
+### 12.10 The canvas board file
+
+`.tickets/canvas/<board>.yml` is the one file under `.tickets/` that this tool
+did not define. git-ticket-canvas writes it: a card's saved position, a frame's
+bounds and members, and the routing rules that place cards nobody has placed
+by hand, one line per record, sorted by ID, so that a drag is a one-line diff.
+Ticket content never goes in it; a board is a view of the store, and a view
+that needed to edit tickets would have leaked into the ledger.
+
+The format lives here, in `github.com/terva-sh/git-ticket/layout`, since
+2026-09-19. It moved because the store's format is this tool's to define, and
+because the two things that need it next cannot reach a package internal to
+the viewer: `check` should validate a layout in the same pass as every other
+file, and a `git ticket canvas` family of commands should read and write rules
+without a browser. The canvas imports the package; the CLI does not use it yet,
+and `check` does not read the file yet. Both are tracked in the canvas
+repository's store under TKT-01M2ND0S8N5Y8V0HQFRCBKMXE3 (Let an agent organize
+a board), which also holds the design the package will grow toward.
+
+The package carries its own atomic writer and mutex rather than the store lock
+of section 7. That is how it arrived and it is left alone on purpose: joining
+the lock changes when a concurrent canvas and CLI wait on each other, and that
+change belongs to the ticket that first puts both writers on one file.
+
+The rejected alternative was `git-ticket-canvas layout ...` subcommands with
+the schema staying put. It works and touches one repository, and it was
+refused because it puts the validator in the tool least likely to be
+installed: an agent working a store has `git ticket` and may not have the
+canvas, and a format whose only validator ships with the optional viewer is
+checked after it is committed.
+
 ## 13. Phases
 
 ### Phase 0: format and fixtures

@@ -1,0 +1,12 @@
+# git-ticket canvas layout. Positions and frames; tickets live in their own files.
+# One line per card, sorted by ticket ID, so a drag is a one-line diff.
+schema: 4
+board: "default"
+cards:
+  "TKT-01K3ZZYB00000000000000000B": {x: 120, y: -40}
+  "TKT-01K3ZZZZZ00000000000000000": {x: 400, y: 0}
+frames:
+  "auth": {title: "Auth", x: 0, y: 0, w: 400, h: 300, color: "#759bcc", members: [TKT-01K3ZZYB00000000000000000B, TKT-01K3ZZYE00000000000000000E, TKT-01K3ZZZZZ00000000000000001]}
+pens: {}
+ruleOrder: []
+inbox: {x: 0, y: 0}

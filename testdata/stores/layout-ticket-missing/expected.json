@@ -1,0 +1,17 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "layout_ticket_missing",
+      "file": "canvas/default.yml",
+      "ticket": null,
+      "field": "cards.TKT-01K3ZZZZZ00000000000000000"
+    },
+    {
+      "code": "layout_ticket_missing",
+      "file": "canvas/default.yml",
+      "ticket": null,
+      "field": "frames.auth.members"
+    }
+  ]
+}

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/terva-sh/git-ticket/internal/idgrammar"
 )
 
 // DefaultSeries is the series every store has, per plan 5.6. A store that
@@ -20,7 +22,7 @@ const DefaultSeries = "TKT"
 const IDPrefix = DefaultSeries + "-"
 
 // ulidLen is the length of the Crockford base32 ULID that follows the prefix.
-const ulidLen = 26
+const ulidLen = idgrammar.ULIDLen
 
 // minPrefixLen is how much of a ULID a caller must type for a prefix to be
 // considered, per plan 5.5. Four characters is enough that a typo does not
@@ -33,7 +35,7 @@ const abbrevLen = 8
 
 // crockford is Crockford base32: the digits and the uppercase letters, less I,
 // L, O, and U, which are the ones a person misreads.
-const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+const crockford = idgrammar.Crockford
 
 // SeriesMinLen and SeriesMaxLen are the bounds of plan 5.6. Two is the floor
 // because one letter carries no meaning and spends a whole namespace on a
@@ -43,8 +45,8 @@ const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 // They are exported because `schema` publishes them, per 10.4, so a consumer
 // learns what is legal before it opens a store.
 const (
-	SeriesMinLen = 2
-	SeriesMaxLen = 8
+	SeriesMinLen = idgrammar.SeriesMinLen
+	SeriesMaxLen = idgrammar.SeriesMaxLen
 )
 
 // SeriesPattern is the same grammar as a regular expression, for a consumer
@@ -68,21 +70,7 @@ const SeriesPattern = "^[A-Z][A-Z0-9]{1,7}$"
 // A leading digit is refused because a ULID's body opens with ten characters of
 // timestamp that are mostly digits, so 2FA-01M1 and a ULID fragment that lost
 // its prefix look alike at the speed anybody reads an ID.
-func ValidSeries(s string) bool {
-	if len(s) < SeriesMinLen || len(s) > SeriesMaxLen {
-		return false
-	}
-	if s[0] < 'A' || s[0] > 'Z' {
-		return false
-	}
-	for i := 1; i < len(s); i++ {
-		c := s[i]
-		if (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
-			return false
-		}
-	}
-	return true
-}
+func ValidSeries(s string) bool { return idgrammar.ValidSeries(s) }
 
 // SplitID divides an ID at its separator, per plan 5.6. A reference carrying no
 // separator is all ULID and returns an empty series, which is the bare fragment
@@ -92,12 +80,7 @@ func ValidSeries(s string) bool {
 // hyphen in it, so a well-formed ID has exactly one, and splitting at the first
 // makes a malformed reference fail as a bad series rather than silently
 // swallowing part of one.
-func SplitID(id string) (series, ulid string) {
-	if i := strings.IndexByte(id, '-'); i >= 0 {
-		return id[:i], id[i+1:]
-	}
-	return "", id
-}
+func SplitID(id string) (series, ulid string) { return idgrammar.Split(id) }
 
 // NewID returns a ticket ID for the given instant: the series, a hyphen, and a
 // 26-character ULID. ULIDs need no central counter, so two disconnected agents
@@ -157,22 +140,9 @@ func encodeULID(raw [16]byte) string {
 // It is grammar alone, per 5.6. An ID in a series this store does not declare
 // is well-formed and is unknown_series, which is the narrower condition and a
 // different repair.
-func ValidID(s string) bool {
-	series, ulid := SplitID(s)
-	return ValidSeries(series) && validULID(ulid)
-}
+func ValidID(s string) bool { return idgrammar.Valid(s) }
 
-func validULID(s string) bool {
-	if len(s) != ulidLen {
-		return false
-	}
-	for _, r := range s {
-		if !strings.ContainsRune(crockford, r) {
-			return false
-		}
-	}
-	return true
-}
+func validULID(s string) bool { return idgrammar.ValidULID(s) }
 
 // NormalizeRef puts a user-typed reference into the form IDs are stored in:
 // trimmed and uppercased. Matching is case-insensitive on both halves, per 5.5

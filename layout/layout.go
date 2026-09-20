@@ -34,10 +34,15 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/terva-sh/git-ticket/internal/filelock"
 )
 
-// Schema is the layout file version this package reads and writes.
-const Schema = 3
+// Schema is the layout file version this package reads and writes. Schema 4
+// is where a pen's rule became a match record, per plan 12.10; a schema 3
+// file still reads, and its requiredLabels is match.labels.
+const Schema = 4
 
 // DirName is the directory boards live in, inside the ticket store.
 const DirName = "canvas"
@@ -68,18 +73,65 @@ type Board struct {
 
 // Store reads and writes boards under a ticket store's canvas directory.
 //
-// It serialises its own writes. Two browser tabs dragging at once is the
-// ordinary case, and a board is small enough that a mutex costs nothing next
-// to the file write it guards.
+// It serialises its own writes twice over. The mutex is for one process: two
+// browser tabs dragging at once is the ordinary case, and a board is small
+// enough that a mutex costs nothing next to the file write it guards. The
+// file lock is for two processes, since `git ticket canvas` writes the same
+// file the canvas does, per plan 12.10, and two read-modify-writes that
+// interleave lose one of them whichever renames second. Every writer in this
+// package takes both, so a canvas and a CLI built against it wait on each
+// other rather than overwrite.
 type Store struct {
-	dir string
-	mu  sync.Mutex
+	dir         string
+	mu          sync.Mutex
+	lockOnce    sync.Once
+	lockFile    string
+	lockTimeout time.Duration
 }
+
+// DefaultLockTimeout is how long a writer waits for another process to finish
+// with the canvas directory before giving up. A write holds the lock for one
+// read and one rename, so a wait this long means something is wrong.
+const DefaultLockTimeout = 10 * time.Second
+
+// ErrLockTimeout is returned, wrapped, when the wait runs out.
+var ErrLockTimeout = filelock.ErrTimeout
 
 // New returns a Store writing under storePath/canvas, where storePath is the
 // .tickets directory of a git-ticket store.
 func New(storePath string) *Store {
-	return &Store{dir: filepath.Join(storePath, DirName)}
+	return &Store{dir: filepath.Join(storePath, DirName), lockTimeout: DefaultLockTimeout}
+}
+
+// SetLockTimeout changes how long a write waits for the file lock.
+func (s *Store) SetLockTimeout(d time.Duration) { s.lockTimeout = d }
+
+// lockPath is the file that guards this canvas directory. It lives under the
+// common Git directory beside the ticket store's own lock, so every worktree
+// of the repository shares it and nothing under .tickets is written that git
+// would see. Outside a repository it falls back to a dot-file in the canvas
+// directory, which Boards and Check both skip.
+func (s *Store) lockPath() string {
+	s.lockOnce.Do(func() {
+		if common := filelock.GitCommonDir(filepath.Dir(s.dir)); common != "" {
+			s.lockFile = filepath.Join(common, "git-ticket", "canvas.lock")
+			return
+		}
+		s.lockFile = filepath.Join(s.dir, ".lock")
+	})
+	return s.lockFile
+}
+
+// lock takes the mutex and then the file lock, in that order, and returns the
+// function that releases both. Every writer calls it first.
+func (s *Store) lock() (func(), error) {
+	s.mu.Lock()
+	l, err := filelock.Acquire(s.lockPath(), s.lockTimeout)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("canvas directory: %w", err)
+	}
+	return func() { l.Release(); s.mu.Unlock() }, nil
 }
 
 // Dir is where boards are written.
@@ -141,8 +193,11 @@ func (s *Store) Read(board string) (*Board, bool, error) {
 
 // Save writes a board, replacing what was there.
 func (s *Store) Save(b *Board) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if _, err := s.Load(b.Board); err != nil {
 		return err
 	}
@@ -191,8 +246,11 @@ func (s *Store) save(b *Board) error {
 // drag in one tab does not overwrite a drag in another with a stale copy of
 // every other card.
 func (s *Store) Update(board string, cards map[string]*Card) (*Board, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	b, err := s.Load(board)
 	if err != nil {
 		return nil, err

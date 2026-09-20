@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "layout_invalid",
+      "file": "canvas/default.yml",
+      "ticket": null,
+      "field": null
+    }
+  ],
+  "warnings": []
+}

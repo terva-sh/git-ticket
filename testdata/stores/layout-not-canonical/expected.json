@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "layout_not_canonical",
+      "file": "canvas/default.yml",
+      "ticket": null,
+      "field": null
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 //go:build unix
 
-package ticket
+package filelock
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 // lock was taken. flock is used rather than a lock file the tool creates and
 // deletes, because the kernel releases it when the holder dies and there is no
 // stale lock to break.
-func tryFlock(f *os.File) (bool, error) {
+func TryLock(f *os.File) (bool, error) {
 	err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	switch {
 	case err == nil:
@@ -24,6 +24,6 @@ func tryFlock(f *os.File) (bool, error) {
 	}
 }
 
-func unflock(f *os.File) error {
+func Unlock(f *os.File) error {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 }

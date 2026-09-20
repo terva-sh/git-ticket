@@ -1,6 +1,6 @@
 //go:build windows
 
-package ticket
+package filelock
 
 import (
 	"errors"
@@ -18,7 +18,7 @@ import (
 // The range is one byte at offset zero. The lock file carries no content, and
 // Windows permits locking a range past the end of a file, so the range only has
 // to be one every caller agrees on.
-func tryFlock(f *os.File) (bool, error) {
+func TryLock(f *os.File) (bool, error) {
 	var overlapped windows.Overlapped
 	err := windows.LockFileEx(
 		windows.Handle(f.Fd()),
@@ -47,7 +47,7 @@ func tryFlock(f *os.File) (bool, error) {
 	}
 }
 
-func unflock(f *os.File) error {
+func Unlock(f *os.File) error {
 	var overlapped windows.Overlapped
 	return windows.UnlockFileEx(windows.Handle(f.Fd()), 0, 1, 0, &overlapped)
 }

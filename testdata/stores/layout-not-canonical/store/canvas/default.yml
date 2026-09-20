@@ -1,0 +1,6 @@
+schema: 2
+board: default
+# A board somebody edited by hand: an older schema, a comment, and float noise.
+cards:
+  TKT-01K3ZZYD00000000000000000D: {x: 120.004, y: -40}
+frames: {}

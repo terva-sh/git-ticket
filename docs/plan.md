@@ -1255,7 +1255,8 @@ tracked file, and it runs from `install-merge-driver` and from no other command.
 Somebody typing that command is asking for exactly that write, which is the
 whole of what it does.
 
-Every call goes through one helper per package, `runGit` in `ticket` and
+Every call goes through one helper per package, `runGit` in `ticket` and in
+`internal/filelock`, which finds the common Git directory for both locks, and
 `readGit` or `writeGit` in `cli`, and `TestGitCommandsAreReadOnly` asserts three
 things: no `exec.Command` in non-test code names a binary other than `git`,
 every one of those calls sits in one of the helpers, and every helper call names
@@ -2597,7 +2598,12 @@ Adding `TKT` is the exception, because it is what the store already has.
 
 `canvas show` and `canvas pens` answer with `canvas-board`; `canvas explain ID`
 answers with `canvas-explain`. Both read `.tickets/canvas/<board>.yml`, per
-12.10, and neither writes.
+12.10. The write words of 12.1, `pen add`, `pen rm`, `pen order`, `place`,
+`release`, `frame add` and `inbox`, answer with `canvas-board` too, as the
+board after the write, because what a caller wants back from a write is the
+same thing `show` would say next and one kind is one parser. A refused write
+is an `error` envelope under `validation_failed`, the code a refused ticket
+write carries, and the file is as it was.
 
 ```json
 {
@@ -2608,7 +2614,7 @@ answers with `canvas-explain`. Both read `.tickets/canvas/<board>.yml`, per
   "exists": true,
   "applied": true,
   "pens": [
-    {"id": "fe", "order": 0, "title": "Frontend", "requiredLabels": ["frontend"], "tickets": ["TKT-01M2..."]}
+    {"id": "fe", "order": 0, "title": "Frontend", "match": {"labels": ["frontend"], "status": [], "type": [], "parent": []}, "tickets": ["TKT-01M2..."]}
   ],
   "inbox": {"at": {"x": -300, "y": 0}, "tickets": ["TKT-01M2..."]},
   "pinned": [{"id": "TKT-01M2...", "x": 120, "y": -40}]
@@ -2628,8 +2634,8 @@ answers with `canvas-explain`. Both read `.tickets/canvas/<board>.yml`, per
   "routing": {
     "destination": "fe",
     "candidates": [
-      {"pen": "fe", "order": 0, "requiredLabels": ["frontend"], "missingLabels": [], "outcome": "winner"},
-      {"pen": "fe-bugs", "order": 1, "requiredLabels": ["frontend", "bug"], "missingLabels": [], "outcome": "later-rule"}
+      {"pen": "fe", "order": 0, "match": {"labels": ["frontend"], "status": [], "type": [], "parent": []}, "missingLabels": [], "failed": [], "outcome": "winner"},
+      {"pen": "ready", "order": 1, "match": {"labels": [], "status": ["ready", "blocked"], "type": [], "parent": []}, "missingLabels": [], "failed": ["status"], "outcome": "no-match"}
     ]
   }
 }
@@ -2659,10 +2665,24 @@ a pen is the canvas's to compute, per 12.10, so no coordinate is here.
 `routing.destination` is the winning pen's id, or null for the inbox. A pinned
 card still carries a destination: it is where the card would go if released,
 which is the question a person asks before releasing it. `candidates` lists
-every pen once, in `ruleOrder`, with `outcome` one of `winner`, `missing-labels`
-and `later-rule`; `missingLabels` says which of the rule's labels the ticket
-lacked. The resolution is first match in order, per 12.10, so `later-rule` is a
-rule that would take the ticket if the ones above it were removed.
+every pen once, in `ruleOrder`, with `outcome` one of `winner`, `no-match` and
+`later-rule`. The resolution is first match in order, per 12.10, so
+`later-rule` is a rule that would take the ticket if the ones above it were
+removed.
+
+`match` is the pen's whole rule, the record of 12.10, and it carries all four
+of `labels`, `status`, `type` and `parent` on every pen, as arrays and never
+null, whatever the board file spells. A field that is empty there is a field
+the rule does not test, which is a fact a consumer reads rather than infers
+from a missing key.
+
+`failed` names the fields the ticket did not satisfy, among `labels`,
+`status`, `type` and `parent`, in that order, and is empty on a rule the
+ticket matched. `missingLabels` is the labels of `match.labels` the ticket
+lacks, which is the one failure worth spelling out per value, since the other
+three fields hold one value on a ticket and the candidate already carries what
+the rule wanted. The outcome is `no-match` rather than `missing-labels`
+because a rule can now fail on a field with no labels in it.
 
 ## 11. Validation
 
@@ -2700,6 +2720,7 @@ Errors:
 | `invalid_due_on` | a `due_on` that is not a `YYYY-MM-DD` date, per 5.1. A date that has passed is never a finding |
 | `title_too_long` | `title` is longer than 120 characters, per 5.1 |
 | `location_mismatch` | the status and the directory disagree, per section 4; the status wins |
+| `layout_invalid` | a file under `canvas/` that is not a board, per 12.10: its name is outside the board grammar, or it does not parse or validate. One finding per file, because everything downstream of a parse failure would be noise |
 
 Warnings:
 
@@ -2717,6 +2738,8 @@ Warnings:
 | `epics_index_stale` | `epics.md` disagrees with the epics in the store, per section 4 |
 | `migration_incomplete` | a ticket declares a lower `schema` than `config.yml` does, so a migration is unfinished, per 12.5 |
 | `section_heading_demoted` | a body section carries a `###` sub-heading whose name is one of the sections 5.2 owns, so what reads as that section is prose no mutation can reach |
+| `layout_ticket_missing` | a board's card or frame member names a ticket the store does not have, per 12.10. `field` is the record, `cards.ID` or `frames.ID.members` |
+| `layout_not_canonical` | a board file is valid but its bytes are not what a save writes, per 12.10: an older schema, a comment, unsorted records, or float noise |
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
@@ -2770,6 +2793,23 @@ would call every series the store actually declares undeclared.
 `parent_missing` has: it asks whether another file exists, which one file cannot
 answer about itself.
 
+The three `layout_*` codes read `.tickets/canvas/<board>.yml`, the one file
+under the store that is not a ticket, per 12.10, and they landed with the
+`git ticket canvas` write words on 2026-09-21 because a format that can be
+written from the command line has to be checked from it. `layout_invalid` is an
+error for the reason `parse_error` is: a board the canvas cannot open is a
+broken file. The other two are warnings because the store is valid and the
+canvas opens the board. A card for a ticket the store lacks is stale or is for
+a ticket on another branch, and only a person knows which, so
+`layout_ticket_missing` reports and stops. A pen label outside the allowlist is
+`label_unknown` with `field` set to `pens.ID.match.labels`, rather than a
+fourth code, because the condition is the one `label_unknown` already names and
+a caller switching on the code wants one case. All four are store-scoped, since
+a board names tickets and labels a file cannot answer for itself, so each has a
+store fixture and none a parse fixture. The layout package reports the
+conditions and `ticket` names the codes, because the codes are this section's
+to publish.
+
 An ID that breaks the grammar of 5.6 will be `parse_error` and not
 `unknown_series`, because `ValidID` refuses it before anything reads the config.
 `unknown_series` is the narrower condition: a well-formed ID whose series this
@@ -2787,16 +2827,17 @@ corpus so the two cannot drift.
 sits. A store outside a Git repository has no root to resolve against, so the
 check is skipped there and reports nothing, per 5.5.
 
-Three findings have exactly one correct repair, and `check --fix` makes them:
+Four findings have exactly one correct repair, and `check --fix` makes them:
 
 | Code | The repair |
 |---|---|
 | `filename_id_mismatch` | rename the file to `<id>.md`, which section 4 fixes and leaves no second reading of |
 | `location_mismatch` | move the file to the directory the status implies, because 6.3 already rules the status wins |
 | `epics_index_stale` | rewrite `epics.md` from the tickets, which are the source it is derived from |
+| `layout_not_canonical` | rewrite the board file as a save would write it, which the layout package renders from the parsed board; nothing authored changes, only its spelling |
 
-Severity does not gate repair. `epics_index_stale` is a warning and the other two
-are errors, and all three are repaired, because the repair pass recomputes what
+Severity does not gate repair. `epics_index_stale` and `layout_not_canonical`
+are warnings and the other two are errors, and all four are repaired, because the repair pass recomputes what
 every file should be rather than walking the findings. A warning is therefore
 exactly as repairable as an error, which is what makes keeping this one a warning
 free rather than merely defensible.
@@ -2806,7 +2847,9 @@ to choose which file keeps the ID, which is a judgement about which ticket is
 the real one. `dependency_missing` is repaired either by dropping the edge or by
 creating the ticket, and only a person knows which was meant. `label_unknown`
 and `milestone_unknown` are each either a typo in the ticket or a gap in the
-allowlist. A tool that guessed at those would be wrong about half of them and
+allowlist. `layout_invalid` and `layout_ticket_missing` are the same shape: a
+board that does not parse could be meant a dozen ways, and a card for a ticket
+the store lacks may be for a ticket on another branch. A tool that guessed at those would be wrong about half of them and
 silent about it, which is worse than reporting and stopping.
 
 `migration_incomplete` is the one finding with exactly one correct repair that
@@ -2919,6 +2962,13 @@ git ticket series [add NAME | remove NAME]   # the ID prefixes this store uses, 
 git ticket canvas show [--board B]           # each pen, its rule, and the tickets it catches, per 12.10
 git ticket canvas pens [--board B]           # the rules in resolution order
 git ticket canvas explain ID [--board B]     # where one card is and why
+git ticket canvas pen add ID --title T [--label L...] [--status S...] [--type T...] [--parent ID...] --at X,Y --size W,H [--color C] [--pin X,Y] [--board B]   # a rule, appended last; at least one of the four
+git ticket canvas pen rm ID [--board B]      # drop a rule
+git ticket canvas pen order ID... [--board B]   # every pen once, in resolution order
+git ticket canvas place ID --at X,Y [--board B]   # pin one card where the caller says
+git ticket canvas release ID... [--board B]  # hand cards back to the rules
+git ticket canvas frame add ID --title T --at X,Y --size W,H [--color C] [--member ID...] [--board B]
+git ticket canvas inbox --at X,Y [--board B] # where unmatched cards land
 git ticket actor  [add ID [--name N] [--default]]   # who this store records writes as, per 4.1
 git ticket self-update [--check | --dry-run]   # replace this binary with the latest release, per 12.6
 ```
@@ -3304,6 +3354,25 @@ All three are taken now for the reason this section already gives for staying at
 `v0.x`: nothing consumes these surfaces yet, so this is the cheapest any of them
 will ever be. Waiting does not avoid a break, it moves it to a release where
 somebody has to be told.
+
+A pen's `requiredLabels` becomes a `match` record at layout schema 4, per
+12.10, and several covered surfaces move with it. The field is gone from the
+board file a writer writes, from `layout.Pen`, and from the pens of the
+`canvas-board` envelope; the `canvas-explain` candidate's `requiredLabels`
+becomes `match` and gains `failed`; the `missing-labels` outcome becomes
+`no-match`, because a rule can now fail on a field that holds no labels; and
+`layout.Match`, which was the function that compared a pen to a ticket, is now
+the type of the rule, with the comparison as the method `Match.Failures`. Each
+is a removal or a change of meaning rather than an addition beside what was
+there, so this is a break and bumps the minor while the module is `v0.x`.
+
+Reading is the half that does not break, and the distinction is the whole of
+why the release is a minor rather than a crisis. A schema 3 board still opens
+and its `requiredLabels` reads as `match.labels`, so no board on disk anywhere
+becomes unreadable and none of them routes differently than it did. What
+breaks is the writing side and the Go API, and the only consumer of either is
+git-ticket-canvas, which reads this format through this package and bumps with
+it.
 
 `label_order` changes what it reports in v0.19.1, and it is recorded here as a
 decision rather than as a break. The rule identifier is unchanged, the
@@ -3917,16 +3986,34 @@ because the two things that need it next cannot reach a package internal to
 the viewer: `check` should validate a layout in the same pass as every other
 file, and a `git ticket canvas` family of commands should read and write rules
 without a browser. The canvas imports the package; `git ticket canvas show`,
-`pens`, and `explain` read it, per 12.1 and 10.10, and are the first commands
-to. `check` does not read the file yet, and no command writes it; both are
-tracked in the canvas repository's store under TKT-01M2ND0S8N5Y8V0HQFRCBKMXE3
-(Let an agent organize a board), which also holds the design the package grows
-toward.
+`pens`, and `explain` read it, per 12.1 and 10.10, and since 2026-09-21 `pen
+add`, `pen rm`, `pen order`, `place`, `release`, `frame add` and `inbox` write
+it, and `check` reads every board in the same pass as the tickets, per 11.
+The design the package grows toward is in the canvas repository's store under
+TKT-01M2ND0S8N5Y8V0HQFRCBKMXE3 (Let an agent organize a board).
+
+Every write goes through one `layout.Store.Modify`: load, edit, validate,
+normalise, rename. Validation runs before the rename, so a write the package
+would refuse leaves the file exactly as it was, and what the CLI writes is the
+canonical form a canvas save writes, so `check` has nothing to say about it.
+No write computes a card position. `place` writes the coordinate its caller
+chose, and everything else writes rules; a pen's pin defaults to its origin
+because the resolver below reads no pin, and a person who wants one names it.
+`frame add` takes an ID and a region where the design sketch took neither,
+because the record requires both and nothing here invents them.
+
+The layout package no longer imports `ticket`. `check` reads a board through
+`layout.Check`, so `ticket` imports `layout`, and the one thing `layout` needed
+from `ticket`, the ID grammar of 5.6, moved to `internal/idgrammar`, which both
+read. `layout.Check` reports conditions and `ticket` names the codes, because
+the codes are section 11's to publish, and the two facts a board cannot judge
+alone, whether a ticket exists and whether a label is allowed, are passed in
+rather than read.
 
 Routing, the answer to where a card nobody placed by hand belongs, has one
 implementation, `layout.Route`, and the contract is three steps in order: a
 card with a saved coordinate is pinned and no rule places it; otherwise the
-first pen in `ruleOrder` whose `requiredLabels` the ticket all carries;
+first pen in `ruleOrder` whose `match` the ticket satisfies;
 otherwise the inbox. A pinned card's explanation still reports the rules'
 answer, as where it would go if released, per 10.10; a consumer that places
 cards reads the pin first and the rules only for a card without one. First match in order, not most specific: a person who
@@ -3936,10 +4023,51 @@ places cards by this since git-ticket-canvas v0.5.0, through one function of
 its own that reads the same rule the same way, and the envelopes say so with
 `applied`.
 
-The package carries its own atomic writer and mutex rather than the store lock
-of section 7. That is how it arrived and it is left alone on purpose: joining
-the lock changes when a concurrent canvas and CLI wait on each other, and that
-change belongs to the ticket that first puts both writers on one file.
+A pen's rule is a `match` record since schema 4: `labels`, `status`, `type`
+and `parent`, each a list and each optional. An absent or empty field matches
+every ticket, and the fields that are present are conjoined, so a pen naming
+`status` and `parent` catches a ticket that satisfies both. At least one field
+has to be present and non-empty, because a pen with no rule at all is not a
+rule: it would catch the whole store from wherever it sat in `ruleOrder`, and
+every rule below it would be dead.
+
+Within a field, `labels` conjoins and the other three do not, which is the
+shape of what they read rather than an inconsistency. A ticket carries many
+labels at once, so a list of them can only mean all of them, which is what
+`requiredLabels` meant and is why a schema 3 board routes unchanged. A ticket
+has one status, one type and one parent, so a list there can only mean any of
+them, and `status: [ready, blocked]` is either.
+
+`parent` holds ticket IDs and is validated by the grammar of 5.6, the way a
+frame member is. `status` and `type` are not checked against the sets of 6.1
+and 5.1: this package cannot import `ticket`, which is the same boundary that
+sent the ID grammar to `internal/idgrammar`, and a status nobody uses catches
+nothing rather than breaking a board. A rule that quietly matches no ticket is
+one a person can see in `canvas show`, where a rule refused at parse time
+would cost the board file its independence from the ticket vocabulary.
+
+A schema 3 file may not carry `match` and a schema 4 file may not carry
+`requiredLabels`, which is the rule that already made the routing fields
+require schema 3, extended one level down. A write renders schema 4 and omits
+an empty field, so a labels-only pen reads much as it did, and an untouched
+schema 3 board is `layout_not_canonical` until `check --fix` rewrites it, per
+11.
+
+The package carries its own atomic writer and its own locks rather than the
+store lock of section 7. In one process a mutex serialises writers, which is
+the canvas with two tabs dragging. Across processes every writer takes a file
+lock on the canvas directory, `git-ticket/canvas.lock` under the common Git
+directory beside the store's own lock, or a dot-file in the canvas directory
+outside a repository, through the same `internal/filelock` the store lock
+uses. It arrived on 2026-09-21 with the CLI write words, the first second
+writer on the file: two read-modify-writes that interleave lose one of them
+whichever renames second, and a mutex in one process cannot see the other.
+The canvas takes the same lock the moment it builds against this version,
+because the lock is in the package and not in either caller, which is why it
+is not the store lock of section 7: a layout write touches no ticket, and a
+canvas that had to hold the ticket store's lock to save a drag would wait on
+every ticket write for nothing. The CLI reports a wait that runs out as
+`lock_timeout`, the code of section 10.
 
 The rejected alternative was `git-ticket-canvas layout ...` subcommands with
 the schema staying put. It works and touches one repository, and it was

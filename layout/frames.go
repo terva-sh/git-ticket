@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/terva-sh/git-ticket/ticket"
+	"github.com/terva-sh/git-ticket/internal/idgrammar"
 	"gopkg.in/yaml.v3"
 )
 
@@ -77,6 +77,12 @@ func Parse(name string, data []byte) (*Board, error) {
 		}
 		raw.Routing = emptyRouting()
 	}
+	// A pen's rule is spelled requiredLabels at schema 3 and match at schema
+	// 4. The pen decoder takes either, because it cannot see the schema; the
+	// file's own schema says which one it may carry.
+	if err := penRuleSpelling(data, raw.Schema); err != nil {
+		return nil, err
+	}
 	raw.Schema = Schema
 	if raw.Cards == nil {
 		raw.Cards = map[string]Card{}
@@ -132,13 +138,11 @@ func validateBoard(b *Board) error {
 		if !finite(f.X) || !finite(f.Y) || !finite(f.W) || !finite(f.H) || round2(f.W) <= 0 || round2(f.H) <= 0 {
 			return fmt.Errorf("invalid frame geometry for %s", id)
 		}
-		switch f.Color {
-		case "#759bcc", "#b499be", "#89ad97":
-		default:
+		if !slices.Contains(Colors, f.Color) {
 			return fmt.Errorf("invalid frame color for %s", id)
 		}
 		for _, member := range f.Members {
-			if !ticket.ValidID(member) {
+			if !idgrammar.Valid(member) {
 				return fmt.Errorf("invalid frame member %q", member)
 			}
 			if previous, ok := owners[member]; ok {
@@ -180,8 +184,11 @@ func (s *Store) Transaction(board string, cards map[string]*Card, frames map[str
 // RoutingTransaction includes an optional whole-routing replacement in the
 // same read set and atomic write as card and frame edits.
 func (s *Store) RoutingTransaction(board string, cards map[string]*Card, frames map[string]*Frame, routing *Routing, expect *Expectations, validate func() error) (*Board, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	if expect == nil {
 		return nil, errors.New("layout transactions require expect")
 	}
@@ -262,8 +269,11 @@ func (s *Store) RoutingTransaction(board string, cards map[string]*Card, frames 
 // RemoveTicket is deletion cleanup, not undo of manual placement. A nil card in
 // Update or Transaction deliberately leaves membership alone.
 func (s *Store) RemoveTicket(board, id string) (*Board, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	b, err := s.Load(board)
 	if err != nil {
 		return nil, err

@@ -1,0 +1,17 @@
+schema: 1
+actors:
+  - id: human:sothr
+    name: Drew Short
+labels:
+  - auth
+  - docs
+milestones:
+  - v1.1
+  - v1.2
+defaults:
+  type: task
+  priority: normal
+  actor: null
+  claim_expiry: null
+lock:
+  timeout: 10s

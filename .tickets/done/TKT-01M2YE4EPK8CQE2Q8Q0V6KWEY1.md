@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2YE4EPK8CQE2Q8Q0V6KWEY1
 title: Say that the canvas places cards by rule
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -25,7 +25,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T03:35:37Z
-updated_at: 2026-09-20T03:44:26Z
+updated_at: 2026-09-20T05:36:38Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -44,3 +44,7 @@ git-ticket-canvas v0.5.0 places every unpinned card on a board with pens by the 
 - [x] canvas-board and canvas-explain answer applied:true
 - [x] explain's placement is pinned, rules, or status-lanes, and says which on the page
 - [x] plan 10.10 and 12.10 say the canvas places by rule since git-ticket-canvas v0.5.0
+
+## Summary
+
+canvas-board and canvas-explain answer applied:true; explain's placement is pinned, rules, or status-lanes; the not-applied wording is gone. Merged in PR 213 as bb0f4e9, released as v0.22.0, paired with git-ticket-canvas v0.5.0.

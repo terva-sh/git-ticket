@@ -8,7 +8,7 @@ status_reason: null
 priority: normal
 due_on: null
 labels:
-  - canvas
+  - area/cli
 assignees: []
 milestone: null
 parent: null
@@ -25,7 +25,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T03:35:37Z
-updated_at: 2026-09-20T03:35:38Z
+updated_at: 2026-09-20T03:44:26Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""

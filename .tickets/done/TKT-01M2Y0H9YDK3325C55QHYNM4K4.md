@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M2Y0H9YDK3325C55QHYNM4K4
 title: Read the board from the command line
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-19T23:37:58Z
-updated_at: 2026-09-20T00:00:18Z
+updated_at: 2026-09-20T01:42:34Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -88,3 +88,7 @@ Terva review 46 reviewed 3200e28b5b75 against e568e5af38ff. Pinned cards still c
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T00:00:18Z
 
 Terva review 47 reviewed 7d37233134ec against e568e5af38ff: gate passed, one low finding. explain on a missing layout prints three lines where a test comment promised one: accepted in part. The one-line promise was about show and pens; explain answers about a ticket and names it first, then the absent file, then the placement. The comment now says so; output unchanged. PR 211 is ready for the maintainer's merge.
+
+## Summary
+
+git ticket canvas show, pens, and explain ID read a board with no canvas running; layout.Route and Explain are the one routing implementation; kinds canvas-board and canvas-explain per plan 10.10. Merged in PR 211 as e616ed9, released as v0.21.0.

@@ -39,8 +39,10 @@ import (
 	"github.com/terva-sh/git-ticket/internal/filelock"
 )
 
-// Schema is the layout file version this package reads and writes.
-const Schema = 3
+// Schema is the layout file version this package reads and writes. Schema 4
+// is where a pen's rule became a match record, per plan 12.10; a schema 3
+// file still reads, and its requiredLabels is match.labels.
+const Schema = 4
 
 // DirName is the directory boards live in, inside the ticket store.
 const DirName = "canvas"

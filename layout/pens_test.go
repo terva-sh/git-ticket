@@ -13,12 +13,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Schema-3 contract tests intentionally use test-local wire data. They compile
-// against schema 2 and fail on behavior, not on missing production Go symbols.
-// Board fields are pens, ruleOrder, inbox; a pen has pin and requiredLabels.
+// Schema-4 contract tests intentionally use test-local wire data, so they
+// fail on behavior rather than on a missing production Go symbol. Board
+// fields are pens, ruleOrder, inbox; a pen has pin and a match record of
+// labels, status, type and parent.
 func penSchemaFixture() map[string]any {
 	return map[string]any{
-		"schema": 3, "board": DefaultBoard,
+		"schema": 4, "board": DefaultBoard,
 		"cards":  map[string]any{memberA: map[string]any{"x": 30.25, "y": -40.5, "w": 310, "z": 2, "collapsed": true}},
 		"frames": map[string]any{"release": map[string]any{"title": "Release", "x": 10, "y": 20, "w": 620, "h": 420, "color": "#759bcc", "members": []string{memberA, memberB}}},
 		"pens": map[string]any{
@@ -32,7 +33,17 @@ func penSchemaFixture() map[string]any {
 
 func schemaPen(title string, labels []string) map[string]any {
 	return map[string]any{"title": title, "x": 20, "y": 40, "w": 620, "h": 420,
-		"color": "#759bcc", "pin": map[string]any{"x": 40, "y": 80}, "requiredLabels": labels}
+		"color": "#759bcc", "pin": map[string]any{"x": 40, "y": 80}, "match": schemaMatch(labels)}
+}
+
+// schemaMatch spells every field, because the wire form publishes all four as
+// arrays whatever the file carries, per plan 10.10.
+func schemaMatch(labels []string) map[string]any {
+	return map[string]any{"labels": labels, "status": []string{}, "type": []string{}, "parent": []string{}}
+}
+
+func penRule(b map[string]any, pen string) map[string]any {
+	return b["pens"].(map[string]any)[pen].(map[string]any)["match"].(map[string]any)
 }
 
 func schemaYAML(t *testing.T, value any) []byte {
@@ -67,7 +78,7 @@ func writeSchemaFixture(t *testing.T, s *Store, board string, data []byte) {
 	}
 }
 
-func TestPenSchema3RoundTripAndExistingWriters(t *testing.T) {
+func TestPenSchema4RoundTripAndExistingWriters(t *testing.T) {
 	fixture := penSchemaFixture()
 	s := New(t.TempDir())
 	original := schemaYAML(t, fixture)
@@ -161,8 +172,8 @@ func TestPenSchemaLegacyReadsDoNotWriteAndMutationUpgrades(t *testing.T) {
 				t.Fatal("legacy read changed disk")
 			}
 			wire := schemaJSON(t, b)
-			if b.Schema != 3 {
-				t.Fatalf("normalized schema=%d, want 3", b.Schema)
+			if b.Schema != 4 {
+				t.Fatalf("normalized schema=%d, want 4", b.Schema)
 			}
 			if !reflect.DeepEqual(wire["pens"], map[string]any{}) || !reflect.DeepEqual(wire["ruleOrder"], []any{}) {
 				t.Fatal("legacy board must expose empty routing records")
@@ -182,8 +193,8 @@ func TestPenSchemaLegacyReadsDoNotWriteAndMutationUpgrades(t *testing.T) {
 			if err := yaml.Unmarshal(bytesOnDisk(t, s), &disk); err != nil {
 				t.Fatal(err)
 			}
-			if disk["schema"] != 3 {
-				t.Fatalf("mutation did not persist schema 3: %v", disk["schema"])
+			if disk["schema"] != 4 {
+				t.Fatalf("mutation did not persist schema 4: %v", disk["schema"])
 			}
 		})
 	}
@@ -192,12 +203,12 @@ func TestPenSchemaLegacyReadsDoNotWriteAndMutationUpgrades(t *testing.T) {
 func TestPenSchemaLabelsPreserveIdentityAndDeduplicate(t *testing.T) {
 	fixture := penSchemaFixture()
 	labels := []string{"Frontend", "frontend", "frontend", "two words", "comma,label", "unused-label", "null"}
-	fixture["pens"].(map[string]any)["bugs"].(map[string]any)["requiredLabels"] = labels
+	penRule(fixture, "bugs")["labels"] = labels
 	b, err := Parse(DefaultBoard, schemaYAML(t, fixture))
 	if err != nil {
 		t.Fatalf("nonempty exact labels must be accepted: %v", err)
 	}
-	got := schemaJSON(t, b)["pens"].(map[string]any)["bugs"].(map[string]any)["requiredLabels"].([]any)
+	got := penRule(schemaJSON(t, b), "bugs")["labels"].([]any)
 	counts := map[string]int{}
 	for _, label := range got {
 		counts[label.(string)]++
@@ -239,11 +250,30 @@ func TestPenSchemaInvalidLayoutsCannotBeRewritten(t *testing.T) {
 	}
 	cases := map[string]func(map[string]any){
 		"empty rule": func(b map[string]any) {
-			b["pens"].(map[string]any)["bugs"].(map[string]any)["requiredLabels"] = []string{}
+			b["pens"].(map[string]any)["bugs"].(map[string]any)["match"] = map[string]any{}
 		},
-		"null rule": func(b map[string]any) { b["pens"].(map[string]any)["bugs"].(map[string]any)["requiredLabels"] = nil },
-		"blank label": func(b map[string]any) {
-			b["pens"].(map[string]any)["bugs"].(map[string]any)["requiredLabels"] = []string{" "}
+		"rule with every field empty": func(b map[string]any) { penRule(b, "bugs")["labels"] = []string{} },
+		"null rule":                   func(b map[string]any) { b["pens"].(map[string]any)["bugs"].(map[string]any)["match"] = nil },
+		"missing rule": func(b map[string]any) {
+			delete(b["pens"].(map[string]any)["bugs"].(map[string]any), "match")
+		},
+		"null field":  func(b map[string]any) { penRule(b, "bugs")["status"] = nil },
+		"blank label": func(b map[string]any) { penRule(b, "bugs")["labels"] = []string{" "} },
+		"blank status": func(b map[string]any) {
+			penRule(b, "bugs")["status"] = []string{"ready", ""}
+		},
+		"control character in a type": func(b map[string]any) { penRule(b, "bugs")["type"] = []string{"ta\x00sk"} },
+		"parent that is not a ticket ID": func(b map[string]any) {
+			penRule(b, "bugs")["parent"] = []string{"epic-3"}
+		},
+		"unknown field inside the rule": func(b map[string]any) { penRule(b, "bugs")["future"] = true },
+		"both spellings of the rule": func(b map[string]any) {
+			b["pens"].(map[string]any)["bugs"].(map[string]any)["requiredLabels"] = []string{"frontend"}
+		},
+		"the schema 3 spelling at schema 4": func(b map[string]any) {
+			pen := b["pens"].(map[string]any)["bugs"].(map[string]any)
+			delete(pen, "match")
+			pen["requiredLabels"] = []string{"frontend"}
 		},
 		"missing order member":   func(b map[string]any) { b["ruleOrder"] = []string{"bugs"} },
 		"duplicate order member": func(b map[string]any) { b["ruleOrder"] = []string{"bugs", "bugs", "urgent"} },
@@ -266,7 +296,7 @@ func TestPenSchemaInvalidLayoutsCannotBeRewritten(t *testing.T) {
 		"null Inbox":      func(b map[string]any) { b["inbox"] = nil },
 		"bad geometry":    func(b map[string]any) { b["pens"].(map[string]any)["bugs"].(map[string]any)["w"] = 0 },
 		"unknown field":   func(b map[string]any) { b["pens"].(map[string]any)["bugs"].(map[string]any)["future"] = true },
-		"future schema":   func(b map[string]any) { b["schema"] = 4 },
+		"future schema":   func(b map[string]any) { b["schema"] = 5 },
 	}
 	for name, change := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -296,8 +326,51 @@ func TestPenSchemaInvalidLayoutsCannotBeRewritten(t *testing.T) {
 	if _, err := Parse(DefaultBoard, schemaYAML(t, fixture)); err != nil {
 		t.Fatal(err)
 	}
-	bad := strings.Replace(string(schemaYAML(t, fixture)), "schema: 3", "schema: 2", 1)
+	bad := strings.Replace(string(schemaYAML(t, fixture)), "schema: 4", "schema: 2", 1)
 	if _, err := Parse(DefaultBoard, []byte(bad)); err == nil {
-		t.Fatal("schema 2 must not smuggle schema-3 routing fields")
+		t.Fatal("schema 2 must not smuggle routing fields")
+	}
+}
+
+// A schema 3 board opens and its requiredLabels is match.labels, per plan
+// 12.10. A write renders schema 4, which is what makes an untouched schema 3
+// board layout_not_canonical rather than a file two readers disagree about.
+func TestPenSchema3ReadsRequiredLabelsAsMatchLabels(t *testing.T) {
+	fixture := penSchemaFixture()
+	fixture["schema"] = 3
+	for _, pen := range fixture["pens"].(map[string]any) {
+		p := pen.(map[string]any)
+		labels := p["match"].(map[string]any)["labels"]
+		delete(p, "match")
+		p["requiredLabels"] = labels
+	}
+	original := schemaYAML(t, fixture)
+	s := New(t.TempDir())
+	writeSchemaFixture(t, s, DefaultBoard, original)
+	b, err := s.Load(DefaultBoard)
+	if err != nil {
+		t.Fatalf("a schema 3 board must still open: %v", err)
+	}
+	if got, want := b.Pens["bugs"].Match, (Match{Labels: []string{"frontend", "bug"}}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("bugs rule = %+v, want %+v", got, want)
+	}
+	if !reflect.DeepEqual(bytesOnDisk(t, s), original) {
+		t.Fatal("a legacy read changed disk")
+	}
+	if err := s.Save(b); err != nil {
+		t.Fatal(err)
+	}
+	written := string(bytesOnDisk(t, s))
+	if !strings.Contains(written, "schema: 4\n") || strings.Contains(written, "requiredLabels") {
+		t.Fatalf("a write must render schema 4 and the match record:\n%s", written)
+	}
+	if !strings.Contains(written, `match: {labels: ["frontend", "bug"]}`) {
+		t.Fatalf("an empty field must be omitted from the rendered rule:\n%s", written)
+	}
+	// A schema 3 file carrying the new spelling is refused from the other
+	// side, so one file never holds two readings of one rule.
+	ahead := strings.Replace(string(schemaYAML(t, penSchemaFixture())), "schema: 4", "schema: 3", 1)
+	if _, err := Parse(DefaultBoard, []byte(ahead)); err == nil {
+		t.Fatal("schema 3 must not carry a match record")
 	}
 }

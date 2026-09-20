@@ -100,7 +100,7 @@ type Problem struct {
 	// File is relative to the store, with forward slashes: canvas/<name>.yml.
 	File string
 	// Field names the record the problem is about, in the file's own terms:
-	// cards.ID, frames.ID.members, pens.ID.requiredLabels. Empty when the
+	// cards.ID, frames.ID.members, pens.ID.match.labels. Empty when the
 	// problem is the whole file.
 	Field   string
 	Message string
@@ -179,9 +179,9 @@ func checkBoard(rel string, data []byte, b *Board, exists func(string) bool, kno
 		}
 	}
 	for id, p := range b.Pens {
-		for _, label := range p.RequiredLabels {
+		for _, label := range p.Match.Labels {
 			if !knownLabel(label) {
-				out = append(out, Problem{Kind: LabelUnknown, File: rel, Field: "pens." + id + ".requiredLabels",
+				out = append(out, Problem{Kind: LabelUnknown, File: rel, Field: "pens." + id + ".match.labels",
 					Message: fmt.Sprintf("pen %s requires %q, which is not in the config.yml allowlist", id, label)})
 			}
 		}

@@ -22,14 +22,14 @@ func writeBoardFile(t *testing.T, store, name, content string) {
 
 const canonicalBoard = `# git-ticket canvas layout. Positions and frames; tickets live in their own files.
 # One line per card, sorted by ticket ID, so a drag is a one-line diff.
-schema: 3
+schema: 4
 board: "default"
 cards:
   "TKT-01K3ZZ2JH000GHB4EE6SNRE6MD": {x: 120, y: -40}
 frames:
   "f1": {title: "Auth", x: 0, y: 0, w: 400, h: 300, color: "#759bcc", members: [TKT-01K3ZZ2JH000GHB4EE6SNRE6MD]}
 pens:
-  "fe": {title: "Frontend", x: 0, y: 0, w: 600, h: 400, color: "#759bcc", pin: {x: 0, y: 0}, requiredLabels: ["frontend"]}
+  "fe": {title: "Frontend", x: 0, y: 0, w: 600, h: 400, color: "#759bcc", pin: {x: 0, y: 0}, match: {labels: ["frontend"]}}
 ruleOrder: ["fe"]
 inbox: {x: -300, y: 0}
 `
@@ -115,7 +115,7 @@ func TestCheckReportsEachProblemAgainstItsRecord(t *testing.T) {
 		{Invalid, "canvas/broken.yml", ""},
 		{TicketMissing, "canvas/default.yml", "cards.TKT-01K3ZZ2JH000GHB4EE6SNRE6MD"},
 		{TicketMissing, "canvas/default.yml", "frames.f1.members"},
-		{LabelUnknown, "canvas/default.yml", "pens.fe.requiredLabels"},
+		{LabelUnknown, "canvas/default.yml", "pens.fe.match.labels"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d problems %v, want %d", len(got), got, len(want))
@@ -148,7 +148,7 @@ frames: {}
 		t.Fatalf("got %v, want one NotCanonical", kinds(got))
 	}
 	canonical := string(got[0].Canonical)
-	for _, line := range []string{"schema: 3\n", `  "TKT-01K3ZZ2JH000GHB4EE6SNRE6MD": {x: 120, y: -40}` + "\n", "pens: {}\n", "inbox: {x: 0, y: 0}\n"} {
+	for _, line := range []string{"schema: 4\n", `  "TKT-01K3ZZ2JH000GHB4EE6SNRE6MD": {x: 120, y: -40}` + "\n", "pens: {}\n", "inbox: {x: 0, y: 0}\n"} {
 		if !strings.Contains(canonical, line) {
 			t.Errorf("canonical bytes lack %q:\n%s", line, canonical)
 		}

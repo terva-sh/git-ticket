@@ -77,6 +77,12 @@ func Parse(name string, data []byte) (*Board, error) {
 		}
 		raw.Routing = emptyRouting()
 	}
+	// A pen's rule is spelled requiredLabels at schema 3 and match at schema
+	// 4. The pen decoder takes either, because it cannot see the schema; the
+	// file's own schema says which one it may carry.
+	if err := penRuleSpelling(data, raw.Schema); err != nil {
+		return nil, err
+	}
 	raw.Schema = Schema
 	if raw.Cards == nil {
 		raw.Cards = map[string]Card{}

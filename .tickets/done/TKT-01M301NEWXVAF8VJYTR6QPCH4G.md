@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M301NEWXVAF8VJYTR6QPCH4G
 title: Widen a pen's rule from requiredLabels to a match record
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -17,16 +17,10 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim:
-  actor: agent:claude/t3code-a6d0ff31
-  branch: t3code/match-record
-  worktree: /home/sothr/.t3/worktrees/git-ticket/t3code-a6d0ff31-match
-  commit: 23ee2ac82fc86cc6654d07415300479211d2d757
-  claimed_at: 2026-09-20T18:36:12Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-20T18:36:12Z
-updated_at: 2026-09-20T18:58:05Z
+updated_at: 2026-09-20T19:27:27Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -92,4 +86,4 @@ Terva's first round found nothing at 8481d88f4ce5, reviewed against the stacked 
 
 ## Summary
 
-Schema 4 landed in layout, the CLI and the plan. A pen's rule is a Match of labels, status, type and parent; labels conjoins and the other three disjoin, per the argument in plan 12.10. A schema 3 board still opens with requiredLabels read as match.labels, and a write renders schema 4, so an untouched schema 3 board is layout_not_canonical and check --fix rewrites it. layout.Route reads every field and a Candidate carries match, missingLabels and failed, with outcomes winner, no-match and later-rule. canvas show and pens print the whole rule in words, canvas explain names each failed field with what the ticket had beside what the rule wanted, and pen add takes --status, --type and --parent with a parent resolved through the store. Plan 10.10, 11, 12.1, 12.4 and 12.10 and the README are updated, and 12.4 records the break. just ci exits 0. Left in-progress deliberately: the ticket closes when the release is named.
+Merged in PR 216 as part of fd32d73 and released as v0.23.0 on 2026-09-20. Schema 4: a pen's match record with labels, status, type and parent, schema 3 read as match.labels, writes at schema 4; layout.Route and the CLI read every field; pen add takes --status, --type and --parent. The canvas half follows in that repository's TKT-01M2Y91C17YTE0W0P3RBHTF50Y against this version.

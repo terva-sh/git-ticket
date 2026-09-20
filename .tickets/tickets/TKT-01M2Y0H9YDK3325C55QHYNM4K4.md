@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-19T23:37:58Z
-updated_at: 2026-09-19T23:58:36Z
+updated_at: 2026-09-20T00:00:18Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -84,3 +84,7 @@ Terva review 45 reviewed 11fc2a0bb334 against e568e5af38ff. exists from a second
 **agent:claude/t3code-a6d0ff31** at 2026-09-19T23:58:36Z
 
 Terva review 46 reviewed 3200e28b5b75 against e568e5af38ff. Pinned cards still consult rules (medium): accepted in part. The resolver's contract said no rule is consulted while 10.10 promised a pinned card its destination if released; the words contradicted, the behaviour is the one settled for explain. Reworded the contract in resolve.go and plan 12.10: no rule places a pinned card, the rules' answer on a pin is hypothetical, and a placing consumer reads the pin first. Behaviour unchanged.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T00:00:18Z
+
+Terva review 47 reviewed 7d37233134ec against e568e5af38ff: gate passed, one low finding. explain on a missing layout prints three lines where a test comment promised one: accepted in part. The one-line promise was about show and pens; explain answers about a ticket and names it first, then the absent file, then the placement. The comment now says so; output unchanged. PR 211 is ready for the maintainer's merge.

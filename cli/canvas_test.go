@@ -149,8 +149,10 @@ func TestCanvasExplainSaysWhyAndThatRoutingIsNotApplied(t *testing.T) {
 	}
 }
 
-// A board with no layout file is a fact about the store, so it exits 0 and
-// says so in one line, and the envelope says the same with exists false.
+// A board with no layout file is a fact about the store, so it exits 0. show
+// and pens say so in one line; explain answers about a ticket, so it names
+// the ticket, then the absent file, then where the canvas puts the card. The
+// envelope says the same with exists false.
 func TestCanvasReportsAMissingLayoutFileWithoutFailing(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed, so there is no repository root to print the path against")

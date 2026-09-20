@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T18:12:48Z
-updated_at: 2026-09-20T18:13:43Z
+updated_at: 2026-09-20T18:22:29Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -42,12 +42,12 @@ The write half of git ticket canvas, per plan 12.10 and the canvas repository's 
 
 ## Acceptance criteria
 
-- [ ] pen add, pen rm, pen order, place, release, frame add and inbox write the layout file and answer with canvas-board under --json
-- [ ] git ticket check reports a layout that does not parse or validate, a card or member naming a ticket that does not exist, and a pen label outside the allowlist, with a store fixture per new code
-- [ ] check --fix rewrites a valid layout that is not in canonical form and touches nothing else in it
-- [ ] No command computes a card position; only place writes one, from its argument
-- [ ] A write refuses rather than producing a layout that check would reject, and the file is unchanged after a refusal
-- [ ] Plan 11, 12.1 and 12.10 and the corpus README name the codes and the words
+- [x] pen add, pen rm, pen order, place, release, frame add and inbox write the layout file and answer with canvas-board under --json
+- [x] git ticket check reports a layout that does not parse or validate, a card or member naming a ticket that does not exist, and a pen label outside the allowlist, with a store fixture per new code
+- [x] check --fix rewrites a valid layout that is not in canonical form and touches nothing else in it
+- [x] No command computes a card position; only place writes one, from its argument
+- [x] A write refuses rather than producing a layout that check would reject, and the file is unchanged after a refusal
+- [x] Plan 11, 12.1 and 12.10 and the corpus README name the codes and the words
 
 ## Implementation plan
 
@@ -62,3 +62,9 @@ Writer. layout.Store gains Modify(board, func(*Board) error), which loads under 
 Words, in cli/canvas.go, dispatched from the one runCanvas over the one FlagSet: pen add ID --title T --label L... --at X,Y --size W,H [--color C] [--pin X,Y]; pen rm ID; pen order ID...; place ID --at X,Y; release ID...; frame add ID --title T --at X,Y --size W,H [--color C] --member ID...; inbox --at X,Y. A flag the word does not take is a usage error. pen add appends to ruleOrder; --status, --type and --parent arrive with the match record ticket. pin defaults to the pen's origin, since the reference resolver reads no pin and a person who wants one names it. frame add takes an ID and geometry, which the design sketch left out: the record requires w and h, and nothing here computes them. release refuses a card that is not pinned rather than answering yes to nothing. Ticket IDs resolve through the store, so a prefix works. Under --json every write answers with canvas-board, the board after the write, and 10.10 says so.
 
 Docs: plan 11 tables and the fixture note, 12.1 lines, 12.10, 10.10; testdata/README.md store-scoped list; README. Release as v0.23.0, a minor under 12.4.
+
+## Notes
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T18:22:29Z
+
+Built on 2026-09-21; just ci green. Two things worth knowing that the plan does not say. The corpus requires every ticket ID unique across store fixtures, so each layout-* case is one ticket minted for it rather than a copy of clean. And a same-millisecond pair of tickets share ten characters, so the CLI tests pass full IDs to place and --member where a person would type a prefix. Tried and rejected: registering the layout check from layout's init, because the dependency would be invisible and a library caller of Store.Check would silently lack it.

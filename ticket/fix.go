@@ -39,11 +39,13 @@ type Repair struct {
 	// this pass carries bytes from planning to applying, not something a caller
 	// reads back, and the JSON contract in 10.3 does not have it.
 	content []byte
-	// apply, when set, makes the repair instead of writing content. A board
-	// file has a writer of its own with a lock of its own, per plan 12.10,
-	// and a rewrite that bypassed it could land over a canvas save made
-	// between planning and applying.
-	apply func() error
+	// apply, when set, makes the repair instead of writing content and says
+	// whether anything changed. A board file has a writer of its own with a
+	// lock of its own, per plan 12.10, and a rewrite that bypassed it could
+	// land over a canvas save made between planning and applying; a save
+	// that already made the file canonical leaves nothing to do, and a
+	// repair that did nothing is not reported as one.
+	apply func() (bool, error)
 }
 
 // FixOptions controls a repair pass.
@@ -100,39 +102,8 @@ func (s *Store) Fix(ctx context.Context, o FixOptions) (*FixResult, error) {
 	}
 
 	if !o.DryRun {
-		for _, r := range repairs {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			to := filepath.Join(s.path, filepath.FromSlash(r.To))
-			if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-				return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
-			}
-			if r.Kind == RepairRewrite {
-				if r.apply != nil {
-					if err := r.apply(); err != nil {
-						return nil, &Error{Code: CodeValidationFailed, Message: fmt.Sprintf("rewriting %s: %s", r.To, err), Err: err}
-					}
-					continue
-				}
-				if err := os.WriteFile(to, r.content, 0o644); err != nil {
-					return nil, &Error{
-						Code:    CodeValidationFailed,
-						Message: fmt.Sprintf("writing %s: %s", r.To, err),
-						Err:     err,
-					}
-				}
-				continue
-			}
-			from := filepath.Join(s.path, filepath.FromSlash(r.From))
-			if err := os.Rename(from, to); err != nil {
-				return nil, &Error{
-					Code:    CodeValidationFailed,
-					Message: fmt.Sprintf("moving %s to %s: %s", r.From, r.To, err),
-					Ticket:  r.Ticket,
-					Err:     err,
-				}
-			}
+		if repairs, err = s.applyRepairs(ctx, repairs); err != nil {
+			return nil, err
 		}
 	}
 
@@ -141,6 +112,55 @@ func (s *Store) Fix(ctx context.Context, o FixOptions) (*FixResult, error) {
 		return nil, err
 	}
 	return &FixResult{Repairs: repairs, Report: report}, nil
+}
+
+// applyRepairs makes each repair and returns the ones that changed something,
+// in the order planned. A rewrite that its own writer found nothing to do for
+// is dropped, because the report says what this pass did and not what it
+// meant to.
+func (s *Store) applyRepairs(ctx context.Context, repairs []Repair) ([]Repair, error) {
+	applied := make([]Repair, 0, len(repairs))
+	for _, r := range repairs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		to := filepath.Join(s.path, filepath.FromSlash(r.To))
+		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+			return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
+		}
+		if r.Kind == RepairRewrite {
+			if r.apply != nil {
+				changed, err := r.apply()
+				if err != nil {
+					return nil, &Error{Code: CodeValidationFailed, Message: fmt.Sprintf("rewriting %s: %s", r.To, err), Err: err}
+				}
+				if changed {
+					applied = append(applied, r)
+				}
+				continue
+			}
+			if err := os.WriteFile(to, r.content, 0o644); err != nil {
+				return nil, &Error{
+					Code:    CodeValidationFailed,
+					Message: fmt.Sprintf("writing %s: %s", r.To, err),
+					Err:     err,
+				}
+			}
+			applied = append(applied, r)
+			continue
+		}
+		from := filepath.Join(s.path, filepath.FromSlash(r.From))
+		if err := os.Rename(from, to); err != nil {
+			return nil, &Error{
+				Code:    CodeValidationFailed,
+				Message: fmt.Sprintf("moving %s to %s: %s", r.From, r.To, err),
+				Ticket:  r.Ticket,
+				Err:     err,
+			}
+		}
+		applied = append(applied, r)
+	}
+	return applied, nil
 }
 
 // planRepairs works out which files are in the wrong place and where each one
@@ -241,7 +261,7 @@ func (s *Store) planRepairs() ([]Repair, error) {
 			// Applied through the layout writer under its lock, from a read
 			// taken there, so the bytes the planner saw are a finding and
 			// never the bytes written.
-			apply: func() error { _, err := boards.Canonicalize(board); return err },
+			apply: func() (bool, error) { return boards.Canonicalize(board) },
 		})
 	}
 	return out, nil

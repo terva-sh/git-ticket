@@ -206,3 +206,32 @@ func TestWritersInSeparateStoresWaitOnTheFileLock(t *testing.T) {
 		t.Fatalf("the lock file is reported by Check: %v", problems)
 	}
 }
+
+// Canonicalize is the repair check --fix applies. It renders from a read
+// taken under the lock, so a save between planning and repair is what gets
+// canonicalised and never overwritten, and it is a no-op on canonical bytes.
+func TestCanonicalizeRewritesUnderTheLockFromAFreshRead(t *testing.T) {
+	store := t.TempDir()
+	writeBoardFile(t, store, "default.yml", "schema: 2\nboard: default\ncards:\n  TKT-01K3ZZ2JH000GHB4EE6SNRE6MD: {x: 1.004, y: 2}\nframes: {}\n")
+	s := New(store)
+	// A concurrent save lands after the planner read the file.
+	if _, err := s.Modify("default", func(b *Board) error { b.Inbox = &Point{X: 9, Y: 9}; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	writeBoardFile(t, store, "default.yml", "schema: 3\nboard: default\ncards: {}\nframes: {}\npens: {}\nruleOrder: []\ninbox: {x: 9, y: 9}\n")
+	changed, err := s.Canonicalize("default")
+	if err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	got, _ := os.ReadFile(filepath.Join(store, DirName, "default.yml"))
+	if !strings.Contains(string(got), "inbox: {x: 9, y: 9}") || strings.Contains(string(got), "TKT-01K3ZZ2JH000GHB4EE6SNRE6MD") {
+		t.Fatalf("the repair wrote the planner's stale board rather than the current one:\n%s", got)
+	}
+	changed, err = s.Canonicalize("default")
+	if err != nil || changed {
+		t.Fatalf("second pass: changed=%v err=%v", changed, err)
+	}
+	if problems, _ := Check(store, func(string) bool { return true }, func(string) bool { return true }); len(problems) != 0 {
+		t.Fatalf("not canonical after Canonicalize: %v", problems)
+	}
+}

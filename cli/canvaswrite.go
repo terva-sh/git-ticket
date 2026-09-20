@@ -20,39 +20,40 @@ const canvasWords = "show, pens, explain ID, pen add ID, pen rm ID, pen order ID
 // set for a word that does not read it is a usage error rather than silently
 // ignored: `place ID --title T` is a mistake the caller wants told about.
 type canvasFlags struct {
-	title   string
+	title   given
 	labels  stringList
-	at      string
-	size    string
-	color   string
-	pin     string
+	at      given
+	size    given
+	color   given
+	pin     given
 	members stringList
 }
 
-// set names the flags the caller gave. A flag is given when it holds
-// something, which is the same test every word applies before reading one.
+// given is a string flag that knows whether it was passed, so that `--at=`
+// is a flag the word has to answer for and not the same as no flag. A
+// repeatable flag needs no such thing: stringList refuses an empty value.
+type given struct {
+	value string
+	set   bool
+}
+
+func (g *given) String() string { return g.value }
+func (g *given) Set(v string) error {
+	g.value, g.set = v, true
+	return nil
+}
+
+// set names the flags the caller passed, whatever they hold.
 func (f canvasFlags) set() []string {
 	var out []string
-	if f.title != "" {
-		out = append(out, "--title")
-	}
-	if len(f.labels) > 0 {
-		out = append(out, "--label")
-	}
-	if f.at != "" {
-		out = append(out, "--at")
-	}
-	if f.size != "" {
-		out = append(out, "--size")
-	}
-	if f.color != "" {
-		out = append(out, "--color")
-	}
-	if f.pin != "" {
-		out = append(out, "--pin")
-	}
-	if len(f.members) > 0 {
-		out = append(out, "--member")
+	for _, g := range []struct {
+		name string
+		set  bool
+	}{{"--title", f.title.set}, {"--label", len(f.labels) > 0}, {"--at", f.at.set}, {"--size", f.size.set},
+		{"--color", f.color.set}, {"--pin", f.pin.set}, {"--member", len(f.members) > 0}} {
+		if g.set {
+			out = append(out, g.name)
+		}
 	}
 	return out
 }
@@ -203,10 +204,10 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 		if err := f.only("--at"); err != nil {
 			return usageErr("canvas place does not take %s", err)
 		}
-		if f.at == "" {
+		if !f.at.set {
 			return usageErr("canvas place needs --at X,Y, the position the card is pinned at")
 		}
-		at, err := point("--at", f.at)
+		at, err := point("--at", f.at.value)
 		if err != nil {
 			return err
 		}
@@ -283,10 +284,10 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 		if err := f.only("--at"); err != nil {
 			return usageErr("canvas inbox does not take %s", err)
 		}
-		if f.at == "" {
+		if !f.at.set {
 			return usageErr("canvas inbox needs --at X,Y, where unmatched cards land")
 		}
-		at, err := point("--at", f.at)
+		at, err := point("--at", f.at.value)
 		if err != nil {
 			return err
 		}
@@ -338,57 +339,57 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 // reads no pin, per 12.10, so a person who wants one names it.
 func (f canvasFlags) pen() (layout.Pen, error) {
 	var p layout.Pen
-	if strings.TrimSpace(f.title) == "" {
+	if strings.TrimSpace(f.title.value) == "" {
 		return p, usageErr("canvas pen add needs --title")
 	}
 	if len(f.labels) == 0 {
 		return p, usageErr("canvas pen add needs at least one --label; the pen catches a ticket carrying all of them")
 	}
-	if f.at == "" || f.size == "" {
+	if !f.at.set || !f.size.set {
 		return p, usageErr("canvas pen add needs --at X,Y and --size W,H, the region the pen fills")
 	}
-	at, err := point("--at", f.at)
+	at, err := point("--at", f.at.value)
 	if err != nil {
 		return p, err
 	}
-	w, h, err := pair(f.size)
+	w, h, err := pair(f.size.value)
 	if err != nil {
 		return p, usageErr("--size takes W,H, two numbers separated by a comma: %v", err)
 	}
 	pin := at
-	if f.pin != "" {
-		if pin, err = point("--pin", f.pin); err != nil {
+	if f.pin.set {
+		if pin, err = point("--pin", f.pin.value); err != nil {
 			return p, err
 		}
 	}
-	color := f.color
+	color := f.color.value
 	if color == "" {
 		color = layout.Colors[0]
 	}
-	return layout.Pen{Title: f.title, X: at.X, Y: at.Y, W: w, H: h, Color: color, Pin: pin, RequiredLabels: append([]string{}, f.labels...)}, nil
+	return layout.Pen{Title: f.title.value, X: at.X, Y: at.Y, W: w, H: h, Color: color, Pin: pin, RequiredLabels: append([]string{}, f.labels...)}, nil
 }
 
 func (f canvasFlags) frame() (layout.Frame, error) {
 	var fr layout.Frame
-	if strings.TrimSpace(f.title) == "" {
+	if strings.TrimSpace(f.title.value) == "" {
 		return fr, usageErr("canvas frame add needs --title")
 	}
-	if f.at == "" || f.size == "" {
+	if !f.at.set || !f.size.set {
 		return fr, usageErr("canvas frame add needs --at X,Y and --size W,H, the region the frame bounds")
 	}
-	at, err := point("--at", f.at)
+	at, err := point("--at", f.at.value)
 	if err != nil {
 		return fr, err
 	}
-	w, h, err := pair(f.size)
+	w, h, err := pair(f.size.value)
 	if err != nil {
 		return fr, usageErr("--size takes W,H, two numbers separated by a comma: %v", err)
 	}
-	color := f.color
+	color := f.color.value
 	if color == "" {
 		color = layout.Colors[0]
 	}
-	return layout.Frame{Title: f.title, X: at.X, Y: at.Y, W: w, H: h, Color: color}, nil
+	return layout.Frame{Title: f.title.value, X: at.X, Y: at.Y, W: w, H: h, Color: color}, nil
 }
 
 // sameSet says how ids differs from the pens on the board, in words a person

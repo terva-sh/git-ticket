@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // Repair kinds, per plan 10.3. Every repair was a move until the generated
@@ -38,6 +39,11 @@ type Repair struct {
 	// this pass carries bytes from planning to applying, not something a caller
 	// reads back, and the JSON contract in 10.3 does not have it.
 	content []byte
+	// apply, when set, makes the repair instead of writing content. A board
+	// file has a writer of its own with a lock of its own, per plan 12.10,
+	// and a rewrite that bypassed it could land over a canvas save made
+	// between planning and applying.
+	apply func() error
 }
 
 // FixOptions controls a repair pass.
@@ -103,6 +109,12 @@ func (s *Store) Fix(ctx context.Context, o FixOptions) (*FixResult, error) {
 				return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 			}
 			if r.Kind == RepairRewrite {
+				if r.apply != nil {
+					if err := r.apply(); err != nil {
+						return nil, &Error{Code: CodeValidationFailed, Message: fmt.Sprintf("rewriting %s: %s", r.To, err), Err: err}
+					}
+					continue
+				}
 				if err := os.WriteFile(to, r.content, 0o644); err != nil {
 					return nil, &Error{
 						Code:    CodeValidationFailed,
@@ -216,15 +228,20 @@ func (s *Store) planRepairs() ([]Repair, error) {
 	if err != nil {
 		return nil, err
 	}
+	boards := layout.New(s.path)
 	for _, p := range problems {
 		if p.Kind != layout.NotCanonical {
 			continue
 		}
+		board := strings.TrimSuffix(path.Base(p.File), ".yml")
 		out = append(out, Repair{
-			Kind:    RepairRewrite,
-			Codes:   []string{CodeLayoutNotCanonical},
-			To:      p.File,
-			content: p.Canonical,
+			Kind:  RepairRewrite,
+			Codes: []string{CodeLayoutNotCanonical},
+			To:    p.File,
+			// Applied through the layout writer under its lock, from a read
+			// taken there, so the bytes the planner saw are a finding and
+			// never the bytes written.
+			apply: func() error { _, err := boards.Canonicalize(board); return err },
 		})
 	}
 	return out, nil

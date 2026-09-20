@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T18:12:48Z
-updated_at: 2026-09-20T18:31:54Z
+updated_at: 2026-09-20T18:35:00Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -76,3 +76,7 @@ Terva review 50 reviewed 056b41a37474: two medium findings. Concurrent CLI proce
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T18:31:54Z
 
 Terva review 52 reviewed b565c1f74b48: one medium, one low, both accepted. Under --json the ticket listing ran after the rename, so a listing that failed would report a committed write as failed; it now runs before the write, since a write changes no ticket. The unlisted-label warning printed before Modify could refuse; it is now said only after the write lands, and the test holds that a refused duplicate says nothing about labels.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T18:35:00Z
+
+Terva review 53 reviewed ef53d2d1e2af: one high, one low, both accepted. check --fix wrote the planner's canonical bytes with os.WriteFile, outside the layout lock, so a canvas save between planning and repair would have been overwritten; the repair now calls layout.Store.Canonicalize, which re-reads and re-renders under the lock, and a test saves between the two and checks the save survives. An explicit empty flag such as --at= read as absent; string flags now record whether they were passed, and --at= on show and --title= on place are usage errors under test.

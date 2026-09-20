@@ -42,6 +42,39 @@ func (s *Store) Modify(board string, fn func(*Board) error) (*Board, error) {
 	return b, nil
 }
 
+// Canonicalize rewrites one board in the form a save writes, under the same
+// locks every other writer takes, and reports whether the bytes changed. It
+// is how `check --fix` repairs layout_not_canonical: the repair planner may
+// have read the file a moment ago, but a canvas can save in that moment, so
+// the bytes written are rendered from a read taken under the lock and never
+// from the planner's copy. A file that no longer parses is left alone and
+// reported, since the planner's finding is stale and the next check will say
+// what is wrong now.
+func (s *Store) Canonicalize(board string) (bool, error) {
+	unlock, err := s.lock()
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	p, err := s.path(board)
+	if err != nil {
+		return false, err
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return false, err
+	}
+	b, err := Parse(board, data)
+	if err != nil {
+		return false, err
+	}
+	normalize(b)
+	if bytes.Equal(data, render(b)) {
+		return false, nil
+	}
+	return true, s.save(b)
+}
+
 // ProblemKind says what is wrong with a board file. The kinds map one to one
 // onto the finding codes of plan 11, but the codes are ticket's to publish, so
 // this package names the condition and ticket names the code.

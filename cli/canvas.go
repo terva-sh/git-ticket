@@ -34,12 +34,12 @@ func runCanvas(ctx *cmdContext, args []string) error {
 	var f canvasFlags
 	rest, err := ctx.parseFlags("canvas", args, func(fs *flag.FlagSet) {
 		fs.StringVar(&board, "board", board, "the board to read or write")
-		fs.StringVar(&f.title, "title", "", "the pen's or frame's title")
+		fs.Var(&f.title, "title", "the pen's or frame's title")
 		fs.Var(&f.labels, "label", "a label the pen requires; repeatable, and the pen requires all of them")
-		fs.StringVar(&f.at, "at", "", "a position, as X,Y")
-		fs.StringVar(&f.size, "size", "", "a region's size, as W,H")
-		fs.StringVar(&f.color, "color", "", "the pen's or frame's colour, one of "+strings.Join(layout.Colors, ", "))
-		fs.StringVar(&f.pin, "pin", "", "the pen's pin point, as X,Y; the pen's origin when unset")
+		fs.Var(&f.at, "at", "a position, as X,Y")
+		fs.Var(&f.size, "size", "a region's size, as W,H")
+		fs.Var(&f.color, "color", "the pen's or frame's colour, one of "+strings.Join(layout.Colors, ", "))
+		fs.Var(&f.pin, "pin", "the pen's pin point, as X,Y; the pen's origin when unset")
 		fs.Var(&f.members, "member", "a ticket the frame holds; repeatable")
 	})
 	if err != nil {

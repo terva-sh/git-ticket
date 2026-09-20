@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T18:12:48Z
-updated_at: 2026-09-20T18:40:32Z
+updated_at: 2026-09-20T18:43:11Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -84,3 +84,7 @@ Terva review 53 reviewed ef53d2d1e2af: one high, one low, both accepted. check -
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T18:40:32Z
 
 Terva review 56 reviewed 23ee2ac82fc8: one medium, one low. Archived tickets reported as missing from a layout: declined. The existence callback reads the map Check builds from load(), which walks every store directory including archive/, so an archived ticket is present there; the name live means parsed, not open. The layout-ticket-missing fixture now carries an archived ticket as a frame member and its expectation is unchanged, which holds the answer. A repair reported when a concurrent save had already made the file canonical: accepted. Canonicalize's changed result now decides whether the repair is in the report, through one applyRepairs that every repair kind goes through, with a test that canonicalises between planning and applying.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T18:43:11Z
+
+Terva's fifth round found nothing at 65c57709099a and the clean status is on the head; Forgejo CI is green. PR 215 is ready for the maintainer's merge, to release as v0.23.0 together with the match record on the stacked branch t3code/match-record if that lands first.

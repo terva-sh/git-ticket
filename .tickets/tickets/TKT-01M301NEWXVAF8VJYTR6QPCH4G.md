@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T18:36:12Z
-updated_at: 2026-09-20T18:55:13Z
+updated_at: 2026-09-20T18:58:05Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -85,6 +85,10 @@ No new store fixture, which the ticket asked to be decided and said. testdata/RE
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T18:55:13Z
 
 How a pen decodes, since it is the part most likely to be misread later. UnmarshalYAML cannot see the file's schema, so the pen decoder accepts exactly one of match or requiredLabels and Parse then refuses the wrong one for that schema, which extends the existing rule that routing fields require schema 3. The JSON decoder takes match only, since the one JSON writer is the canvas server replacing a whole Routing and it is built against this package. decodeYAMLRecord and decodeJSONRecord now take a recordFields of required, optional and oneOf, which is also what let the match record reject an unknown field: a nested yaml.Node decode does not inherit KnownFields from the document decoder.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T18:58:05Z
+
+Terva's first round found nothing at 8481d88f4ce5, reviewed against the stacked base b19bcd561104, and Forgejo CI is green. PR 216 is ready for the maintainer's merge after PR 215; both release as v0.23.0, and this ticket closes when that release is named and the canvas has bumped to it.
 
 ## Summary
 

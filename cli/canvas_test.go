@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const testLayout = `schema: 3
+const testLayout = `schema: 4
 board: "default"
 cards:
   "%s": {x: 120, y: -40}
@@ -21,7 +21,7 @@ pens:
     h: 400
     color: "#759bcc"
     pin: {x: 20, y: 20}
-    requiredLabels: ["frontend"]
+    match: {labels: ["frontend"]}
   "fe-bugs":
     title: "Frontend bugs"
     x: 700
@@ -30,23 +30,37 @@ pens:
     h: 400
     color: "#b499be"
     pin: {x: 720, y: 20}
-    requiredLabels: ["frontend", "bug"]
-ruleOrder: ["fe", "fe-bugs"]
+    match: {labels: ["frontend", "bug"]}
+  "ready":
+    title: "Ready or blocked"
+    x: 1400
+    y: 0
+    w: 600
+    h: 400
+    color: "#89ad97"
+    pin: {x: 1420, y: 20}
+    match: {status: ["ready", "blocked"]}
+ruleOrder: ["fe", "fe-bugs", "ready"]
 inbox: {x: -300, y: 0}
 `
 
-// canvasStore makes a store with three tickets and a layout that pins one of
+// canvasStore makes a store with four tickets and a layout that pins one of
 // them. It returns the directory and the IDs in the order filed: a frontend
-// bug (automatic), a backend ticket (automatic, unmatched), and a frontend
-// ticket that is pinned.
-func canvasStore(t *testing.T) (dir string, feBug, backend, pinned string) {
+// bug (automatic), a backend ticket (automatic, unmatched), a frontend ticket
+// that is pinned, and an unlabelled ticket promoted to ready, which the third
+// pen catches on its status and no label would.
+func canvasStore(t *testing.T) (dir string, feBug, backend, pinned, ready string) {
 	t.Helper()
 	dir = newStore(t)
 	feBug = createTicket(t, dir, "--label", "frontend", "--label", "bug")["ticket"].(map[string]any)["id"].(string)
 	backend = createTicket(t, dir, "--label", "backend")["ticket"].(map[string]any)["id"].(string)
 	pinned = createTicket(t, dir, "--label", "frontend")["ticket"].(map[string]any)["id"].(string)
+	ready = createTicket(t, dir)["ticket"].(map[string]any)["id"].(string)
+	if got := runCLI(t, dir, nil, "status", ready, "ready", "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatalf("promoting a draft to ready: %s%s", got.stdout, got.stderr)
+	}
 	writeLayout(t, dir, strings.ReplaceAll(testLayout, "%s", pinned))
-	return dir, feBug, backend, pinned
+	return dir, feBug, backend, pinned, ready
 }
 
 func writeLayout(t *testing.T, dir, content string) {
@@ -65,14 +79,15 @@ func writeLayout(t *testing.T, dir, content string) {
 // second one; the backend ticket falls through to the inbox; the pinned card
 // is listed apart with its coordinate.
 func TestCanvasShowRoutesByFirstMatchAndListsPinsApart(t *testing.T) {
-	dir, feBug, backend, pinned := canvasStore(t)
+	dir, feBug, backend, pinned, ready := canvasStore(t)
 	got := runCLI(t, dir, nil, "canvas", "show")
 	if got.code != exitOK {
 		t.Fatalf("canvas show exited %d: %s%s", got.code, got.stdout, got.stderr)
 	}
 	for _, want := range []string{
-		"1  fe  Frontend  labels: frontend  catches 1",
-		"2  fe-bugs  Frontend bugs  labels: frontend, bug  catches 0",
+		"1  fe  Frontend  labels frontend  catches 1",
+		"2  fe-bugs  Frontend bugs  labels frontend, bug  catches 0",
+		"3  ready  Ready or blocked  status ready or blocked  catches 1",
 		"inbox  (-300, 0)  catches 1",
 		"pinned  1, placed by hand; routing does not apply",
 		"(120, -40)",
@@ -95,16 +110,30 @@ func TestCanvasShowRoutesByFirstMatchAndListsPinsApart(t *testing.T) {
 	if pins := env["pinned"].([]any); pins[0].(map[string]any)["id"] != pinned {
 		t.Errorf("pinned = %v, want %s", pins, pinned)
 	}
+	// A pen that tests no label catches on the field it does test, and its
+	// rule travels whole in the envelope, per 10.10.
+	third := pens[2].(map[string]any)
+	if third["tickets"].([]any)[0] != ready {
+		t.Errorf("status pen caught %v, want %s", third["tickets"], ready)
+	}
+	match := third["match"].(map[string]any)
+	if got := match["status"].([]any); len(got) != 2 || got[0] != "ready" || got[1] != "blocked" {
+		t.Errorf("match.status = %v", got)
+	}
+	if got, ok := match["labels"].([]any); !ok || len(got) != 0 {
+		t.Errorf("match.labels = %v, want an empty array", match["labels"])
+	}
 }
 
 func TestCanvasPensPrintsRulesInResolutionOrder(t *testing.T) {
-	dir, _, _, _ := canvasStore(t)
+	dir, _, _, _, _ := canvasStore(t)
 	got := runCLI(t, dir, nil, "canvas", "pens")
 	if got.code != exitOK {
 		t.Fatalf("canvas pens exited %d: %s", got.code, got.stderr)
 	}
 	lines := strings.Split(strings.TrimSpace(got.stdout), "\n")
-	if len(lines) != 2 || !strings.HasPrefix(lines[0], "1") || !strings.Contains(lines[0], "fe ") || !strings.HasPrefix(lines[1], "2") {
+	if len(lines) != 3 || !strings.HasPrefix(lines[0], "1") || !strings.Contains(lines[0], "fe ") || !strings.HasPrefix(lines[1], "2") ||
+		!strings.Contains(lines[2], "status ready or blocked") {
 		t.Fatalf("pens printed:\n%s", got.stdout)
 	}
 	if env := decode(t, runCLI(t, dir, nil, "--json", "canvas", "pens").stdout); env["kind"] != "canvas-board" {
@@ -113,7 +142,7 @@ func TestCanvasPensPrintsRulesInResolutionOrder(t *testing.T) {
 }
 
 func TestCanvasExplainSaysWhyAndThatRoutingIsNotApplied(t *testing.T) {
-	dir, feBug, backend, pinned := canvasStore(t)
+	dir, feBug, backend, pinned, _ := canvasStore(t)
 
 	got := runCLI(t, dir, nil, "canvas", "explain", feBug)
 	if got.code != exitOK {
@@ -122,8 +151,9 @@ func TestCanvasExplainSaysWhyAndThatRoutingIsNotApplied(t *testing.T) {
 	for _, want := range []string{
 		"automatic: the canvas places it by the rules below",
 		"routing:",
-		"goes to pen fe (Frontend): carries frontend",
+		"goes to pen fe (Frontend): labels frontend",
 		"not fe-bugs (rule 2): matches, but an earlier rule took it",
+		"not ready (rule 3): status is draft, rule wants ready or blocked",
 	} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("explain lacks %q:\n%s", want, got.stdout)
@@ -131,7 +161,7 @@ func TestCanvasExplainSaysWhyAndThatRoutingIsNotApplied(t *testing.T) {
 	}
 
 	got = runCLI(t, dir, nil, "canvas", "explain", backend)
-	if !strings.Contains(got.stdout, "goes to the inbox (-300, 0): no rule matched") || !strings.Contains(got.stdout, "not fe (rule 1): missing frontend") {
+	if !strings.Contains(got.stdout, "goes to the inbox (-300, 0): no rule matched") || !strings.Contains(got.stdout, "not fe (rule 1): missing labels frontend") {
 		t.Errorf("unmatched explain:\n%s", got.stdout)
 	}
 
@@ -183,6 +213,47 @@ func TestCanvasReportsAMissingLayoutFileWithoutFailing(t *testing.T) {
 	}
 }
 
+// One schema 3 board read through the CLI, because the format has to keep
+// opening what was written before it: requiredLabels reads as match.labels,
+// so the board routes and prints as it did, and check reports it as
+// layout_not_canonical only because a write renders schema 4, per plan 11.
+func TestCanvasReadsASchema3Board(t *testing.T) {
+	dir := newStore(t)
+	feBug := ticketID(t, createTicket(t, dir, "--label", "frontend", "--label", "bug"))
+	writeLayout(t, dir, `schema: 3
+board: "default"
+cards: {}
+frames: {}
+pens:
+  "fe": {title: "Frontend", x: 0, y: 0, w: 600, h: 400, color: "#759bcc", pin: {x: 0, y: 0}, requiredLabels: ["frontend"]}
+ruleOrder: ["fe"]
+inbox: {x: -300, y: 0}
+`)
+	show := runCLI(t, dir, nil, "canvas", "show")
+	if show.code != exitOK || !strings.Contains(show.stdout, "1  fe  Frontend  labels frontend  catches 1") {
+		t.Fatalf("schema 3 show exited %d:\n%s%s", show.code, show.stdout, show.stderr)
+	}
+	routing := decode(t, runCLI(t, dir, nil, "--json", "canvas", "explain", feBug).stdout)["routing"].(map[string]any)
+	if routing["destination"] != "fe" {
+		t.Fatalf("a legacy rule stopped catching what it caught: %v", routing)
+	}
+	c := routing["candidates"].([]any)[0].(map[string]any)
+	if labels := c["match"].(map[string]any)["labels"].([]any); len(labels) != 1 || labels[0] != "frontend" {
+		t.Fatalf("requiredLabels did not read as match.labels: %v", c)
+	}
+	check := decode(t, runCLI(t, dir, nil, "--json", "check").stdout)
+	if codes := findingCodes(check["warnings"]); !strings.Contains(codes, "layout_not_canonical") {
+		t.Fatalf("check warnings = %s", codes)
+	}
+	if fix := runCLI(t, dir, nil, "check", "--fix"); fix.code != exitOK {
+		t.Fatalf("check --fix exited %d: %s%s", fix.code, fix.stdout, fix.stderr)
+	}
+	file := readLayout(t, dir)
+	if !strings.Contains(file, "schema: 4") || !strings.Contains(file, `match: {labels: ["frontend"]}`) {
+		t.Fatalf("check --fix did not rewrite the board at schema 4:\n%s", file)
+	}
+}
+
 func TestCanvasRefusesAnUnknownWord(t *testing.T) {
 	dir := newStore(t)
 	got := runCLI(t, dir, nil, "--json", "canvas", "draw")
@@ -194,7 +265,7 @@ func TestCanvasRefusesAnUnknownWord(t *testing.T) {
 // --board is documented after the word and the ID, and parseFlags reads flags
 // on either side of positionals, so the documented form is the tested form.
 func TestCanvasTakesBoardAfterTheWord(t *testing.T) {
-	dir, feBug, _, _ := canvasStore(t)
+	dir, feBug, _, _, _ := canvasStore(t)
 	for _, args := range [][]string{
 		{"canvas", "show", "--board", "default"},
 		{"canvas", "pens", "--board", "default"},

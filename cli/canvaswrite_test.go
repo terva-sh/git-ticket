@@ -47,7 +47,7 @@ func TestCanvasWritesBuildABoardTheReadWordsAndCheckAccept(t *testing.T) {
 		`ruleOrder: ["forge", "authentik"]`,
 		`inbox: {x: -1400, y: 0}`,
 		`  "` + auth + `": {x: 10, y: 20.5}`,
-		`"forge": {title: "Forges and mirrors", x: 1300, y: 0, w: 1200, h: 900, color: "#89ad97", pin: {x: 1300, y: 0}, requiredLabels: ["forge"]}`,
+		`"forge": {title: "Forges and mirrors", x: 1300, y: 0, w: 1200, h: 900, color: "#89ad97", pin: {x: 1300, y: 0}, match: {labels: ["forge"]}}`,
 		`"sprint": {title: "Sprint 3", x: 0, y: 1000, w: 800, h: 400, color: "#759bcc", members: [` + forge + `]}`,
 	} {
 		if !strings.Contains(file, want) {
@@ -105,7 +105,7 @@ func TestCanvasPenAddWarnsOnALabelOutsideTheAllowlist(t *testing.T) {
 	if !strings.Contains(got.stderr, `pen ops requires "ops", which is not in the config.yml allowlist`) {
 		t.Fatalf("stderr = %q", got.stderr)
 	}
-	if !strings.Contains(readLayout(t, dir), `requiredLabels: ["ops"]`) {
+	if !strings.Contains(readLayout(t, dir), `match: {labels: ["ops"]}`) {
 		t.Fatal("the pen was not written")
 	}
 	check := runCLI(t, dir, nil, "--json", "check")
@@ -117,6 +117,66 @@ func TestCanvasPenAddWarnsOnALabelOutsideTheAllowlist(t *testing.T) {
 	refused := runCLI(t, dir, nil, "canvas", "pen", "add", "ops", "--title", "Again", "--label", "ops", "--at", "0,0", "--size", "1,1")
 	if refused.code == exitOK || strings.Contains(refused.stderr, "allowlist") {
 		t.Fatalf("refused duplicate: code %d, stderr %q", refused.code, refused.stderr)
+	}
+}
+
+// pen add writes the whole rule of plan 12.10, not labels alone: --status,
+// --type and --parent are repeatable, a parent resolves through the store so
+// a prefix works and the full ID is what lands, and the rendered record omits
+// the fields the rule does not test.
+func TestCanvasPenAddWritesTheWholeRule(t *testing.T) {
+	dir := newStore(t)
+	epic := ticketID(t, createTicket(t, dir))
+
+	mustCanvas(t, dir, "pen", "add", "ready", "--title", "Ready or blocked",
+		"--status", "ready", "--status", "blocked", "--at", "0,0", "--size", "100,100")
+	mustCanvas(t, dir, "pen", "add", "epic", "--title", "Under the epic",
+		"--type", "bug", "--parent", epic[:12], "--at", "200,0", "--size", "100,100")
+
+	file := readLayout(t, dir)
+	for _, want := range []string{
+		`match: {status: ["ready", "blocked"]}`,
+		`match: {type: ["bug"], parent: ["` + epic + `"]}`,
+	} {
+		if !strings.Contains(file, want) {
+			t.Errorf("layout lacks %q:\n%s", want, file)
+		}
+	}
+	// pens prints the whole rule in words, with labels read as all of them
+	// and the other three as any of them.
+	pens := mustCanvas(t, dir, "pens").stdout
+	for _, want := range []string{"status ready or blocked", "type bug; parent " + epic} {
+		if !strings.Contains(pens, want) {
+			t.Errorf("pens lacks %q:\n%s", want, pens)
+		}
+	}
+	env := decode(t, mustCanvas(t, dir, "--json", "pens").stdout)
+	match := env["pens"].([]any)[0].(map[string]any)["match"].(map[string]any)
+	if got := match["status"].([]any); len(got) != 2 || got[0] != "ready" {
+		t.Errorf("match.status = %v", got)
+	}
+	for _, field := range []string{"labels", "type", "parent"} {
+		if got, ok := match[field].([]any); !ok || len(got) != 0 {
+			t.Errorf("match.%s = %v, want an empty array", field, match[field])
+		}
+	}
+	if check := runCLI(t, dir, nil, "check", "--strict"); check.code != exitOK {
+		t.Fatalf("check --strict on a board the CLI wrote: %s%s", check.stdout, check.stderr)
+	}
+	// A rule has to test something: a pen with none of the four is refused
+	// before anything is written.
+	bare := runCLI(t, dir, nil, "--json", "canvas", "pen", "add", "bare", "--title", "T", "--at", "0,0", "--size", "1,1")
+	if bare.code == exitOK || !strings.Contains(decode(t, bare.stdout)["error"].(map[string]any)["message"].(string), "--status") {
+		t.Fatalf("a pen with no rule: exit %d, %s", bare.code, bare.stdout)
+	}
+	// A parent that resolves to nothing is ticket_not_found, before the write.
+	ghost := runCLI(t, dir, nil, "--json", "canvas", "pen", "add", "ghost", "--title", "T",
+		"--parent", "TKT-01K3ZZZZZ00000000000000000", "--at", "0,0", "--size", "1,1")
+	if code := decode(t, ghost.stdout)["error"].(map[string]any)["code"]; code != "ticket_not_found" {
+		t.Fatalf("unknown parent = %v", code)
+	}
+	if after := readLayout(t, dir); after != file {
+		t.Fatalf("a refused write changed the file:\n%s", after)
 	}
 }
 

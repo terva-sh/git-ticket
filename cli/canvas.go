@@ -36,6 +36,9 @@ func runCanvas(ctx *cmdContext, args []string) error {
 		fs.StringVar(&board, "board", board, "the board to read or write")
 		fs.Var(&f.title, "title", "the pen's or frame's title")
 		fs.Var(&f.labels, "label", "a label the pen requires; repeatable, and the pen requires all of them")
+		fs.Var(&f.status, "status", "a status the pen catches; repeatable, and any one of them matches")
+		fs.Var(&f.types, "type", "a ticket type the pen catches; repeatable, and any one of them matches")
+		fs.Var(&f.parents, "parent", "a parent the pen catches; repeatable, and any one of them matches")
 		fs.Var(&f.at, "at", "a position, as X,Y")
 		fs.Var(&f.size, "size", "a region's size, as W,H")
 		fs.Var(&f.color, "color", "the pen's or frame's colour, one of "+strings.Join(layout.Colors, ", "))
@@ -81,7 +84,7 @@ func runCanvas(ctx *cmdContext, args []string) error {
 		if err != nil {
 			return err
 		}
-		e := layout.Explain(view.board, layout.RuleTicket{ID: t.ID, Labels: t.Labels})
+		e := layout.Explain(view.board, ruleTicket(t))
 		if ctx.g.json {
 			writeJSON(ctx.out, newCanvasExplainEnvelope(view, t, e))
 			return nil
@@ -152,7 +155,7 @@ func summarize(v *boardView, tickets []*ticket.Ticket) boardSummary {
 	rules := make([]layout.RuleTicket, 0, len(tickets))
 	for _, t := range tickets {
 		byID[t.ID] = t
-		rules = append(rules, layout.RuleTicket{ID: t.ID, Labels: t.Labels})
+		rules = append(rules, ruleTicket(t))
 	}
 	out := boardSummary{catches: map[string][]*ticket.Ticket{}}
 	for _, e := range layout.Route(v.board, rules) {
@@ -170,6 +173,64 @@ func summarize(v *boardView, tickets []*ticket.Ticket) boardSummary {
 	return out
 }
 
+// ruleTicket is what routing reads of a ticket, per plan 12.10. A ticket
+// with no parent carries the empty string, which matches a rule that does not
+// test the field and no rule that does.
+func ruleTicket(t *ticket.Ticket) layout.RuleTicket {
+	r := layout.RuleTicket{ID: t.ID, Labels: t.Labels, Status: t.Status, Type: t.Type}
+	if t.Parent != nil {
+		r.Parent = *t.Parent
+	}
+	return r
+}
+
+// ruleText prints a pen's whole rule in words: the fields it tests, in the
+// order layout names them, with labels read as all of them and the other
+// three as any of them, per plan 12.10.
+func ruleText(m layout.Match) string {
+	var parts []string
+	if len(m.Labels) > 0 {
+		parts = append(parts, "labels "+strings.Join(m.Labels, ", "))
+	}
+	for _, f := range []struct {
+		name   string
+		values []string
+	}{{"status", m.Status}, {"type", m.Type}, {"parent", m.Parent}} {
+		if len(f.values) > 0 {
+			parts = append(parts, f.name+" "+strings.Join(f.values, " or "))
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+// failureText says why a rule passed one ticket over, field by field in the
+// order the candidate reports them, naming what the ticket had beside what
+// the rule wanted. The comparison is the answer, so neither half is left for
+// the reader to go and look up.
+func failureText(c layout.Candidate, t *ticket.Ticket) string {
+	var parts []string
+	for _, field := range c.Failed {
+		switch field {
+		case "labels":
+			parts = append(parts, "missing labels "+strings.Join(c.MissingLabels, ", "))
+		case "status":
+			parts = append(parts, fmt.Sprintf("status is %s, rule wants %s", t.Status, strings.Join(c.Match.Status, " or ")))
+		case "type":
+			parts = append(parts, fmt.Sprintf("type is %s, rule wants %s", t.Type, strings.Join(c.Match.Type, " or ")))
+		case "parent":
+			parts = append(parts, fmt.Sprintf("parent is %s, rule wants %s", orNone(t.Parent), strings.Join(c.Match.Parent, " or ")))
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func orNone(v *string) string {
+	if v == nil || *v == "" {
+		return "none"
+	}
+	return *v
+}
+
 func writeCanvasShow(w io.Writer, v *boardView, s boardSummary) {
 	if !v.exists {
 		writeNoLayout(w, v)
@@ -182,7 +243,7 @@ func writeCanvasShow(w io.Writer, v *boardView, s boardSummary) {
 	for i, id := range v.board.RuleOrder {
 		pen := v.board.Pens[id]
 		caught := s.catches[id]
-		fmt.Fprintf(w, "\n%d  %s  %s  labels: %s  catches %d\n", i+1, id, pen.Title, strings.Join(pen.RequiredLabels, ", "), len(caught))
+		fmt.Fprintf(w, "\n%d  %s  %s  %s  catches %d\n", i+1, id, pen.Title, ruleText(pen.Match), len(caught))
 		writeTicketLines(w, caught)
 	}
 	fmt.Fprintf(w, "\ninbox  %s  catches %d\n", pointText(v.board.Inbox), len(s.inbox))
@@ -209,7 +270,7 @@ func writeCanvasPens(w io.Writer, v *boardView) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, id := range v.board.RuleOrder {
 		pen := v.board.Pens[id]
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\n", i+1, id, pen.Title, strings.Join(pen.RequiredLabels, ", "))
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\n", i+1, id, pen.Title, ruleText(pen.Match))
 	}
 	tw.Flush()
 }
@@ -236,12 +297,12 @@ func writeCanvasExplain(w io.Writer, v *boardView, t *ticket.Ticket, e layout.Ex
 		fmt.Fprintf(w, "  goes to the inbox %s: no rule matched\n", pointText(v.board.Inbox))
 	} else {
 		pen := v.board.Pens[e.Destination]
-		fmt.Fprintf(w, "  goes to pen %s (%s): carries %s\n", e.Destination, pen.Title, strings.Join(pen.RequiredLabels, ", "))
+		fmt.Fprintf(w, "  goes to pen %s (%s): %s\n", e.Destination, pen.Title, ruleText(pen.Match))
 	}
 	for _, c := range e.Candidates {
 		switch c.Outcome {
-		case layout.MissingLabels:
-			fmt.Fprintf(w, "  not %s (rule %d): missing %s\n", c.Pen, c.Order+1, strings.Join(c.Missing, ", "))
+		case layout.NoMatch:
+			fmt.Fprintf(w, "  not %s (rule %d): %s\n", c.Pen, c.Order+1, failureText(c, t))
 		case layout.LaterRule:
 			fmt.Fprintf(w, "  not %s (rule %d): matches, but an earlier rule took it\n", c.Pen, c.Order+1)
 		}
@@ -279,11 +340,13 @@ func num(f float64) string {
 // --- JSON, per plan 10.10 ---------------------------------------------------
 
 type canvasPenJSON struct {
-	ID             string   `json:"id"`
-	Order          int      `json:"order"`
-	Title          string   `json:"title"`
-	RequiredLabels []string `json:"requiredLabels"`
-	Tickets        []string `json:"tickets"`
+	ID    string `json:"id"`
+	Order int    `json:"order"`
+	Title string `json:"title"`
+	// Match is the pen's whole rule, per plan 10.10, and it carries all four
+	// fields as arrays whatever the board file spells.
+	Match   layout.Match `json:"match"`
+	Tickets []string     `json:"tickets"`
 }
 
 type canvasPointJSON struct {
@@ -324,7 +387,7 @@ func newCanvasBoardEnvelope(v *boardView, s boardSummary) canvasBoardEnvelope {
 		Pens: []canvasPenJSON{}, Inbox: canvasInboxJSON{Tickets: ids(s.inbox)}, Pinned: []canvasPinnedJSON{}}
 	for i, id := range v.board.RuleOrder {
 		pen := v.board.Pens[id]
-		env.Pens = append(env.Pens, canvasPenJSON{ID: id, Order: i, Title: pen.Title, RequiredLabels: nonNil(pen.RequiredLabels), Tickets: ids(s.catches[id])})
+		env.Pens = append(env.Pens, canvasPenJSON{ID: id, Order: i, Title: pen.Title, Match: pen.Match, Tickets: ids(s.catches[id])})
 	}
 	if p := v.board.Inbox; p != nil {
 		env.Inbox.At = &canvasPointJSON{X: p.X, Y: p.Y}
@@ -382,11 +445,4 @@ func ids(ts []*ticket.Ticket) []string {
 		out = append(out, t.ID)
 	}
 	return out
-}
-
-func nonNil(s []string) []string {
-	if s == nil {
-		return []string{}
-	}
-	return s
 }

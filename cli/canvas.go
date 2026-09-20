@@ -179,7 +179,6 @@ func writeCanvasShow(w io.Writer, v *boardView, s boardSummary) {
 		}
 		tw.Flush()
 	}
-	fmt.Fprintln(w, "\nrouting is not applied yet: the canvas still places every automatic card in status lanes")
 }
 
 func writeCanvasPens(w io.Writer, v *boardView) {
@@ -208,14 +207,15 @@ func writeCanvasExplain(w io.Writer, v *boardView, t *ticket.Ticket, e layout.Ex
 	}
 	if e.Pinned != nil {
 		fmt.Fprintf(w, "pinned at (%s, %s); routing does not apply\n", num(e.Pinned.X), num(e.Pinned.Y))
+	} else if len(e.Candidates) == 0 {
+		fmt.Fprintln(w, "automatic: the board has no pens, so the canvas places it in status lanes")
 	} else {
-		fmt.Fprintln(w, "automatic: the canvas places it in status lanes")
+		fmt.Fprintln(w, "automatic: the canvas places it by the rules below")
 	}
-	fmt.Fprintln(w, "\nrouting, not applied until the canvas reads rules:")
 	if len(e.Candidates) == 0 {
-		fmt.Fprintf(w, "  goes to the inbox %s: the board has no pens\n", pointText(v.board.Inbox))
 		return
 	}
+	fmt.Fprintln(w, "\nrouting:")
 	if e.Inbox() {
 		fmt.Fprintf(w, "  goes to the inbox %s: no rule matched\n", pointText(v.board.Inbox))
 	} else {
@@ -294,8 +294,9 @@ type canvasBoardEnvelope struct {
 	// Exists is false for a board with no layout file. Every other field is
 	// then what an empty board answers, which is what the canvas would show.
 	Exists bool `json:"exists"`
-	// Applied is false until the canvas places cards by these rules. It is
-	// here so a consumer does not have to know which release changed that.
+	// Applied says the canvas places cards by these rules, which it has since
+	// git-ticket-canvas v0.5.0. It was false before v0.22.0 of this tool, so a
+	// consumer reads the fact rather than a release number.
 	Applied bool               `json:"applied"`
 	Pens    []canvasPenJSON    `json:"pens"`
 	Inbox   canvasInboxJSON    `json:"inbox"`
@@ -303,7 +304,7 @@ type canvasBoardEnvelope struct {
 }
 
 func newCanvasBoardEnvelope(v *boardView, s boardSummary) canvasBoardEnvelope {
-	env := canvasBoardEnvelope{SchemaVersion: schemaVersion, Kind: "canvas-board", Board: v.board.Board, Path: v.path, Exists: v.exists,
+	env := canvasBoardEnvelope{SchemaVersion: schemaVersion, Kind: "canvas-board", Board: v.board.Board, Path: v.path, Exists: v.exists, Applied: true,
 		Pens: []canvasPenJSON{}, Inbox: canvasInboxJSON{Tickets: ids(s.inbox)}, Pinned: []canvasPinnedJSON{}}
 	for i, id := range v.board.RuleOrder {
 		pen := v.board.Pens[id]
@@ -338,10 +339,15 @@ type canvasExplainEnvelope struct {
 }
 
 func newCanvasExplainEnvelope(v *boardView, t *ticket.Ticket, e layout.Explanation) canvasExplainEnvelope {
-	env := canvasExplainEnvelope{SchemaVersion: schemaVersion, Kind: "canvas-explain", Board: v.board.Board, Exists: v.exists, ID: t.ID,
+	env := canvasExplainEnvelope{SchemaVersion: schemaVersion, Kind: "canvas-explain", Board: v.board.Board, Exists: v.exists, ID: t.ID, Applied: true,
 		Placement: "status-lanes", Routing: canvasRoutingJSON{Candidates: e.Candidates}}
 	if env.Routing.Candidates == nil {
 		env.Routing.Candidates = []layout.Candidate{}
+	}
+	// placement is what the board shows: pinned where somebody put it; by the
+	// rules on a board with pens; in status lanes on a board with none.
+	if len(env.Routing.Candidates) > 0 {
+		env.Placement = "rules"
 	}
 	if e.Pinned != nil {
 		env.Pinned = &canvasPointJSON{X: e.Pinned.X, Y: e.Pinned.Y}

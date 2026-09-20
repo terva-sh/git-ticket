@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T18:12:48Z
-updated_at: 2026-09-20T18:35:00Z
+updated_at: 2026-09-20T18:40:32Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -80,3 +80,7 @@ Terva review 52 reviewed b565c1f74b48: one medium, one low, both accepted. Under
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T18:35:00Z
 
 Terva review 53 reviewed ef53d2d1e2af: one high, one low, both accepted. check --fix wrote the planner's canonical bytes with os.WriteFile, outside the layout lock, so a canvas save between planning and repair would have been overwritten; the repair now calls layout.Store.Canonicalize, which re-reads and re-renders under the lock, and a test saves between the two and checks the save survives. An explicit empty flag such as --at= read as absent; string flags now record whether they were passed, and --at= on show and --title= on place are usage errors under test.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T18:40:32Z
+
+Terva review 56 reviewed 23ee2ac82fc8: one medium, one low. Archived tickets reported as missing from a layout: declined. The existence callback reads the map Check builds from load(), which walks every store directory including archive/, so an archived ticket is present there; the name live means parsed, not open. The layout-ticket-missing fixture now carries an archived ticket as a frame member and its expectation is unchanged, which holds the answer. A repair reported when a concurrent save had already made the file canonical: accepted. Canonicalize's changed result now decides whether the repair is in the report, through one applyRepairs that every repair kind goes through, with a test that canonicalises between planning and applying.

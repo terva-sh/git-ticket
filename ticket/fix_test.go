@@ -2,6 +2,7 @@ package ticket
 
 import (
 	"context"
+	"github.com/terva-sh/git-ticket/layout"
 	"os"
 	"path/filepath"
 	"strings"
@@ -264,5 +265,49 @@ func TestFixOnACleanStoreDoesNothing(t *testing.T) {
 	}
 	if !res.Report.OK() {
 		t.Errorf("a clean store should stay clean: %v", codesOf(res.Report.Errors))
+	}
+}
+
+// A layout repair is applied through the board's own writer, and a writer
+// that finds the file already canonical, because a canvas saved between
+// planning and applying, reports nothing done, so the repair is not in the
+// result. The store fixtures hold the other half: a planned repair that does
+// change the file is reported.
+func TestLayoutRepairThatChangedNothingIsNotReported(t *testing.T) {
+	s, err := Init(t.TempDir(), InitOptions{Actor: testActor, Now: fixedClock()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := s.Path()
+	if err := os.MkdirAll(filepath.Join(dir, "canvas"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	board := filepath.Join(dir, "canvas", "default.yml")
+	if err := os.WriteFile(board, []byte("schema: 2\nboard: default\ncards: {}\nframes: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repairs, err := s.planRepairs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var planned []Repair
+	for _, r := range repairs {
+		if r.To == "canvas/default.yml" {
+			planned = append(planned, r)
+		}
+	}
+	if len(planned) != 1 {
+		t.Fatalf("planned %v, want one layout rewrite", repairs)
+	}
+	// A canvas saves the canonical form before the repair is applied.
+	if _, err := layout.New(dir).Canonicalize("default"); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := s.applyRepairs(context.Background(), planned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(applied) != 0 {
+		t.Fatalf("a repair that changed nothing was reported: %v", applied)
 	}
 }

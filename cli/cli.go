@@ -175,6 +175,7 @@ func commands() []command {
 		{"config", "print what this store configured, including the allowlists", "", runConfig},
 		{"series", "list the ID prefixes this store uses, or declare one", "[add NAME | remove NAME]", runSeries},
 		{"actor", "list who this store records writes as, or declare one", "[add ID [--name N] [--default]]", runActor},
+		{"canvas", "read a board's pens and where each card belongs, with no canvas running", "show | pens | explain ID [--board B]", runCanvas},
 		{"instructions", "how to work a ticket store, for an agent; --write installs a summary in AGENTS.md", "[--write] [--core] [--full]", runInstructions},
 		{"completion", "print a shell completion script", "SHELL [--install]", runCompletion},
 		{"self-update", "replace this binary with the latest release", "[--check | --dry-run]", runSelfUpdate},

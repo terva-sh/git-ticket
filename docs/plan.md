@@ -2593,6 +2593,74 @@ exactly what it just dropped.
 `add` on a schema-1 store returns `validation_failed` naming `migrate`, per 5.6.
 Adding `TKT` is the exception, because it is what the store already has.
 
+### 10.10 The canvas kinds
+
+`canvas show` and `canvas pens` answer with `canvas-board`; `canvas explain ID`
+answers with `canvas-explain`. Both read `.tickets/canvas/<board>.yml`, per
+12.10, and neither writes.
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "canvas-board",
+  "board": "default",
+  "path": ".tickets/canvas/default.yml",
+  "exists": true,
+  "applied": false,
+  "pens": [
+    {"id": "fe", "order": 0, "title": "Frontend", "requiredLabels": ["frontend"], "tickets": ["TKT-01M2..."]}
+  ],
+  "inbox": {"at": {"x": -300, "y": 0}, "tickets": ["TKT-01M2..."]},
+  "pinned": [{"id": "TKT-01M2...", "x": 120, "y": -40}]
+}
+```
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "canvas-explain",
+  "board": "default",
+  "exists": true,
+  "id": "TKT-01M2...",
+  "pinned": null,
+  "placement": "status-lanes",
+  "applied": false,
+  "routing": {
+    "destination": "fe",
+    "candidates": [
+      {"pen": "fe", "order": 0, "requiredLabels": ["frontend"], "missingLabels": [], "outcome": "winner"},
+      {"pen": "fe-bugs", "order": 1, "requiredLabels": ["frontend", "bug"], "missingLabels": [], "outcome": "later-rule"}
+    ]
+  }
+}
+```
+
+One kind for `show` and `pens`, because `pens` is `show` with the catches left
+off the page, and a caller that wants the rules alone reads `pens[].` from the
+same envelope. Two kinds rather than one because `explain` answers about one
+ticket and carries the candidates, which the board envelope does not: at a
+hundred cards and ten rules that is a thousand rows nobody asked for.
+
+`exists` is false for a board with no layout file, and the command exits 0,
+because that is a fact about the store rather than a failure to answer. The
+other fields are then what an empty board answers, which is what the canvas
+would show. `path` is repository-relative, per section 10.
+
+`applied` is false until the canvas places cards by these rules. Until then the
+canvas puts every automatic card in status lanes, so `routing` reports what the
+rules say and `placement` reports what the board shows, and the two disagree on
+purpose. The flag is here so a consumer reads the fact rather than a release
+number. When the canvas reads rules the flag turns true and nothing else in the
+envelope changes shape.
+
+`routing.destination` is the winning pen's id, or null for the inbox. A pinned
+card still carries a destination: it is where the card would go if released,
+which is the question a person asks before releasing it. `candidates` lists
+every pen once, in `ruleOrder`, with `outcome` one of `winner`, `missing-labels`
+and `later-rule`; `missingLabels` says which of the rule's labels the ticket
+lacked. The resolution is first match in order, per 12.10, so `later-rule` is a
+rule that would take the ticket if the ones above it were removed.
+
 ## 11. Validation
 
 `check` runs offline, is safe in CI, and separates errors from warnings. It
@@ -2845,6 +2913,9 @@ git ticket instructions [--write] [--core] [--full]
 git ticket schema
 git ticket config   # what this store configured, including the allowlists
 git ticket series [add NAME | remove NAME]   # the ID prefixes this store uses, per 5.6
+git ticket canvas show [--board B]           # each pen, its rule, and the tickets it catches, per 12.10
+git ticket canvas pens [--board B]           # the rules in resolution order
+git ticket canvas explain ID [--board B]     # where one card is and why
 git ticket actor  [add ID [--name N] [--default]]   # who this store records writes as, per 4.1
 git ticket self-update [--check | --dry-run]   # replace this binary with the latest release, per 12.6
 ```
@@ -3842,10 +3913,24 @@ The format lives here, in `github.com/terva-sh/git-ticket/layout`, since
 because the two things that need it next cannot reach a package internal to
 the viewer: `check` should validate a layout in the same pass as every other
 file, and a `git ticket canvas` family of commands should read and write rules
-without a browser. The canvas imports the package; the CLI does not use it yet,
-and `check` does not read the file yet. Both are tracked in the canvas
-repository's store under TKT-01M2ND0S8N5Y8V0HQFRCBKMXE3 (Let an agent organize
-a board), which also holds the design the package will grow toward.
+without a browser. The canvas imports the package; `git ticket canvas show`,
+`pens`, and `explain` read it, per 12.1 and 10.10, and are the first commands
+to. `check` does not read the file yet, and no command writes it; both are
+tracked in the canvas repository's store under TKT-01M2ND0S8N5Y8V0HQFRCBKMXE3
+(Let an agent organize a board), which also holds the design the package grows
+toward.
+
+Routing, the answer to where a card nobody placed by hand belongs, has one
+implementation, `layout.Route`, and the contract is three steps in order: a
+card with a saved coordinate is pinned and no rule places it; otherwise the
+first pen in `ruleOrder` whose `requiredLabels` the ticket all carries;
+otherwise the inbox. A pinned card's explanation still reports the rules'
+answer, as where it would go if released, per 10.10; a consumer that places
+cards reads the pin first and the rules only for a card without one. First match in order, not most specific: a person who
+wants a narrower rule to win writes it higher, which is a fact they can read
+back, where specificity is a number they would have to compute. The canvas does
+not place cards by this yet, and every command that reports routing says so
+until it does.
 
 The package carries its own atomic writer and mutex rather than the store lock
 of section 7. That is how it arrived and it is left alone on purpose: joining

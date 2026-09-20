@@ -269,6 +269,8 @@ git ticket note TKT-01K3ZZ2J --show 2-4  # read a range of them in full
 git ticket remove TKT-01K3ZZ2J    # a ticket filed by mistake, before anybody worked it
 
 git ticket series add LED         # a second ID prefix this store may mint
+git ticket canvas show            # each pen on the board, its rule, and what it catches
+git ticket canvas explain TKT-01K3ZZ2J   # where one card belongs and why, with no canvas running
 git ticket actor                  # who this store records writes as
 git ticket actor add human:you --default   # fills an empty roster without an editor
 git ticket export TKT-01K3ZZ2J --out ./handoff   # hand tickets to another project

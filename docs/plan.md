@@ -2614,7 +2614,7 @@ write carries, and the file is as it was.
   "exists": true,
   "applied": true,
   "pens": [
-    {"id": "fe", "order": 0, "title": "Frontend", "requiredLabels": ["frontend"], "tickets": ["TKT-01M2..."]}
+    {"id": "fe", "order": 0, "title": "Frontend", "match": {"labels": ["frontend"], "status": [], "type": [], "parent": []}, "tickets": ["TKT-01M2..."]}
   ],
   "inbox": {"at": {"x": -300, "y": 0}, "tickets": ["TKT-01M2..."]},
   "pinned": [{"id": "TKT-01M2...", "x": 120, "y": -40}]
@@ -2634,8 +2634,8 @@ write carries, and the file is as it was.
   "routing": {
     "destination": "fe",
     "candidates": [
-      {"pen": "fe", "order": 0, "requiredLabels": ["frontend"], "missingLabels": [], "outcome": "winner"},
-      {"pen": "fe-bugs", "order": 1, "requiredLabels": ["frontend", "bug"], "missingLabels": [], "outcome": "later-rule"}
+      {"pen": "fe", "order": 0, "match": {"labels": ["frontend"], "status": [], "type": [], "parent": []}, "missingLabels": [], "failed": [], "outcome": "winner"},
+      {"pen": "ready", "order": 1, "match": {"labels": [], "status": ["ready", "blocked"], "type": [], "parent": []}, "missingLabels": [], "failed": ["status"], "outcome": "no-match"}
     ]
   }
 }
@@ -2665,10 +2665,24 @@ a pen is the canvas's to compute, per 12.10, so no coordinate is here.
 `routing.destination` is the winning pen's id, or null for the inbox. A pinned
 card still carries a destination: it is where the card would go if released,
 which is the question a person asks before releasing it. `candidates` lists
-every pen once, in `ruleOrder`, with `outcome` one of `winner`, `missing-labels`
-and `later-rule`; `missingLabels` says which of the rule's labels the ticket
-lacked. The resolution is first match in order, per 12.10, so `later-rule` is a
-rule that would take the ticket if the ones above it were removed.
+every pen once, in `ruleOrder`, with `outcome` one of `winner`, `no-match` and
+`later-rule`. The resolution is first match in order, per 12.10, so
+`later-rule` is a rule that would take the ticket if the ones above it were
+removed.
+
+`match` is the pen's whole rule, the record of 12.10, and it carries all four
+of `labels`, `status`, `type` and `parent` on every pen, as arrays and never
+null, whatever the board file spells. A field that is empty there is a field
+the rule does not test, which is a fact a consumer reads rather than infers
+from a missing key.
+
+`failed` names the fields the ticket did not satisfy, among `labels`,
+`status`, `type` and `parent`, in that order, and is empty on a rule the
+ticket matched. `missingLabels` is the labels of `match.labels` the ticket
+lacks, which is the one failure worth spelling out per value, since the other
+three fields hold one value on a ticket and the candidate already carries what
+the rule wanted. The outcome is `no-match` rather than `missing-labels`
+because a rule can now fail on a field with no labels in it.
 
 ## 11. Validation
 
@@ -2788,7 +2802,7 @@ broken file. The other two are warnings because the store is valid and the
 canvas opens the board. A card for a ticket the store lacks is stale or is for
 a ticket on another branch, and only a person knows which, so
 `layout_ticket_missing` reports and stops. A pen label outside the allowlist is
-`label_unknown` with `field` set to `pens.ID.requiredLabels`, rather than a
+`label_unknown` with `field` set to `pens.ID.match.labels`, rather than a
 fourth code, because the condition is the one `label_unknown` already names and
 a caller switching on the code wants one case. All four are store-scoped, since
 a board names tickets and labels a file cannot answer for itself, so each has a
@@ -2948,7 +2962,7 @@ git ticket series [add NAME | remove NAME]   # the ID prefixes this store uses, 
 git ticket canvas show [--board B]           # each pen, its rule, and the tickets it catches, per 12.10
 git ticket canvas pens [--board B]           # the rules in resolution order
 git ticket canvas explain ID [--board B]     # where one card is and why
-git ticket canvas pen add ID --title T --label L... --at X,Y --size W,H [--color C] [--pin X,Y] [--board B]   # a rule, appended last
+git ticket canvas pen add ID --title T [--label L...] [--status S...] [--type T...] [--parent ID...] --at X,Y --size W,H [--color C] [--pin X,Y] [--board B]   # a rule, appended last; at least one of the four
 git ticket canvas pen rm ID [--board B]      # drop a rule
 git ticket canvas pen order ID... [--board B]   # every pen once, in resolution order
 git ticket canvas place ID --at X,Y [--board B]   # pin one card where the caller says
@@ -3340,6 +3354,25 @@ All three are taken now for the reason this section already gives for staying at
 `v0.x`: nothing consumes these surfaces yet, so this is the cheapest any of them
 will ever be. Waiting does not avoid a break, it moves it to a release where
 somebody has to be told.
+
+A pen's `requiredLabels` becomes a `match` record at layout schema 4, per
+12.10, and several covered surfaces move with it. The field is gone from the
+board file a writer writes, from `layout.Pen`, and from the pens of the
+`canvas-board` envelope; the `canvas-explain` candidate's `requiredLabels`
+becomes `match` and gains `failed`; the `missing-labels` outcome becomes
+`no-match`, because a rule can now fail on a field that holds no labels; and
+`layout.Match`, which was the function that compared a pen to a ticket, is now
+the type of the rule, with the comparison as the method `Match.Failures`. Each
+is a removal or a change of meaning rather than an addition beside what was
+there, so this is a break and bumps the minor while the module is `v0.x`.
+
+Reading is the half that does not break, and the distinction is the whole of
+why the release is a minor rather than a crisis. A schema 3 board still opens
+and its `requiredLabels` reads as `match.labels`, so no board on disk anywhere
+becomes unreadable and none of them routes differently than it did. What
+breaks is the writing side and the Go API, and the only consumer of either is
+git-ticket-canvas, which reads this format through this package and bumps with
+it.
 
 `label_order` changes what it reports in v0.19.1, and it is recorded here as a
 decision rather than as a break. The rule identifier is unchanged, the
@@ -3980,7 +4013,7 @@ rather than read.
 Routing, the answer to where a card nobody placed by hand belongs, has one
 implementation, `layout.Route`, and the contract is three steps in order: a
 card with a saved coordinate is pinned and no rule places it; otherwise the
-first pen in `ruleOrder` whose `requiredLabels` the ticket all carries;
+first pen in `ruleOrder` whose `match` the ticket satisfies;
 otherwise the inbox. A pinned card's explanation still reports the rules'
 answer, as where it would go if released, per 10.10; a consumer that places
 cards reads the pin first and the rules only for a card without one. First match in order, not most specific: a person who
@@ -3989,6 +4022,36 @@ back, where specificity is a number they would have to compute. The canvas
 places cards by this since git-ticket-canvas v0.5.0, through one function of
 its own that reads the same rule the same way, and the envelopes say so with
 `applied`.
+
+A pen's rule is a `match` record since schema 4: `labels`, `status`, `type`
+and `parent`, each a list and each optional. An absent or empty field matches
+every ticket, and the fields that are present are conjoined, so a pen naming
+`status` and `parent` catches a ticket that satisfies both. At least one field
+has to be present and non-empty, because a pen with no rule at all is not a
+rule: it would catch the whole store from wherever it sat in `ruleOrder`, and
+every rule below it would be dead.
+
+Within a field, `labels` conjoins and the other three do not, which is the
+shape of what they read rather than an inconsistency. A ticket carries many
+labels at once, so a list of them can only mean all of them, which is what
+`requiredLabels` meant and is why a schema 3 board routes unchanged. A ticket
+has one status, one type and one parent, so a list there can only mean any of
+them, and `status: [ready, blocked]` is either.
+
+`parent` holds ticket IDs and is validated by the grammar of 5.6, the way a
+frame member is. `status` and `type` are not checked against the sets of 6.1
+and 5.1: this package cannot import `ticket`, which is the same boundary that
+sent the ID grammar to `internal/idgrammar`, and a status nobody uses catches
+nothing rather than breaking a board. A rule that quietly matches no ticket is
+one a person can see in `canvas show`, where a rule refused at parse time
+would cost the board file its independence from the ticket vocabulary.
+
+A schema 3 file may not carry `match` and a schema 4 file may not carry
+`requiredLabels`, which is the rule that already made the routing fields
+require schema 3, extended one level down. A write renders schema 4 and omits
+an empty field, so a labels-only pen reads much as it did, and an untouched
+schema 3 board is `layout_not_canonical` until `check --fix` rewrites it, per
+11.
 
 The package carries its own atomic writer and its own locks rather than the
 store lock of section 7. In one process a mutex serialises writers, which is

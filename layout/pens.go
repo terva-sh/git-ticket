@@ -106,6 +106,10 @@ func (p *Pen) UnmarshalYAML(node *yaml.Node) error {
 	return decodeYAMLRecord(node, (*plain)(p), penFields)
 }
 
+// Colors are the three a pen or a frame may carry, and the canvas draws no
+// others. They are published so a writer offers the same three.
+var Colors = []string{"#759bcc", "#b499be", "#89ad97"}
+
 func emptyRouting() Routing {
 	return Routing{Pens: map[string]Pen{}, RuleOrder: []string{}, Inbox: &Point{}}
 }
@@ -137,9 +141,7 @@ func validateRouting(r Routing) error {
 		if !finite(p.X) || !finite(p.Y) || !finite(p.W) || !finite(p.H) || round2(p.W) <= 0 || round2(p.H) <= 0 || p.Pin == nil || !finite(p.Pin.X) || !finite(p.Pin.Y) {
 			return fmt.Errorf("invalid pen geometry for %s", id)
 		}
-		switch p.Color {
-		case "#759bcc", "#b499be", "#89ad97":
-		default:
+		if !slices.Contains(Colors, p.Color) {
 			return fmt.Errorf("invalid pen color for %s", id)
 		}
 		if len(p.RequiredLabels) == 0 {

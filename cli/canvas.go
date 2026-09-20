@@ -14,28 +14,39 @@ import (
 	"github.com/terva-sh/git-ticket/ticket"
 )
 
-// runCanvas reads a board without a canvas running, per plan 12.10. Three
-// words: show prints each pen with what it catches, pens prints the rules in
-// resolution order, and explain says where one card is and why.
+// runCanvas is the `git ticket canvas` family, per plan 12.10. Three words
+// read: show prints each pen with what it catches, pens prints the rules in
+// resolution order, and explain says where one card is and why. Seven write:
+// pen add, pen rm, pen order, place, release, frame add, and inbox, each
+// through one layout.Modify that validates before it renames, so a refused
+// write leaves the file as it was. The write words are in canvaswrite.go.
 //
-// It is one command with words rather than three commands, the way series is,
-// because the three answer one question from one file and a caller that has
+// It is one command with words rather than ten commands, the way series is,
+// because they all answer one question from one file and a caller that has
 // found `canvas` has found all of them.
 //
-// Nothing here computes a position. The canvas still places every unpinned
-// card in status lanes, so what these commands report as routing is what the
-// rules say and not yet what the board shows, and explain says so in as many
-// words. The heading that says it goes when the canvas reads the rules.
+// Nothing here computes a position. place writes the coordinate its caller
+// chose and everything else writes rules; where a card lands within a pen is
+// the canvas's to compute, and the one thing this file must never grow is a
+// second copy of that.
 func runCanvas(ctx *cmdContext, args []string) error {
 	board := layout.DefaultBoard
+	var f canvasFlags
 	rest, err := ctx.parseFlags("canvas", args, func(fs *flag.FlagSet) {
-		fs.StringVar(&board, "board", board, "the board to read")
+		fs.StringVar(&board, "board", board, "the board to read or write")
+		fs.StringVar(&f.title, "title", "", "the pen's or frame's title")
+		fs.Var(&f.labels, "label", "a label the pen requires; repeatable, and the pen requires all of them")
+		fs.StringVar(&f.at, "at", "", "a position, as X,Y")
+		fs.StringVar(&f.size, "size", "", "a region's size, as W,H")
+		fs.StringVar(&f.color, "color", "", "the pen's or frame's colour, one of "+strings.Join(layout.Colors, ", "))
+		fs.StringVar(&f.pin, "pin", "", "the pen's pin point, as X,Y; the pen's origin when unset")
+		fs.Var(&f.members, "member", "a ticket the frame holds; repeatable")
 	})
 	if err != nil {
 		return err
 	}
 	if len(rest) == 0 {
-		return usageErr("canvas takes a word: show, pens, or explain ID")
+		return usageErr("canvas takes a word: %s", canvasWords)
 	}
 	word := rest[0]
 	switch word {
@@ -47,8 +58,13 @@ func runCanvas(ctx *cmdContext, args []string) error {
 		if len(rest) != 2 {
 			return usageErr("canvas explain takes one ticket ID")
 		}
+	case "pen", "place", "release", "frame", "inbox":
+		return runCanvasWrite(ctx, board, f, rest)
 	default:
-		return usageErr("%q is not a canvas word; use show, pens, or explain ID", word)
+		return usageErr("%q is not a canvas word; use %s", word, canvasWords)
+	}
+	if err := f.none(); err != nil {
+		return usageErr("canvas %s reads the board and takes no %s", word, err)
 	}
 
 	s, err := ctx.openStore()

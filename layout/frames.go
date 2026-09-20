@@ -132,9 +132,7 @@ func validateBoard(b *Board) error {
 		if !finite(f.X) || !finite(f.Y) || !finite(f.W) || !finite(f.H) || round2(f.W) <= 0 || round2(f.H) <= 0 {
 			return fmt.Errorf("invalid frame geometry for %s", id)
 		}
-		switch f.Color {
-		case "#759bcc", "#b499be", "#89ad97":
-		default:
+		if !slices.Contains(Colors, f.Color) {
 			return fmt.Errorf("invalid frame color for %s", id)
 		}
 		for _, member := range f.Members {

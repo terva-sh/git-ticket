@@ -2597,7 +2597,12 @@ Adding `TKT` is the exception, because it is what the store already has.
 
 `canvas show` and `canvas pens` answer with `canvas-board`; `canvas explain ID`
 answers with `canvas-explain`. Both read `.tickets/canvas/<board>.yml`, per
-12.10, and neither writes.
+12.10. The write words of 12.1, `pen add`, `pen rm`, `pen order`, `place`,
+`release`, `frame add` and `inbox`, answer with `canvas-board` too, as the
+board after the write, because what a caller wants back from a write is the
+same thing `show` would say next and one kind is one parser. A refused write
+is an `error` envelope under `validation_failed`, the code a refused ticket
+write carries, and the file is as it was.
 
 ```json
 {
@@ -2942,6 +2947,13 @@ git ticket series [add NAME | remove NAME]   # the ID prefixes this store uses, 
 git ticket canvas show [--board B]           # each pen, its rule, and the tickets it catches, per 12.10
 git ticket canvas pens [--board B]           # the rules in resolution order
 git ticket canvas explain ID [--board B]     # where one card is and why
+git ticket canvas pen add ID --title T --label L... --at X,Y --size W,H [--color C] [--pin X,Y] [--board B]   # a rule, appended last
+git ticket canvas pen rm ID [--board B]      # drop a rule
+git ticket canvas pen order ID... [--board B]   # every pen once, in resolution order
+git ticket canvas place ID --at X,Y [--board B]   # pin one card where the caller says
+git ticket canvas release ID... [--board B]  # hand cards back to the rules
+git ticket canvas frame add ID --title T --at X,Y --size W,H [--color C] [--member ID...] [--board B]
+git ticket canvas inbox --at X,Y [--board B] # where unmatched cards land
 git ticket actor  [add ID [--name N] [--default]]   # who this store records writes as, per 4.1
 git ticket self-update [--check | --dry-run]   # replace this binary with the latest release, per 12.6
 ```
@@ -3940,11 +3952,29 @@ because the two things that need it next cannot reach a package internal to
 the viewer: `check` should validate a layout in the same pass as every other
 file, and a `git ticket canvas` family of commands should read and write rules
 without a browser. The canvas imports the package; `git ticket canvas show`,
-`pens`, and `explain` read it, per 12.1 and 10.10, and are the first commands
-to. `check` does not read the file yet, and no command writes it; both are
-tracked in the canvas repository's store under TKT-01M2ND0S8N5Y8V0HQFRCBKMXE3
-(Let an agent organize a board), which also holds the design the package grows
-toward.
+`pens`, and `explain` read it, per 12.1 and 10.10, and since 2026-09-21 `pen
+add`, `pen rm`, `pen order`, `place`, `release`, `frame add` and `inbox` write
+it, and `check` reads every board in the same pass as the tickets, per 11.
+The design the package grows toward is in the canvas repository's store under
+TKT-01M2ND0S8N5Y8V0HQFRCBKMXE3 (Let an agent organize a board).
+
+Every write goes through one `layout.Store.Modify`: load, edit, validate,
+normalise, rename. Validation runs before the rename, so a write the package
+would refuse leaves the file exactly as it was, and what the CLI writes is the
+canonical form a canvas save writes, so `check` has nothing to say about it.
+No write computes a card position. `place` writes the coordinate its caller
+chose, and everything else writes rules; a pen's pin defaults to its origin
+because the resolver below reads no pin, and a person who wants one names it.
+`frame add` takes an ID and a region where the design sketch took neither,
+because the record requires both and nothing here invents them.
+
+The layout package no longer imports `ticket`. `check` reads a board through
+`layout.Check`, so `ticket` imports `layout`, and the one thing `layout` needed
+from `ticket`, the ID grammar of 5.6, moved to `internal/idgrammar`, which both
+read. `layout.Check` reports conditions and `ticket` names the codes, because
+the codes are section 11's to publish, and the two facts a board cannot judge
+alone, whether a ticket exists and whether a label is allowed, are passed in
+rather than read.
 
 Routing, the answer to where a card nobody placed by hand belongs, has one
 implementation, `layout.Route`, and the contract is three steps in order: a
@@ -3960,9 +3990,13 @@ its own that reads the same rule the same way, and the envelopes say so with
 `applied`.
 
 The package carries its own atomic writer and mutex rather than the store lock
-of section 7. That is how it arrived and it is left alone on purpose: joining
-the lock changes when a concurrent canvas and CLI wait on each other, and that
-change belongs to the ticket that first puts both writers on one file.
+of section 7, and the CLI write words, the first second writer on the file,
+left it that way on 2026-09-21. The canvas does not take the store lock for a
+layout write, so taking it in the CLI alone would serialise the CLI against
+itself and nothing else; two processes writing one board at the same moment
+can still lose an update, whichever renames second. Closing that means the
+canvas honouring the same lock, which is the canvas repository's change, and
+until it lands this paragraph is the record that the gap is known.
 
 The rejected alternative was `git-ticket-canvas layout ...` subcommands with
 the schema staying put. It works and touches one repository, and it was

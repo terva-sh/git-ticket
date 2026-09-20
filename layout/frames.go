@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/terva-sh/git-ticket/ticket"
+	"github.com/terva-sh/git-ticket/internal/idgrammar"
 	"gopkg.in/yaml.v3"
 )
 
@@ -138,7 +138,7 @@ func validateBoard(b *Board) error {
 			return fmt.Errorf("invalid frame color for %s", id)
 		}
 		for _, member := range f.Members {
-			if !ticket.ValidID(member) {
+			if !idgrammar.Valid(member) {
 				return fmt.Errorf("invalid frame member %q", member)
 			}
 			if previous, ok := owners[member]; ok {

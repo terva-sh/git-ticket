@@ -228,7 +228,16 @@ func (s *Store) Boards() ([]string, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yml") {
 			continue
 		}
-		names = append(names, strings.TrimSuffix(e.Name(), ".yml"))
+		// Only a name Load would accept is a board. A stray file with a space
+		// or a dot in its name would otherwise be listed and then refused on
+		// open, which is worse than not listing it: the browser offers it as
+		// a board a person can choose and cannot open. Saying why a file was
+		// skipped is check's job once it reads this directory.
+		name := strings.TrimSuffix(e.Name(), ".yml")
+		if !boardNameOK(name) {
+			continue
+		}
+		names = append(names, name)
 	}
 	if len(names) == 0 {
 		names = []string{DefaultBoard}

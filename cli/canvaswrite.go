@@ -22,6 +22,9 @@ const canvasWords = "show, pens, explain ID, pen add ID, pen rm ID, pen order ID
 type canvasFlags struct {
 	title   given
 	labels  stringList
+	status  stringList
+	types   stringList
+	parents stringList
 	at      given
 	size    given
 	color   given
@@ -49,7 +52,8 @@ func (f canvasFlags) set() []string {
 	for _, g := range []struct {
 		name string
 		set  bool
-	}{{"--title", f.title.set}, {"--label", len(f.labels) > 0}, {"--at", f.at.set}, {"--size", f.size.set},
+	}{{"--title", f.title.set}, {"--label", len(f.labels) > 0}, {"--status", len(f.status) > 0},
+		{"--type", len(f.types) > 0}, {"--parent", len(f.parents) > 0}, {"--at", f.at.set}, {"--size", f.size.set},
 		{"--color", f.color.set}, {"--pin", f.pin.set}, {"--member", len(f.members) > 0}} {
 		if g.set {
 			out = append(out, g.name)
@@ -135,10 +139,22 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 				return usageErr("canvas pen add takes one pen ID")
 			}
 			id := rest[2]
-			if err := f.only("--title", "--label", "--at", "--size", "--color", "--pin"); err != nil {
+			if err := f.only("--title", "--label", "--status", "--type", "--parent", "--at", "--size", "--color", "--pin"); err != nil {
 				return usageErr("canvas pen add does not take %s", err)
 			}
-			pen, err := f.pen()
+			// A parent is a ticket, so it resolves through the store the way
+			// a frame member does: a prefix works, a typo is
+			// ticket_not_found before anything is written, and the rule
+			// stores the full ID.
+			parents := make([]string, 0, len(f.parents))
+			for _, ref := range f.parents {
+				t, err := s.Get(context.Background(), ref)
+				if err != nil {
+					return err
+				}
+				parents = append(parents, t.ID)
+			}
+			pen, err := f.pen(parents)
 			if err != nil {
 				return err
 			}
@@ -147,7 +163,7 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 			// names one gets the same treatment, because a pen is often
 			// written for a label that is about to exist. The warning goes
 			// where create's would, so a caller under --json still sees it.
-			for _, label := range pen.RequiredLabels {
+			for _, label := range pen.Match.Labels {
 				if !s.Config().KnownLabel(label) {
 					warn = append(warn, fmt.Sprintf("pen %s requires %q, which is not in the config.yml allowlist; check will warn until it is", id, label))
 				}
@@ -332,18 +348,19 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 	return nil
 }
 
-// pen builds the record pen add writes. The title, at least one label, the
-// origin and the size are required because a pen without any of them is not
-// one the canvas can draw or resolve. The colour defaults to the first of the
-// three the canvas draws, and the pin to the origin: the reference resolver
-// reads no pin, per 12.10, so a person who wants one names it.
-func (f canvasFlags) pen() (layout.Pen, error) {
+// pen builds the record pen add writes, with the parents its caller has
+// already resolved to full IDs. The title, a rule, the origin and the size
+// are required because a pen without any of them is not one the canvas can
+// draw or resolve. The colour defaults to the first of the three the canvas
+// draws, and the pin to the origin: the reference resolver reads no pin, per
+// 12.10, so a person who wants one names it.
+func (f canvasFlags) pen(parents []string) (layout.Pen, error) {
 	var p layout.Pen
 	if strings.TrimSpace(f.title.value) == "" {
 		return p, usageErr("canvas pen add needs --title")
 	}
-	if len(f.labels) == 0 {
-		return p, usageErr("canvas pen add needs at least one --label; the pen catches a ticket carrying all of them")
+	if len(f.labels)+len(f.status)+len(f.types)+len(parents) == 0 {
+		return p, usageErr("canvas pen add needs at least one of --label, --status, --type or --parent; the pen catches a ticket that satisfies every field the rule names")
 	}
 	if !f.at.set || !f.size.set {
 		return p, usageErr("canvas pen add needs --at X,Y and --size W,H, the region the pen fills")
@@ -366,7 +383,12 @@ func (f canvasFlags) pen() (layout.Pen, error) {
 	if color == "" {
 		color = layout.Colors[0]
 	}
-	return layout.Pen{Title: f.title.value, X: at.X, Y: at.Y, W: w, H: h, Color: color, Pin: pin, RequiredLabels: append([]string{}, f.labels...)}, nil
+	return layout.Pen{Title: f.title.value, X: at.X, Y: at.Y, W: w, H: h, Color: color, Pin: pin, Match: layout.Match{
+		Labels: append([]string{}, f.labels...),
+		Status: append([]string{}, f.status...),
+		Type:   append([]string{}, f.types...),
+		Parent: parents,
+	}}, nil
 }
 
 func (f canvasFlags) frame() (layout.Frame, error) {

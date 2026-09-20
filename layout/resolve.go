@@ -1,6 +1,9 @@
 package layout
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // Routing decides where a card nobody has placed by hand belongs. This file is
 // the reference implementation of that decision, per plan 12.10: the canvas
@@ -14,19 +17,27 @@ import "sort"
 //  2. Otherwise the first pen in RuleOrder whose rule the ticket satisfies.
 //  3. Otherwise the Inbox.
 //
-// A rule is satisfied when the ticket carries every one of the pen's
-// RequiredLabels. Nothing here computes a position; that is the canvas's, and
-// the one thing this package must never grow is a second copy of it.
+// A rule is satisfied when the ticket satisfies every field the pen's Match
+// names: it carries all of the labels, and its status, type and parent are
+// each among the values that field lists. Nothing here computes a position;
+// that is the canvas's, and the one thing this package must never grow is a
+// second copy of it.
 //
 // An Explanation for a pinned card still carries the rules' answer, marked by
 // Pinned, because the question asked of a pin is what would happen on
 // releasing it, per plan 10.10. That answer is hypothetical: a consumer that
 // places cards reads Pinned first and the rules' answer only when it is nil.
 
-// RuleTicket is what routing needs to know about a ticket.
+// RuleTicket is what routing needs to know about a ticket. Status, Type and
+// Parent are the ticket's own values, and an empty one is a ticket that has
+// none: it matches a rule that does not test that field and no rule that
+// does.
 type RuleTicket struct {
 	ID     string
 	Labels []string
+	Status string
+	Type   string
+	Parent string
 }
 
 // Outcome is why one rule did or did not take a ticket.
@@ -35,23 +46,34 @@ type Outcome string
 const (
 	// Winner is the first rule in order that the ticket satisfied.
 	Winner Outcome = "winner"
-	// MissingLabels is a rule the ticket did not satisfy; Candidate.Missing
-	// says which labels it lacked.
-	MissingLabels Outcome = "missing-labels"
+	// NoMatch is a rule the ticket did not satisfy; Candidate.Failed says
+	// which of its fields the ticket failed, and MissingLabels which labels
+	// it lacked.
+	NoMatch Outcome = "no-match"
 	// LaterRule is a rule the ticket satisfied after an earlier one already
 	// had. It would take the ticket if the rules above it were removed.
 	LaterRule Outcome = "later-rule"
 )
 
 // Candidate is one rule as it was considered for one ticket, in resolution
-// order. Every pen appears once, so a reader can see what each rule was
-// missing rather than only which one won.
+// order. Every pen appears once, so a reader can see what each rule wanted
+// rather than only which one won.
 type Candidate struct {
-	Pen      string   `json:"pen"`
-	Order    int      `json:"order"`
-	Required []string `json:"requiredLabels"`
-	Missing  []string `json:"missingLabels"`
-	Outcome  Outcome  `json:"outcome"`
+	Pen   string `json:"pen"`
+	Order int    `json:"order"`
+	// Match is the pen's whole rule, so a reader comparing it to the ticket
+	// needs nothing else from the board.
+	Match Match `json:"match"`
+	// MissingLabels is the labels of Match.Labels the ticket lacks, in the
+	// order the rule wrote them. Labels is the one field worth reporting per
+	// value: the other three hold one value on a ticket, and Match already
+	// says what each wanted.
+	MissingLabels []string `json:"missingLabels"`
+	// Failed names the fields the ticket did not satisfy, among labels,
+	// status, type and parent, in that order. It is empty on a rule the
+	// ticket matched.
+	Failed  []string `json:"failed"`
+	Outcome Outcome  `json:"outcome"`
 }
 
 // Explanation is where one ticket's card belongs and why.
@@ -73,25 +95,40 @@ type Explanation struct {
 // Inbox reports whether the explanation routes to the Inbox.
 func (e Explanation) Inbox() bool { return e.Destination == "" }
 
-// Match reports which of a pen's required labels a ticket lacks. An empty
-// result is a match. The order follows the pen's rule, so the answer reads the
-// way the rule was written.
+// Failures reports how one rule met one ticket: the labels the ticket lacks,
+// and the names of the fields it failed. Two empty results are a match.
 //
-// The result is never nil, because it is serialized as missingLabels in the
+// Neither result is ever nil, because both are serialized in the
 // canvas-explain envelope, per plan 10.10, and a consumer reading a match
 // there is promised an empty array rather than null.
-func Match(pen Pen, labels []string) []string {
-	have := make(map[string]bool, len(labels))
-	for _, l := range labels {
+func (m Match) Failures(t RuleTicket) (missingLabels, failed []string) {
+	missingLabels, failed = []string{}, []string{}
+	have := make(map[string]bool, len(t.Labels))
+	for _, l := range t.Labels {
 		have[l] = true
 	}
-	missing := []string{}
-	for _, want := range pen.RequiredLabels {
+	// Labels conjoin: the ticket carries all of them or the field fails, and
+	// which ones it lacks is the part worth naming.
+	for _, want := range m.Labels {
 		if !have[want] {
-			missing = append(missing, want)
+			missingLabels = append(missingLabels, want)
 		}
 	}
-	return missing
+	if len(missingLabels) > 0 {
+		failed = append(failed, "labels")
+	}
+	// The other three disjoin, because a ticket holds one of each: a rule
+	// listing none of them tests nothing and matches every ticket.
+	for _, f := range []struct {
+		name  string
+		has   string
+		wants []string
+	}{{"status", t.Status, m.Status}, {"type", t.Type, m.Type}, {"parent", t.Parent, m.Parent}} {
+		if len(f.wants) > 0 && !slices.Contains(f.wants, f.has) {
+			failed = append(failed, f.name)
+		}
+	}
+	return missingLabels, failed
 }
 
 // Explain routes one ticket against a board. A pinned card is reported with
@@ -110,10 +147,11 @@ func Explain(b *Board, t RuleTicket) Explanation {
 			// reported rather than crashed on, and the rule is skipped.
 			continue
 		}
-		c := Candidate{Pen: id, Order: i, Required: append([]string{}, pen.RequiredLabels...), Missing: Match(pen, t.Labels)}
+		missing, failed := pen.Match.Failures(t)
+		c := Candidate{Pen: id, Order: i, Match: pen.Match, MissingLabels: missing, Failed: failed}
 		switch {
-		case len(c.Missing) > 0:
-			c.Outcome = MissingLabels
+		case len(c.Failed) > 0:
+			c.Outcome = NoMatch
 		case won:
 			c.Outcome = LaterRule
 		default:

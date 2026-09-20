@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M300AM5WJ61BDVW28B2R1ANT
 title: Write board rules from the command line
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -17,16 +17,10 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim:
-  actor: agent:claude/t3code-a6d0ff31
-  branch: t3code/canvas-write
-  worktree: /home/sothr/workspace/git.local.sothr.com/terva-sh/git-ticket
-  commit: 23452cc1d40f2c31d9b809b8426ce2001039ab77
-  claimed_at: 2026-09-20T18:13:17Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-20T18:12:48Z
-updated_at: 2026-09-20T18:43:11Z
+updated_at: 2026-09-20T19:27:27Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -88,3 +82,7 @@ Terva review 56 reviewed 23ee2ac82fc8: one medium, one low. Archived tickets rep
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T18:43:11Z
 
 Terva's fifth round found nothing at 65c57709099a and the clean status is on the head; Forgejo CI is green. PR 215 is ready for the maintainer's merge, to release as v0.23.0 together with the match record on the stacked branch t3code/match-record if that lands first.
+
+## Summary
+
+Merged in PR 215 as fd32d73 and released as v0.23.0 on 2026-09-20. Seven write words under git ticket canvas, each one layout.Store.Modify that validates before it renames; check reads every board with layout_invalid, layout_ticket_missing, layout_not_canonical and label_unknown, and --fix rewrites a non-canonical board under the layout lock; every layout writer takes a file lock on the canvas directory through internal/filelock, which the store lock moved into; the ID grammar lives in internal/idgrammar so ticket can import layout. Five Terva rounds; dispositions are in the notes.

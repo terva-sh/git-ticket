@@ -2606,7 +2606,7 @@ answers with `canvas-explain`. Both read `.tickets/canvas/<board>.yml`, per
   "board": "default",
   "path": ".tickets/canvas/default.yml",
   "exists": true,
-  "applied": false,
+  "applied": true,
   "pens": [
     {"id": "fe", "order": 0, "title": "Frontend", "requiredLabels": ["frontend"], "tickets": ["TKT-01M2..."]}
   ],
@@ -2623,8 +2623,8 @@ answers with `canvas-explain`. Both read `.tickets/canvas/<board>.yml`, per
   "exists": true,
   "id": "TKT-01M2...",
   "pinned": null,
-  "placement": "status-lanes",
-  "applied": false,
+  "placement": "rules",
+  "applied": true,
   "routing": {
     "destination": "fe",
     "candidates": [
@@ -2646,12 +2646,15 @@ because that is a fact about the store rather than a failure to answer. The
 other fields are then what an empty board answers, which is what the canvas
 would show. `path` is repository-relative, per section 10.
 
-`applied` is false until the canvas places cards by these rules. Until then the
-canvas puts every automatic card in status lanes, so `routing` reports what the
-rules say and `placement` reports what the board shows, and the two disagree on
-purpose. The flag is here so a consumer reads the fact rather than a release
-number. When the canvas reads rules the flag turns true and nothing else in the
-envelope changes shape.
+`applied` says the canvas places cards by these rules. It has since
+git-ticket-canvas v0.5.0, and this tool answers true since v0.22.0; from v0.21.0
+it answered false, because the canvas of the day put every automatic card in
+status lanes and `routing` reported what the rules said rather than what the
+board showed. The flag stays so a consumer reads the fact rather than a release
+number, and nothing else in the envelope changed shape when it turned.
+`placement` is what the board shows: `pinned` where somebody put the card,
+`rules` on a board with pens, `status-lanes` on a board with none. Where within
+a pen is the canvas's to compute, per 12.10, so no coordinate is here.
 
 `routing.destination` is the winning pen's id, or null for the inbox. A pinned
 card still carries a destination: it is where the card would go if released,
@@ -3928,9 +3931,10 @@ otherwise the inbox. A pinned card's explanation still reports the rules'
 answer, as where it would go if released, per 10.10; a consumer that places
 cards reads the pin first and the rules only for a card without one. First match in order, not most specific: a person who
 wants a narrower rule to win writes it higher, which is a fact they can read
-back, where specificity is a number they would have to compute. The canvas does
-not place cards by this yet, and every command that reports routing says so
-until it does.
+back, where specificity is a number they would have to compute. The canvas
+places cards by this since git-ticket-canvas v0.5.0, through one function of
+its own that reads the same rule the same way, and the envelopes say so with
+`applied`.
 
 The package carries its own atomic writer and mutex rather than the store lock
 of section 7. That is how it arrived and it is left alone on purpose: joining

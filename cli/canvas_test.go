@@ -76,14 +76,13 @@ func TestCanvasShowRoutesByFirstMatchAndListsPinsApart(t *testing.T) {
 		"inbox  (-300, 0)  catches 1",
 		"pinned  1, placed by hand; routing does not apply",
 		"(120, -40)",
-		"not applied yet",
 	} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("show output lacks %q:\n%s", want, got.stdout)
 		}
 	}
 	env := decode(t, runCLI(t, dir, nil, "--json", "canvas", "show").stdout)
-	if env["kind"] != "canvas-board" || env["exists"] != true || env["applied"] != false {
+	if env["kind"] != "canvas-board" || env["exists"] != true || env["applied"] != true {
 		t.Fatalf("envelope kind/exists/applied = %v/%v/%v", env["kind"], env["exists"], env["applied"])
 	}
 	pens := env["pens"].([]any)
@@ -121,8 +120,8 @@ func TestCanvasExplainSaysWhyAndThatRoutingIsNotApplied(t *testing.T) {
 		t.Fatalf("explain exited %d: %s", got.code, got.stderr)
 	}
 	for _, want := range []string{
-		"automatic: the canvas places it in status lanes",
-		"routing, not applied until the canvas reads rules:",
+		"automatic: the canvas places it by the rules below",
+		"routing:",
 		"goes to pen fe (Frontend): carries frontend",
 		"not fe-bugs (rule 2): matches, but an earlier rule took it",
 	} {
@@ -140,8 +139,11 @@ func TestCanvasExplainSaysWhyAndThatRoutingIsNotApplied(t *testing.T) {
 	if !strings.Contains(got.stdout, "pinned at (120, -40); routing does not apply") {
 		t.Errorf("pinned explain:\n%s", got.stdout)
 	}
+	if env := decode(t, runCLI(t, dir, nil, "--json", "canvas", "explain", feBug).stdout); env["placement"] != "rules" {
+		t.Fatalf("placement on a board with pens = %v, want rules", env["placement"])
+	}
 	env := decode(t, runCLI(t, dir, nil, "--json", "canvas", "explain", pinned).stdout)
-	if env["kind"] != "canvas-explain" || env["placement"] != "pinned" || env["applied"] != false {
+	if env["kind"] != "canvas-explain" || env["placement"] != "pinned" || env["applied"] != true {
 		t.Fatalf("explain envelope = %v", env)
 	}
 	if routing := env["routing"].(map[string]any); routing["destination"] != "fe" {

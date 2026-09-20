@@ -1255,7 +1255,8 @@ tracked file, and it runs from `install-merge-driver` and from no other command.
 Somebody typing that command is asking for exactly that write, which is the
 whole of what it does.
 
-Every call goes through one helper per package, `runGit` in `ticket` and
+Every call goes through one helper per package, `runGit` in `ticket` and in
+`internal/filelock`, which finds the common Git directory for both locks, and
 `readGit` or `writeGit` in `cli`, and `TestGitCommandsAreReadOnly` asserts three
 things: no `exec.Command` in non-test code names a binary other than `git`,
 every one of those calls sits in one of the helpers, and every helper call names
@@ -3989,14 +3990,21 @@ places cards by this since git-ticket-canvas v0.5.0, through one function of
 its own that reads the same rule the same way, and the envelopes say so with
 `applied`.
 
-The package carries its own atomic writer and mutex rather than the store lock
-of section 7, and the CLI write words, the first second writer on the file,
-left it that way on 2026-09-21. The canvas does not take the store lock for a
-layout write, so taking it in the CLI alone would serialise the CLI against
-itself and nothing else; two processes writing one board at the same moment
-can still lose an update, whichever renames second. Closing that means the
-canvas honouring the same lock, which is the canvas repository's change, and
-until it lands this paragraph is the record that the gap is known.
+The package carries its own atomic writer and its own locks rather than the
+store lock of section 7. In one process a mutex serialises writers, which is
+the canvas with two tabs dragging. Across processes every writer takes a file
+lock on the canvas directory, `git-ticket/canvas.lock` under the common Git
+directory beside the store's own lock, or a dot-file in the canvas directory
+outside a repository, through the same `internal/filelock` the store lock
+uses. It arrived on 2026-09-21 with the CLI write words, the first second
+writer on the file: two read-modify-writes that interleave lose one of them
+whichever renames second, and a mutex in one process cannot see the other.
+The canvas takes the same lock the moment it builds against this version,
+because the lock is in the package and not in either caller, which is why it
+is not the store lock of section 7: a layout write touches no ticket, and a
+canvas that had to hold the ticket store's lock to save a drag would wait on
+every ticket write for nothing. The CLI reports a wait that runs out as
+`lock_timeout`, the code of section 10.
 
 The rejected alternative was `git-ticket-canvas layout ...` subcommands with
 the schema staying put. It works and touches one repository, and it was

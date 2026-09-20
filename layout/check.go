@@ -12,14 +12,19 @@ import (
 
 // Modify loads a board, hands it to fn, and writes it back if what fn left is
 // a board this package would accept. It is how `git ticket canvas` writes,
-// per plan 12.10: one read-modify-write under the package mutex, validated
-// before the rename, so a refused write leaves the file exactly as it was.
+// per plan 12.10: one read-modify-write under the package mutex and the
+// canvas directory's file lock, validated before the rename, so a refused
+// write leaves the file exactly as it was and a concurrent writer waits
+// rather than overwrites.
 //
 // fn edits the board in place and returns an error to refuse. It gets a board
 // that Load already normalised, so a card it did not touch renders as it did.
 func (s *Store) Modify(board string, fn func(*Board) error) (*Board, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	b, err := s.Load(board)
 	if err != nil {
 		return nil, err

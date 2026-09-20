@@ -138,6 +138,16 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 			if err != nil {
 				return err
 			}
+			// The allowlist is advisory, per plan 11: create files a ticket
+			// under a label nobody listed and check warns, and a rule that
+			// names one gets the same treatment, because a pen is often
+			// written for a label that is about to exist. The warning goes
+			// where create's would, so a caller under --json still sees it.
+			for _, label := range pen.RequiredLabels {
+				if !s.Config().KnownLabel(label) {
+					fmt.Fprintf(ctx.env.Stderr, "git-ticket: pen %s requires %q, which is not in the config.yml allowlist; check will warn until it is\n", id, label)
+				}
+			}
 			edit = func(b *layout.Board) error {
 				if _, ok := b.Pens[id]; ok {
 					return refusal("board %s already has a pen %s; rm it first, or pick another ID", b.Board, id)
@@ -289,6 +299,9 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 		var te *ticket.Error
 		if errors.As(err, &te) {
 			return err
+		}
+		if errors.Is(err, layout.ErrLockTimeout) {
+			return &ticket.Error{Code: ticket.CodeLockTimeout, Message: "another process is writing the canvas directory: " + err.Error(), Err: err}
 		}
 		return refusal("board %s refused: %v", board, err)
 	}

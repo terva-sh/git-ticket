@@ -1,4 +1,4 @@
-package ticket
+package filelock
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 
 // TestOneLockImplementationPerPlatform holds the build-tag partition to being
 // exclusive and total: every target compiles exactly one definition of
-// tryFlock.
+// TryLock.
 //
 // This test exists because the partition failed silently for the whole life of
 // the project. lock_other.go was tagged !unix, Windows matched it, and every

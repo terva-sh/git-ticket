@@ -1,10 +1,12 @@
 package layout
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeBoardFile(t *testing.T, store, name, content string) {
@@ -159,5 +161,48 @@ frames: {}
 	got, err = Check(store, yes, yes)
 	if err != nil || len(got) != 0 {
 		t.Fatalf("the canonical bytes are not canonical: %v, %v", got, err)
+	}
+}
+
+// Two Stores over one directory stand in for two processes: a canvas and a
+// CLI, or two CLIs. The file lock is per open file, so the second Store's
+// write waits on the first's and times out rather than renaming over it, and
+// goes through once the first is done.
+func TestWritersInSeparateStoresWaitOnTheFileLock(t *testing.T) {
+	store := t.TempDir()
+	writeBoardFile(t, store, "default.yml", canonicalBoard)
+	a, b := New(store), New(store)
+	b.SetLockTimeout(150 * time.Millisecond)
+
+	hold := make(chan struct{})
+	entered := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		_, err := a.Modify("default", func(bd *Board) error {
+			close(entered)
+			<-hold
+			bd.Inbox = &Point{X: 1, Y: 1}
+			return nil
+		})
+		done <- err
+	}()
+	<-entered
+	_, err := b.Modify("default", func(bd *Board) error { bd.Inbox = &Point{X: 2, Y: 2}; return nil })
+	if !errors.Is(err, ErrLockTimeout) {
+		t.Fatalf("second writer got %v, want a lock timeout while the first holds the file", err)
+	}
+	close(hold)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.Modify("default", func(bd *Board) error { bd.Inbox = &Point{X: 2, Y: 2}; return nil })
+	if err != nil || got.Inbox.X != 2 {
+		t.Fatalf("after release: %v, %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(store, DirName, ".lock")); err != nil {
+		t.Fatalf("outside a repository the lock is a dot-file in the canvas directory: %v", err)
+	}
+	if problems, _ := Check(store, func(string) bool { return true }, func(string) bool { return true }); len(problems) != 0 {
+		t.Fatalf("the lock file is reported by Check: %v", problems)
 	}
 }

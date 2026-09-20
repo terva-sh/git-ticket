@@ -178,8 +178,11 @@ func (s *Store) Transaction(board string, cards map[string]*Card, frames map[str
 // RoutingTransaction includes an optional whole-routing replacement in the
 // same read set and atomic write as card and frame edits.
 func (s *Store) RoutingTransaction(board string, cards map[string]*Card, frames map[string]*Frame, routing *Routing, expect *Expectations, validate func() error) (*Board, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	if expect == nil {
 		return nil, errors.New("layout transactions require expect")
 	}
@@ -260,8 +263,11 @@ func (s *Store) RoutingTransaction(board string, cards map[string]*Card, frames 
 // RemoveTicket is deletion cleanup, not undo of manual placement. A nil card in
 // Update or Transaction deliberately leaves membership alone.
 func (s *Store) RemoveTicket(board, id string) (*Board, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	b, err := s.Load(board)
 	if err != nil {
 		return nil, err

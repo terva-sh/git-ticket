@@ -84,6 +84,36 @@ func TestCanvasWritesBuildABoardTheReadWordsAndCheckAccept(t *testing.T) {
 	}
 }
 
+// A pen for a label outside the allowlist is written and warned about, the
+// way create files a ticket under one: the allowlist is advisory, per plan
+// 11, and check reports it as label_unknown either way.
+func TestCanvasPenAddWarnsOnALabelOutsideTheAllowlist(t *testing.T) {
+	dir := newStore(t)
+	cfg := filepath.Join(dir, ".tickets", "config.yml")
+	raw, err := os.ReadFile(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg, []byte(strings.Replace(string(raw), "labels: []", "labels: [frontend]", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := mustCanvas(t, dir, "pen", "add", "fe", "--title", "Frontend", "--label", "frontend", "--at", "0,0", "--size", "1,1")
+	if got.stderr != "" {
+		t.Fatalf("a listed label warned: %s", got.stderr)
+	}
+	got = mustCanvas(t, dir, "--json", "pen", "add", "ops", "--title", "Ops", "--label", "ops", "--at", "0,0", "--size", "1,1")
+	if !strings.Contains(got.stderr, `pen ops requires "ops", which is not in the config.yml allowlist`) {
+		t.Fatalf("stderr = %q", got.stderr)
+	}
+	if !strings.Contains(readLayout(t, dir), `requiredLabels: ["ops"]`) {
+		t.Fatal("the pen was not written")
+	}
+	check := runCLI(t, dir, nil, "--json", "check")
+	if codes := findingCodes(decode(t, check.stdout)["warnings"]); codes != "label_unknown" {
+		t.Fatalf("check warnings = %s", codes)
+	}
+}
+
 // A write refuses rather than producing a layout check would reject, and
 // the file is unchanged after a refusal. Each case is one way to be wrong;
 // the assertion is the same for all of them.

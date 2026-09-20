@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T18:12:48Z
-updated_at: 2026-09-20T18:22:29Z
+updated_at: 2026-09-20T18:29:45Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -68,3 +68,7 @@ Docs: plan 11 tables and the fixture note, 12.1 lines, 12.10, 10.10; testdata/RE
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T18:22:29Z
 
 Built on 2026-09-21; just ci green. Two things worth knowing that the plan does not say. The corpus requires every ticket ID unique across store fixtures, so each layout-* case is one ticket minted for it rather than a copy of clean. And a same-millisecond pair of tickets share ten characters, so the CLI tests pass full IDs to place and --member where a person would type a prefix. Tried and rejected: registering the layout check from layout's init, because the dependency would be invisible and a library caller of Store.Check would silently lack it.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T18:29:45Z
+
+Terva review 50 reviewed 056b41a37474: two medium findings. Concurrent CLI processes could overwrite each other through the in-process mutex alone: accepted. Every layout writer now takes a file lock on the canvas directory, git-ticket/canvas.lock under the common Git directory beside the store lock, through internal/filelock, which the ticket store's lock now also uses; the canvas takes it the moment it builds against this version, so the gap 12.10 had recorded as open is closed for both writers rather than half-closed for one. A pen label outside the allowlist is written and then reported by check: accepted in part. The allowlist is advisory under plan 11 and create files a ticket under an unlisted label without a word, so pen add writes the pen and warns on stderr naming the label, and a test holds that. Refusing would make a rule harder to write than the ticket it catches.

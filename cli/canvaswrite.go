@@ -118,6 +118,9 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 	ls := layout.New(s.Path())
 	var edit func(*layout.Board) error
 	var said string
+	// warn is said after the write lands and not before, so a refused write
+	// never claims that check will warn about something never written.
+	var warn []string
 
 	word := rest[0]
 	switch word {
@@ -145,7 +148,7 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 			// where create's would, so a caller under --json still sees it.
 			for _, label := range pen.RequiredLabels {
 				if !s.Config().KnownLabel(label) {
-					fmt.Fprintf(ctx.env.Stderr, "git-ticket: pen %s requires %q, which is not in the config.yml allowlist; check will warn until it is\n", id, label)
+					warn = append(warn, fmt.Sprintf("pen %s requires %q, which is not in the config.yml allowlist; check will warn until it is", id, label))
 				}
 			}
 			edit = func(b *layout.Board) error {
@@ -294,6 +297,17 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 		said = fmt.Sprintf("inbox of board %s at (%s, %s)", board, num(at.X), num(at.Y))
 	}
 
+	// The JSON answer lists what each pen catches, which needs every ticket.
+	// They are read before the write so that nothing fallible runs between a
+	// committed rename and the report of it: a caller told the write failed
+	// after it landed would retry into a duplicate. A write changes no ticket,
+	// so the listing is as current afterwards as it was before.
+	var tickets []*ticket.Ticket
+	if ctx.g.json {
+		if tickets, err = s.List(context.Background(), ticket.Filter{All: true}); err != nil {
+			return err
+		}
+	}
 	b, err := ls.Modify(board, edit)
 	if err != nil {
 		var te *ticket.Error
@@ -305,12 +319,11 @@ func runCanvasWrite(ctx *cmdContext, board string, f canvasFlags, rest []string)
 		}
 		return refusal("board %s refused: %v", board, err)
 	}
+	for _, w := range warn {
+		fmt.Fprintf(ctx.env.Stderr, "git-ticket: %s\n", w)
+	}
 	view := &boardView{board: b, path: displayPath(s, filepath.Join(ls.Dir(), board+".yml")), exists: true}
 	if ctx.g.json {
-		tickets, err := s.List(context.Background(), ticket.Filter{All: true})
-		if err != nil {
-			return err
-		}
 		writeJSON(ctx.out, newCanvasBoardEnvelope(view, summarize(view, tickets)))
 		return nil
 	}

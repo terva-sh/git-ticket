@@ -26,7 +26,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-20T18:12:48Z
-updated_at: 2026-09-20T18:29:45Z
+updated_at: 2026-09-20T18:31:54Z
 created_by:
   id: agent:claude/t3code-a6d0ff31
   name: ""
@@ -72,3 +72,7 @@ Built on 2026-09-21; just ci green. Two things worth knowing that the plan does 
 **agent:claude/t3code-a6d0ff31** at 2026-09-20T18:29:45Z
 
 Terva review 50 reviewed 056b41a37474: two medium findings. Concurrent CLI processes could overwrite each other through the in-process mutex alone: accepted. Every layout writer now takes a file lock on the canvas directory, git-ticket/canvas.lock under the common Git directory beside the store lock, through internal/filelock, which the ticket store's lock now also uses; the canvas takes it the moment it builds against this version, so the gap 12.10 had recorded as open is closed for both writers rather than half-closed for one. A pen label outside the allowlist is written and then reported by check: accepted in part. The allowlist is advisory under plan 11 and create files a ticket under an unlisted label without a word, so pen add writes the pen and warns on stderr naming the label, and a test holds that. Refusing would make a rule harder to write than the ticket it catches.
+
+**agent:claude/t3code-a6d0ff31** at 2026-09-20T18:31:54Z
+
+Terva review 52 reviewed b565c1f74b48: one medium, one low, both accepted. Under --json the ticket listing ran after the rename, so a listing that failed would report a committed write as failed; it now runs before the write, since a write changes no ticket. The unlisted-label warning printed before Modify could refuse; it is now said only after the write lands, and the test holds that a refused duplicate says nothing about labels.

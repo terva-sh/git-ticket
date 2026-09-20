@@ -112,6 +112,12 @@ func TestCanvasPenAddWarnsOnALabelOutsideTheAllowlist(t *testing.T) {
 	if codes := findingCodes(decode(t, check.stdout)["warnings"]); codes != "label_unknown" {
 		t.Fatalf("check warnings = %s", codes)
 	}
+	// A refused write says nothing about labels, because nothing was written
+	// for check to warn about.
+	refused := runCLI(t, dir, nil, "canvas", "pen", "add", "ops", "--title", "Again", "--label", "ops", "--at", "0,0", "--size", "1,1")
+	if refused.code == exitOK || strings.Contains(refused.stderr, "allowlist") {
+		t.Fatalf("refused duplicate: code %d, stderr %q", refused.code, refused.stderr)
+	}
 }
 
 // A write refuses rather than producing a layout check would reject, and

@@ -3,6 +3,7 @@ package ticket
 import (
 	"context"
 	"fmt"
+	"github.com/terva-sh/git-ticket/layout"
 	"os"
 	"path"
 	"path/filepath"
@@ -201,6 +202,29 @@ func (s *Store) planRepairs() ([]Repair, error) {
 			Codes:   []string{CodeEpicsIndexStale},
 			To:      epicsFile,
 			content: want,
+		})
+	}
+
+	// A board file that is valid but not in the form a save writes has
+	// exactly one correct repair, the bytes a save would write, and layout
+	// hands them over. Every other layout finding is a judgement: a file that
+	// does not parse could be meant a dozen ways, and a card for a ticket the
+	// store lacks may be for a ticket on another branch. The two callbacks
+	// say yes to everything because only NotCanonical is read here.
+	yes := func(string) bool { return true }
+	problems, err := layout.Check(s.path, yes, yes)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range problems {
+		if p.Kind != layout.NotCanonical {
+			continue
+		}
+		out = append(out, Repair{
+			Kind:    RepairRewrite,
+			Codes:   []string{CodeLayoutNotCanonical},
+			To:      p.File,
+			content: p.Canonical,
 		})
 	}
 	return out, nil

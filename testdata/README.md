@@ -81,8 +81,11 @@ and `claim_expired`. The store-scoped codes are out of scope there and belong to
 `stores/`, because no single file can exhibit them: `duplicate_id`,
 `filename_id_mismatch`, `dependency_missing`, `parent_missing`,
 `dependency_cycle`, `parent_cycle`, `location_mismatch`,
-`dependency_archived_incomplete`, `label_unknown`, `milestone_unknown`, and
-`reference_path_unresolved`.
+`dependency_archived_incomplete`, `label_unknown`, `milestone_unknown`,
+`reference_path_unresolved`, and the three `layout_*` codes, which read a
+board under `store/canvas/` against the tickets and the allowlist beside it.
+The `layout-*` cases are the `clean` store with one board file added, so a
+finding there is about the board and never about a ticket.
 
 That scope split is also why a `parse/` fixture is named after its condition
 rather than after its ID. A store fixture must be `<id>.md` because

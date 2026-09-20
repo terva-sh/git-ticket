@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/terva-sh/git-ticket/layout"
 	"os"
 	"path/filepath"
 	"sort"
@@ -335,6 +336,31 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 			Code: CodeEpicsIndexStale, File: epicsFile,
 			Message: "epics.md does not match the epics in this store; run check --fix",
 		})
+	}
+
+	// The board files of 12.10, in the same pass. A board names tickets and
+	// labels, so the two questions it cannot answer alone are answered from
+	// what this pass already read.
+	problems, err := layout.Check(s.path, func(id string) bool { _, ok := live[id]; return ok }, cfg.KnownLabel)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range problems {
+		f := Finding{File: p.File, Field: p.Field, Message: p.Message}
+		switch p.Kind {
+		case layout.Invalid:
+			f.Code = CodeLayoutInvalid
+			r.addError(f)
+		case layout.TicketMissing:
+			f.Code = CodeLayoutTicketMissing
+			r.addWarning(f)
+		case layout.LabelUnknown:
+			f.Code = CodeLabelUnknown
+			r.addWarning(f)
+		case layout.NotCanonical:
+			f.Code = CodeLayoutNotCanonical
+			r.addWarning(f)
+		}
 	}
 
 	sortFindings(r.Errors)

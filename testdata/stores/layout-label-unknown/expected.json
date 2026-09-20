@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "warnings": [
+    {
+      "code": "label_unknown",
+      "file": "canvas/default.yml",
+      "ticket": null,
+      "field": "pens.fe.requiredLabels"
+    }
+  ]
+}

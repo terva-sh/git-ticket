@@ -2700,6 +2700,7 @@ Errors:
 | `invalid_due_on` | a `due_on` that is not a `YYYY-MM-DD` date, per 5.1. A date that has passed is never a finding |
 | `title_too_long` | `title` is longer than 120 characters, per 5.1 |
 | `location_mismatch` | the status and the directory disagree, per section 4; the status wins |
+| `layout_invalid` | a file under `canvas/` that is not a board, per 12.10: its name is outside the board grammar, or it does not parse or validate. One finding per file, because everything downstream of a parse failure would be noise |
 
 Warnings:
 
@@ -2717,6 +2718,8 @@ Warnings:
 | `epics_index_stale` | `epics.md` disagrees with the epics in the store, per section 4 |
 | `migration_incomplete` | a ticket declares a lower `schema` than `config.yml` does, so a migration is unfinished, per 12.5 |
 | `section_heading_demoted` | a body section carries a `###` sub-heading whose name is one of the sections 5.2 owns, so what reads as that section is prose no mutation can reach |
+| `layout_ticket_missing` | a board's card or frame member names a ticket the store does not have, per 12.10. `field` is the record, `cards.ID` or `frames.ID.members` |
+| `layout_not_canonical` | a board file is valid but its bytes are not what a save writes, per 12.10: an older schema, a comment, unsorted records, or float noise |
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
@@ -2770,6 +2773,23 @@ would call every series the store actually declares undeclared.
 `parent_missing` has: it asks whether another file exists, which one file cannot
 answer about itself.
 
+The three `layout_*` codes read `.tickets/canvas/<board>.yml`, the one file
+under the store that is not a ticket, per 12.10, and they landed with the
+`git ticket canvas` write words on 2026-09-21 because a format that can be
+written from the command line has to be checked from it. `layout_invalid` is an
+error for the reason `parse_error` is: a board the canvas cannot open is a
+broken file. The other two are warnings because the store is valid and the
+canvas opens the board. A card for a ticket the store lacks is stale or is for
+a ticket on another branch, and only a person knows which, so
+`layout_ticket_missing` reports and stops. A pen label outside the allowlist is
+`label_unknown` with `field` set to `pens.ID.requiredLabels`, rather than a
+fourth code, because the condition is the one `label_unknown` already names and
+a caller switching on the code wants one case. All four are store-scoped, since
+a board names tickets and labels a file cannot answer for itself, so each has a
+store fixture and none a parse fixture. The layout package reports the
+conditions and `ticket` names the codes, because the codes are this section's
+to publish.
+
 An ID that breaks the grammar of 5.6 will be `parse_error` and not
 `unknown_series`, because `ValidID` refuses it before anything reads the config.
 `unknown_series` is the narrower condition: a well-formed ID whose series this
@@ -2787,16 +2807,17 @@ corpus so the two cannot drift.
 sits. A store outside a Git repository has no root to resolve against, so the
 check is skipped there and reports nothing, per 5.5.
 
-Three findings have exactly one correct repair, and `check --fix` makes them:
+Four findings have exactly one correct repair, and `check --fix` makes them:
 
 | Code | The repair |
 |---|---|
 | `filename_id_mismatch` | rename the file to `<id>.md`, which section 4 fixes and leaves no second reading of |
 | `location_mismatch` | move the file to the directory the status implies, because 6.3 already rules the status wins |
 | `epics_index_stale` | rewrite `epics.md` from the tickets, which are the source it is derived from |
+| `layout_not_canonical` | rewrite the board file as a save would write it, which the layout package renders from the parsed board; nothing authored changes, only its spelling |
 
-Severity does not gate repair. `epics_index_stale` is a warning and the other two
-are errors, and all three are repaired, because the repair pass recomputes what
+Severity does not gate repair. `epics_index_stale` and `layout_not_canonical`
+are warnings and the other two are errors, and all four are repaired, because the repair pass recomputes what
 every file should be rather than walking the findings. A warning is therefore
 exactly as repairable as an error, which is what makes keeping this one a warning
 free rather than merely defensible.
@@ -2806,7 +2827,9 @@ to choose which file keeps the ID, which is a judgement about which ticket is
 the real one. `dependency_missing` is repaired either by dropping the edge or by
 creating the ticket, and only a person knows which was meant. `label_unknown`
 and `milestone_unknown` are each either a typo in the ticket or a gap in the
-allowlist. A tool that guessed at those would be wrong about half of them and
+allowlist. `layout_invalid` and `layout_ticket_missing` are the same shape: a
+board that does not parse could be meant a dozen ways, and a card for a ticket
+the store lacks may be for a ticket on another branch. A tool that guessed at those would be wrong about half of them and
 silent about it, which is worse than reporting and stopping.
 
 `migration_incomplete` is the one finding with exactly one correct repair that

@@ -57,6 +57,10 @@ const (
 	CodeMigrationIncomplete          = "migration_incomplete"
 	CodeOriginMissing                = "origin_missing"
 	CodeSectionHeadingDemoted        = "section_heading_demoted"
+	// The three layout codes read .tickets/canvas/<board>.yml, per 12.10.
+	CodeLayoutInvalid       = "layout_invalid"
+	CodeLayoutTicketMissing = "layout_ticket_missing"
+	CodeLayoutNotCanonical  = "layout_not_canonical"
 )
 
 // OperationCodes lists every code an operation can fail with, per plan section
@@ -88,6 +92,7 @@ var CheckErrorCodes = []string{
 	// Both from 5.6. unknown_series is also an operation code, because create
 	// refuses one and check reports one; the condition is the same either way.
 	CodeUnknownSeries, CodeOriginMissing,
+	CodeLayoutInvalid,
 }
 
 var CheckWarningCodes = []string{
@@ -97,6 +102,7 @@ var CheckWarningCodes = []string{
 	CodeInProgressUnclaimed, CodeBlocksOnNoChildren, CodeTitleLong,
 	CodeEpicsIndexStale, CodeMigrationIncomplete,
 	CodeSectionHeadingDemoted,
+	CodeLayoutTicketMissing, CodeLayoutNotCanonical,
 }
 
 // Error is a coded failure. The code is the stable part; the message is for a

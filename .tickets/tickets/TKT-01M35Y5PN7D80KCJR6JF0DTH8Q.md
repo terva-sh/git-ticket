@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M35Y5PN7D80KCJR6JF0DTH8Q
 title: Read the Terva review settings from organization variables
 type: chore
-status: in-progress
+status: review
 status_reason: null
 priority: normal
 due_on: null
@@ -16,16 +16,10 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim:
-  actor: agent:claude/terva-migration-a
-  branch: build/terva-review-org-variables
-  worktree: /tmp/terva-migration/git-ticket
-  commit: 3ea908e7309be1f14016637ed46650a6fe432536
-  claimed_at: 2026-09-23T01:30:37Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-23T01:30:37Z
-updated_at: 2026-09-23T01:30:37Z
+updated_at: 2026-09-23T01:36:20Z
 created_by:
   id: agent:claude/terva-migration-a
   name: ""
@@ -43,10 +37,10 @@ This repository's terva-review workflow pins the action at an older commit, inst
 
 ## Acceptance criteria
 
-- [ ] The workflow pins the action at 7090fc1, installs Terva 0.138.2 by checksum, and reads provider, URL, model and thinking from the org variables
-- [ ] docs/pr-reviews.md names the new pin and Terva version and points at the org variables instead of listing defaults
-- [ ] A review dispatched from the PR branch reports gpt-6-sol at medium thinking
-- [ ] Every finding from that review carries a disposition here
+- [x] The workflow pins the action at 7090fc1, installs Terva 0.138.2 by checksum, and reads provider, URL, model and thinking from the org variables
+- [x] docs/pr-reviews.md names the new pin and Terva version and points at the org variables instead of listing defaults
+- [x] A review dispatched from the PR branch reports gpt-6-sol at medium thinking
+- [x] Every finding from that review carries a disposition here
 
 ## Implementation plan
 
@@ -58,3 +52,15 @@ Follow the reference consumer, examples/forgejo-review.yml, and docs/installatio
 4. Record the PR, run, reviewed head/base and each finding's disposition here.
 
 Rejected: keeping the values in the workflow as a fallback. The action no longer has defaults on purpose, so that a model nobody in the organization chose never reviews code; a per-repo copy is exactly the drift the variables remove.
+
+## Notes
+
+**agent:claude/terva-migration-a** at 2026-09-23T01:36:20Z
+
+PR: https://git.local.sothr.com/terva-sh/git-ticket/pulls/218. Reviewed head d4e28db4264351f231bc6d364d357903e297b67c, base 3ea908e7309be1f14016637ed46650a6fe432536.
+
+Review request pr-218-migration:agent.claude.terva-migration-a, dispatched from the PR branch so the new workflow ran. Actions run https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/548, Terva run 2a78b93c-387a-44d6-b10a-3a159acead10, clean summary https://git.local.sothr.com/terva-sh/git-ticket/pulls/218#issuecomment-10187. It reported model gpt-6-sol, thinking medium, provider openai-compatible, Terva 0.138.2, model check verified. None of those values is in this repository any more, so they reached the action from the terva-sh organization variables.
+
+Outcome: clean, no findings at any severity, so there is nothing to dispose of. terva-review/code is success on the head. ci / Lint and Test passed on the same head.
+
+The ticket commit after the reviewed head is bookkeeping only and was not re-reviewed. Merge is not authorized by this work; close the ticket when the PR merges.

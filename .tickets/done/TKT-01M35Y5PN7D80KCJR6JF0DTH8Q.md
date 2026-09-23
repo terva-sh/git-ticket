@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M35Y5PN7D80KCJR6JF0DTH8Q
 title: Read the Terva review settings from organization variables
 type: chore
-status: review
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-23T01:30:37Z
-updated_at: 2026-09-23T01:36:20Z
+updated_at: 2026-09-23T01:46:40Z
 created_by:
   id: agent:claude/terva-migration-a
   name: ""
@@ -64,3 +64,7 @@ Review request pr-218-migration:agent.claude.terva-migration-a, dispatched from 
 Outcome: clean, no findings at any severity, so there is nothing to dispose of. terva-review/code is success on the head. ci / Lint and Test passed on the same head.
 
 The ticket commit after the reviewed head is bookkeeping only and was not re-reviewed. Merge is not authorized by this work; close the ticket when the PR merges.
+
+## Summary
+
+Landed on main through PR #218 (https://git.local.sothr.com/terva-sh/git-ticket/pulls/218), merged at cb76681df571e6b9d004f5eb4b7b22e2979906bd on 2026-09-23 with the user's authorization. The terva-review workflow pins terva-action-code-review at 7090fc19699fda481d9138f0dcf73f80ee8cab06, installs Terva 0.138.2 by checksum, and reads provider, base URL, model and thinking from the terva-sh organization variables TERVA_REVIEW_*. docs/pr-reviews.md names the pin and version and points at the variables. The review requested from the PR branch reported gpt-6-sol at medium thinking and was clean, with no findings; CI was green on the merged head.

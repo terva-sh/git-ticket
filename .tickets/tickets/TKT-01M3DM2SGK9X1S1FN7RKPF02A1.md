@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:04:45Z
+updated_at: 2026-09-26T02:17:52Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -45,10 +45,16 @@ This is the core required before export can offer or import can adopt mappings. 
 
 ## Acceptance criteria
 
-- [ ] Versioned tracked registry and ignored local overrides parse and render without config.yml loss
-- [ ] check reports invalid registry and declared identifiers offline; undeclared legacy references stay valid
-- [ ] Library resolver returns safe URL or local target and leaves stored reference bytes intact
+- [x] Versioned tracked registry and ignored local overrides parse and render without config.yml loss
+- [x] check reports invalid registry and declared identifiers offline; undeclared legacy references stay valid
+- [x] Library resolver returns safe URL or local target and leaves stored reference bytes intact
 
 ## Implementation plan
 
 Define a version-1 tracked references.yml parser and deterministic renderer, with strict namespace, store and template validation. Resolve declared references offline to an HTTPS browse URL or a safe local checkout target; keep undeclared references opaque and unchanged. Read ignored references.local.yml only when resolving, while check validates the tracked registry and declared identifiers. Add fixture-backed finding codes, compatibility tests for legacy refs, and a binary smoke run.
+
+## Notes
+
+**agent:codex/reference-registry** at 2026-09-26T02:17:48Z
+
+Implementation decision: Keep the portable version-1 registry in references.yml, independent of config.yml, because older binaries rewrite config and would erase an unfamiliar references key. Keep checkout bindings only in ignored references.local.yml; check reads tracked declarations only, while the resolver reads local bindings on demand and falls back to a portable HTTPS URL. Validate declared identifiers offline; leave undeclared ticket:report and abbreviated origin-ticket: references opaque because imposing a built-in ticket grammar would invalidate existing data. Require literal HTTPS navigation hosts, complete path/query placeholders and whole id capture for ticket-store mappings; reject traversal and unsafe local paths. Full just ci passed, including race tests and strict store check. Built-binary scratch run proved valid registry, distinct reference_identifier_invalid and reference_registry_invalid findings, and that Git ignores malformed local bindings while check remains clean.

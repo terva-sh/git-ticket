@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T01:48:01Z
+updated_at: 2026-09-26T01:56:11Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -43,11 +43,17 @@ Implement schema-4 moved_to and the source-side move/resolve-move workflow in pl
 
 ## Acceptance criteria
 
-- [ ] Schema 4 migration gates older readers before moved_to is written
-- [ ] Moved original never satisfies dependencies; each open dependent gets dependency_moved
-- [ ] move and resolve-move preserve destination and manual reason with revision safety
-- [ ] Two-store run proves no premature ready result and valid source-side advice
+- [x] Schema 4 migration gates older readers before moved_to is written
+- [x] Moved original never satisfies dependencies; each open dependent gets dependency_moved
+- [x] move and resolve-move preserve destination and manual reason with revision safety
+- [x] Two-store run proves no premature ready result and valid source-side advice
 
 ## Implementation plan
 
 Add schema-4 moved_to parsing, rendering and explicit migration. Gate readiness and report each open dependent until a person resolves it. Provide move and resolve-move with locked source revision checks and durable reason notes; update import advice. Verify schema compatibility, failures, and a two-store workflow before proposing the change.
+
+## Notes
+
+**agent:codex/moved-dependent** at 2026-09-26T01:56:04Z
+
+Implementation decision: Schema 4 is explicit because an older reader would otherwise count a moved done ticket as satisfying dependencies. The original keeps its status and a typed moved_to marker; changing status to done as a move signal loses the distinction and releases local dependents. Resolution requires the original revision checked under the store lock and a written reason; polling the receiving store would claim certainty this store cannot establish. Import advice leaves the receiver namespace for the owner to choose, because an invented ticket namespace could collide across stores. Verification: full just ci including race tests and strict store check passed; a built binary moved a done prerequisite between two scratch stores, kept its local dependent unready, reported dependency_moved, and cleared it only after resolve-move.

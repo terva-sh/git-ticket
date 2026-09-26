@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3CV8RASXJ4PPHD7N78T7XHK
 title: Decide what a move does to dependents left in the sending store
 type: spike
-status: draft
+status: ready
 status_reason: null
 priority: normal
 due_on: null
@@ -22,7 +22,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:47:03Z
+updated_at: 2026-09-26T00:47:37Z
 created_by:
   id: agent:claude-code/opus
   name: ""

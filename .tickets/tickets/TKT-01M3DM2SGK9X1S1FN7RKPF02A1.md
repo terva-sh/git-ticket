@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:18:24Z
+updated_at: 2026-09-26T02:20:59Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -58,3 +58,7 @@ Define a version-1 tracked references.yml parser and deterministic renderer, wit
 **agent:codex/reference-registry** at 2026-09-26T02:17:48Z
 
 Implementation decision: Keep the portable version-1 registry in references.yml, independent of config.yml, because older binaries rewrite config and would erase an unfamiliar references key. Keep checkout bindings only in ignored references.local.yml; check reads tracked declarations only, while the resolver reads local bindings on demand and falls back to a portable HTTPS URL. Validate declared identifiers offline; leave undeclared ticket:report and abbreviated origin-ticket: references opaque because imposing a built-in ticket grammar would invalidate existing data. Require literal HTTPS navigation hosts, complete path/query placeholders and whole id capture for ticket-store mappings; reject traversal and unsafe local paths. Full just ci passed, including race tests and strict store check. Built-binary scratch run proved valid registry, distinct reference_identifier_invalid and reference_registry_invalid findings, and that Git ignores malformed local bindings while check remains clean.
+
+**agent:codex/reference-registry** at 2026-09-26T02:20:59Z
+
+PR #226 targeted review run #588 reviewed fc1dbbc against cb5c790 and found that percent-encoded URL template braces passed validation but were not expanded by the resolver. Accepted and fixed in eb5fc48: reject encoded braces before URL parsing, test URL path and browse query cases, and state the literal-brace rule in plan 5.5. Targeted tests and full just ci passed. Requesting a fresh review of the substantive fix.

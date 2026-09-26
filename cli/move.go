@@ -25,11 +25,14 @@ func runMove(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	res, err := ctx.applyTo(s, rest[0], ticket.MoveTo{Ref: to, Reason: reason})
+	// Inspect dependents before the write. A failed query must not turn a
+	// committed move into an apparent failure that a caller retries. This list
+	// is an advisory snapshot; check remains the authority for every open edge.
+	dependents, err := s.Deps(context.Background(), rest[0], ticket.DepsOptions{Dependents: true})
 	if err != nil {
 		return err
 	}
-	dependents, err := s.Deps(context.Background(), res.Ticket.ID, ticket.DepsOptions{Dependents: true})
+	res, err := ctx.applyTo(s, rest[0], ticket.MoveTo{Ref: to, Reason: reason})
 	if err != nil {
 		return err
 	}

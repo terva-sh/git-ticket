@@ -21,6 +21,15 @@ type MergeResult struct {
 	Conflicts []string
 }
 
+// Keep a present but empty moved_to distinct from null. An empty marker is an
+// invalid safety marker that check must report, not a value merge may erase.
+func movedToMergeKey(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return "\x01" + *p
+}
+
 // Clean reports whether the merge settled everything.
 func (r *MergeResult) Clean() bool { return len(r.Conflicts) == 0 }
 
@@ -93,6 +102,14 @@ func Merge(base, ours, theirs []byte) (*MergeResult, error) {
 		{"milestone", deref(b.Milestone), deref(o.Milestone), deref(t.Milestone), func(v string) { m.Milestone = optional(v) }},
 		{"parent", deref(b.Parent), deref(o.Parent), deref(t.Parent), func(v string) { m.Parent = optional(v) }},
 		{"blocks_on", b.BlocksOn, o.BlocksOn, t.BlocksOn, func(v string) { m.BlocksOn = v }},
+		{"moved_to", movedToMergeKey(b.MovedTo), movedToMergeKey(o.MovedTo), movedToMergeKey(t.MovedTo), func(v string) {
+			if v == "" {
+				m.MovedTo = nil
+			} else {
+				value := strings.TrimPrefix(v, "\x01")
+				m.MovedTo = &value
+			}
+		}},
 	}
 	for _, s := range scalars {
 		v, ok := pick3(s.b, s.o, s.t)

@@ -1,0 +1,13 @@
+{
+  "parse": "ok",
+  "roundTrip": "identical",
+  "errors": [
+    {
+      "code": "move_destination_invalid",
+      "file": "move-destination-invalid.md",
+      "ticket": "TKT-01K4ACEE00HV9ZDBB8BEASXBBG",
+      "field": "moved_to"
+    }
+  ],
+  "warnings": []
+}

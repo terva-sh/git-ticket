@@ -152,6 +152,8 @@ func commands() []command {
 		{"search", "search titles, body sections, and references", "QUERY [--regex]", runSearch},
 		{"ui", "browse the store interactively in the terminal", "", runUI},
 		{"status", "move a ticket through the lifecycle", "ID STATUS [--reason R]", runStatus},
+		{"move", "record where a ticket's work moved", "ID --to-ref REF --reason TEXT", runMove},
+		{"resolve-move", "manually resolve a moved dependency", "DEPENDENT --from ORIGINAL --if-source-revision R --reason TEXT [--wait-on LOCAL-ID]", runResolveMove},
 		{"claim", "record that you are working a ticket", "ID [--expires-in D] [--force]", runClaim},
 		{"release", "drop your claim on a ticket", "ID", runRelease},
 		{"link", "add a dependency or a reference", "ID --depends-on OTHER | --ref R", runLink},

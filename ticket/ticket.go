@@ -24,7 +24,7 @@ import (
 // release under 12.4. A store does not move on its own: create stamps the
 // store's declared level rather than this constant, per 12.5, so upgrading a
 // binary migrates nothing.
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 // hasOrigin reports whether a ticket at this schema level carries the origin
 // field, per plan 5.6.
@@ -37,6 +37,8 @@ const SchemaVersion = 3
 // struct field at all, it is an unknown field, so a hand-edited schema-1 file
 // carrying one still round-trips and check still reports it.
 func hasOrigin(schema int) bool { return schema >= 2 }
+
+func hasMovedTo(schema int) bool { return schema >= 4 }
 
 // hasClaimSession reports whether a claim at this schema level carries the
 // session field, per plan 6.4 and 12.5.
@@ -114,7 +116,7 @@ func TerminalStatus(status string) bool {
 	return false
 }
 
-// The two unready reasons that are not a status echo, per plan section 8.
+// Unready reasons that are not a status echo, per plan section 8.
 //
 // ReasonWaitingOnDependencies is spelled out rather than called "blocked"
 // because Readiness.Blocked and the isBlocked key already mean "a dependency or
@@ -132,6 +134,7 @@ func TerminalStatus(status string) bool {
 const (
 	ReasonWaitingOnDependencies = "waiting_on_dependencies"
 	ReasonClaimed               = "claimed"
+	ReasonMoved                 = "moved"
 )
 
 // UnreadyReasons lists every value Readiness.Reason can carry. The empty string
@@ -146,7 +149,7 @@ const (
 var UnreadyReasons = unreadyReasons()
 
 func unreadyReasons() []string {
-	out := make([]string, 0, len(Statuses)+1)
+	out := make([]string, 0, len(Statuses)+2)
 	for _, s := range Statuses {
 		// Every status except ready is its own reason. Ready is missing because a
 		// ticket that is ready and startable has no reason at all, and one that is
@@ -155,7 +158,7 @@ func unreadyReasons() []string {
 			out = append(out, s)
 		}
 	}
-	return append(out, ReasonWaitingOnDependencies, ReasonClaimed)
+	return append(out, ReasonWaitingOnDependencies, ReasonClaimed, ReasonMoved)
 }
 
 // Types lists every valid ticket type, per plan 5.1.
@@ -389,6 +392,9 @@ type Ticket struct {
 	// ticket did before this field existed.
 	BlocksOn   string
 	References []Reference
+	// MovedTo names the foreign ticket where this work went. It is provenance,
+	// never evidence that the foreign work is complete.
+	MovedTo    *string
 	Claim      *Claim
 	Archive    *Archive
 	CreatedAt  Timestamp
@@ -457,6 +463,9 @@ func decodeNodeMap(n *yaml.Node) map[string]any {
 // SatisfiesDependency reports whether a ticket depending on t may proceed: t is
 // done, or archived from done, per plan 6.3.
 func (t *Ticket) SatisfiesDependency() bool {
+	if t.MovedTo != nil {
+		return false
+	}
 	if t.Status == StatusDone {
 		return true
 	}

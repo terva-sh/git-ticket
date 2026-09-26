@@ -855,9 +855,9 @@ func TestSameOwnerLandsAnUnpromotableStatusInDraft(t *testing.T) {
 	if !strings.Contains(adopt.stderr, "status in-progress: not carried, it lands in draft") {
 		t.Errorf("the refused status was not named:\n%s", adopt.stderr)
 	}
-	// The origin is still open, so the advice says how to close it.
-	if !strings.Contains(adopt.stderr, "git ticket status "+id+" done") {
-		t.Errorf("the origin-closing advice omits the status command:\n%s", adopt.stderr)
+	// The origin is still open. A move marker keeps its dependents gated.
+	if !strings.Contains(adopt.stderr, "git ticket move "+id+" --to-ref") || strings.Contains(adopt.stderr, "git ticket status "+id+" done") {
+		t.Errorf("the source-side advice should use move, never a universal done transition:\n%s", adopt.stderr)
 	}
 }
 
@@ -906,7 +906,7 @@ func TestSameOwnerNamesTheOriginItWillNotClose(t *testing.T) {
 	}
 	newID, _ := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all"))[0]["id"].(string)
 
-	want := `git ticket summary ` + childID + ` "Moved to ` + newID + `."`
+	want := `git ticket move ` + childID + ` --to-ref RECEIVER-NAMESPACE:` + newID
 	if !strings.Contains(adopt.stderr, want) {
 		t.Errorf("the advice does not carry %q:\n%s", want, adopt.stderr)
 	}

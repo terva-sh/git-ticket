@@ -359,6 +359,7 @@ type ticketJSON struct {
 	Dependencies []string        `json:"dependencies"`
 	BlocksOn     string          `json:"blocksOn"`
 	References   []referenceJSON `json:"references"`
+	MovedTo      *string         `json:"movedTo"`
 	Claim        *claimJSON      `json:"claim"`
 	Archive      *archiveJSON    `json:"archive"`
 	CreatedAt    *string         `json:"createdAt"`
@@ -517,6 +518,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 		Dependencies: stringSlice(t.Dependencies),
 		BlocksOn:     t.BlocksOn,
 		References:   make([]referenceJSON, 0, len(t.References)),
+		MovedTo:      copyString(t.MovedTo),
 		CreatedAt:    timestamp(&t.CreatedAt),
 		UpdatedAt:    timestamp(&t.UpdatedAt),
 		CreatedBy:    actor(t.CreatedBy),

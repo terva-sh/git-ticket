@@ -673,8 +673,12 @@ func readinessOf(all []*Ticket, now time.Time, claimedElsewhere map[string]bool)
 		// An expired claim does not hold a ticket. It grants no exclusivity to
 		// anyone, so the ticket is available again.
 		held := (t.Claim != nil && !t.Claim.Expired(now)) || claimedElsewhere[t.ID]
-		r.Ready = t.Status == StatusReady && !r.Blocked && !held
-		r.Reason = unreadyReason(t.Status, r.Blocked, held)
+		r.Ready = t.Status == StatusReady && t.MovedTo == nil && !r.Blocked && !held
+		if t.Status == StatusReady && t.MovedTo != nil && !r.Blocked && !held {
+			r.Reason = ReasonMoved
+		} else {
+			r.Reason = unreadyReason(t.Status, r.Blocked, held)
+		}
 
 		out[t.ID] = r
 	}

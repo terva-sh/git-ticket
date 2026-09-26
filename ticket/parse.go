@@ -38,6 +38,9 @@ func knownFieldsAt(schema int) map[string]bool {
 	if hasOrigin(schema) {
 		known["origin"] = true
 	}
+	if hasMovedTo(schema) {
+		known["moved_to"] = true
+	}
 	return known
 }
 
@@ -200,6 +203,8 @@ func decodeFields(t *Ticket, root *yaml.Node) error {
 			t.BlocksOn, err = scalarString(val, key)
 		case "references":
 			t.References, err = decodeReferences(val)
+		case "moved_to":
+			t.MovedTo, err = optionalString(val, key)
 		case "claim":
 			t.Claim, err = decodeClaim(val)
 		case "archive":

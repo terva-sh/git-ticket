@@ -47,6 +47,8 @@ const (
 	CodeBlocksOnNoChildren           = "blocks_on_no_children"
 	CodeLocationMismatch             = "location_mismatch"
 	CodeDependencyArchivedIncomplete = "dependency_archived_incomplete"
+	CodeDependencyMoved              = "dependency_moved"
+	CodeMoveDestinationInvalid       = "move_destination_invalid"
 	CodeClaimExpired                 = "claim_expired"
 	CodeReferencePathUnresolved      = "reference_path_unresolved"
 	CodeReferenceUntyped             = "reference_untyped"
@@ -93,6 +95,7 @@ var CheckErrorCodes = []string{
 	// refuses one and check reports one; the condition is the same either way.
 	CodeUnknownSeries, CodeOriginMissing,
 	CodeLayoutInvalid,
+	CodeDependencyMoved, CodeMoveDestinationInvalid,
 }
 
 var CheckWarningCodes = []string{

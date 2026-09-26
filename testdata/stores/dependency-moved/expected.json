@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "dependency_moved",
+      "file": "tickets/TKT-01K4ABRHN0393ED9MC6ZMFJTDT.md",
+      "ticket": "TKT-01K4ABRHN0393ED9MC6ZMFJTDT",
+      "field": "dependencies"
+    }
+  ],
+  "warnings": []
+}

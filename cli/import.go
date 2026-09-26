@@ -238,14 +238,14 @@ func importAdopt(ctx *cmdContext, s *ticket.Store, plan *ticket.ImportPlan, same
 	// a ticket that left done arrives done. The default's wording does not move.
 	if sameOwner {
 		fmt.Fprintf(ctx.env.Stderr, "%s filed. Review, then commit.\n", plural(len(res.Filed), "ticket"))
-		importCloseOrigin(ctx, plan, res)
+		importMarkOriginMoved(ctx, plan, res)
 	} else {
 		fmt.Fprintf(ctx.env.Stderr, "%s filed as draft. Review, then commit.\n", plural(len(res.Filed), "ticket"))
 	}
 	return nil
 }
 
-// importCloseOrigin prints the commands that close each ticket at the origin.
+// importMarkOriginMoved prints the source-side inspection and move commands.
 //
 // Advice, and never the action. The sending store is another working tree, and
 // 7.3 is explicit that a sync helper must never rewrite one; a command that
@@ -255,17 +255,14 @@ func importAdopt(ctx *cmdContext, s *ticket.Store, plan *ticket.ImportPlan, same
 //
 // It is the same move the preview already makes when it offers `git am`: name
 // the better route and let the reader take it.
-func importCloseOrigin(ctx *cmdContext, plan *ticket.ImportPlan, res *ticket.ImportResult) {
-	fmt.Fprintf(ctx.env.Stderr, "\nNothing here wrote the sending store. To close the origin, run these there:\n")
+func importMarkOriginMoved(ctx *cmdContext, plan *ticket.ImportPlan, res *ticket.ImportResult) {
+	fmt.Fprintf(ctx.env.Stderr, "\nNothing here wrote the sending store. In that store, inspect and mark each original:\n")
+	fmt.Fprintln(ctx.env.Stderr, "Replace RECEIVER-NAMESPACE with the namespace you use for that store.")
 	for i, pt := range plan.Tickets {
 		filed := res.Filed[i]
-		fmt.Fprintf(ctx.env.Stderr, "  git ticket summary %s \"Moved to %s.\"\n", pt.Incoming.ID, filed.ID)
-		// Only when there is a transition left to make. A ticket that arrived
-		// done or archived is already closed, and printing a status command for
-		// it would be advice that fails when taken.
-		if st := pt.Incoming.Status; st != ticket.StatusDone && st != ticket.StatusArchived {
-			fmt.Fprintf(ctx.env.Stderr, "  git ticket status %s done\n", pt.Incoming.ID)
-		}
+		fmt.Fprintf(ctx.env.Stderr, "  git ticket deps %s --dependents  # %s\n", pt.Incoming.ID, pt.Incoming.Title)
+		fmt.Fprintf(ctx.env.Stderr, "  git ticket move %s --to-ref RECEIVER-NAMESPACE:%s --reason \"Moved to receiving store\"\n", pt.Incoming.ID, filed.ID)
+		fmt.Fprintf(ctx.env.Stderr, "  Resolve each open dependent with git ticket resolve-move after inspecting the receiving work.\n")
 	}
 }
 

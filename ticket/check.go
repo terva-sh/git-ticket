@@ -197,6 +197,15 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 				})
 				continue
 			}
+			if other.MovedTo != nil {
+				if !TerminalStatus(t.Status) {
+					r.addError(Finding{
+						Code: CodeDependencyMoved, File: f.Rel, Ticket: t.ID, Title: t.Title, Field: "dependencies",
+						Message: fmt.Sprintf("%s (%s) moved to %s; resolve this dependency manually", dep, other.Title, *other.MovedTo),
+					})
+				}
+				continue
+			}
 			// Archiving a ticket that was never done does not satisfy
 			// anything, so a live ticket waiting on one is stuck without
 			// saying so.
@@ -411,6 +420,10 @@ func checkTicket(t *Ticket, rel string, cfg Config, root string, now time.Time) 
 	if !ValidBlocksOn(t.BlocksOn) {
 		errs = append(errs, at(CodeInvalidBlocksOn, "blocks_on",
 			fmt.Sprintf("%q is not one of %v", t.BlocksOn, BlocksOnValues)))
+	}
+	if t.MovedTo != nil && !validMoveDestination(*t.MovedTo) {
+		errs = append(errs, at(CodeMoveDestinationInvalid, "moved_to",
+			fmt.Sprintf("%q needs a nonempty namespace and identifier", *t.MovedTo)))
 	}
 	// The shape only. A due_on that has passed is never a finding, per plan 11:
 	// check validates the store, and a date going by changes no file, so a check

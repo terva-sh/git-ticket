@@ -1,5 +1,5 @@
 ---
-schema: 4
+schema: 5
 id: TKT-01K3ZYYXB0QP32SG8GF99N5VXW
 title: Ticket written by a future major version
 type: task

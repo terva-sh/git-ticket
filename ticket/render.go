@@ -53,6 +53,9 @@ func renderFrontmatter(b *strings.Builder, t *Ticket) {
 	}
 	m.addString("blocks_on", blocksOn)
 	m.add("references", referencesNode(t.References))
+	if hasMovedTo(schema) {
+		m.addStringPtr("moved_to", t.MovedTo)
+	}
 	m.add("claim", claimNode(t.Claim, schema))
 	m.add("archive", archiveNode(t.Archive))
 	m.add("created_at", timestampNode(t.CreatedAt))

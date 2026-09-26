@@ -171,6 +171,10 @@ func TestReasonIsEmptyExactlyWhenReady(t *testing.T) {
 // the list exists to prevent.
 func TestUnreadyReasonsPublishesEveryValue(t *testing.T) {
 	seen := map[string]bool{}
+	moved := "ledger-ticket:TKT-01K3ZZAAA000000000000099"
+	if r := readinessOf([]*Ticket{{ID: "TKT-01K3ZZAAA000000000000098", Status: StatusReady, MovedTo: &moved}}, referenceInstant, nil); r["TKT-01K3ZZAAA000000000000098"].Reason != "" {
+		seen[r["TKT-01K3ZZAAA000000000000098"].Reason] = true
+	}
 	for _, status := range Statuses {
 		for _, blocked := range []bool{false, true} {
 			for _, held := range []bool{false, true} {

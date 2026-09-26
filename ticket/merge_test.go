@@ -65,6 +65,24 @@ func mergeOK(t *testing.T, base, ours, theirs []byte) *MergeResult {
 	return got
 }
 
+func TestMergePreservesEvenAnInvalidMovedMarkerForCheck(t *testing.T) {
+	base := strings.Replace(mergeBase, "schema: 1", "schema: 4", 1)
+	base = strings.Replace(base, "parent: null\n", "parent: null\norigin: null\n", 1)
+	base = strings.Replace(base, "references: []\n", "references: []\nmoved_to: null\n", 1)
+	ours := strings.Replace(base, "moved_to: null", "moved_to: ''", 1)
+	got := mergeOK(t, []byte(base), []byte(ours), []byte(base))
+	if !got.Clean() {
+		t.Fatalf("unrelated side conflicted: %v", got.Conflicts)
+	}
+	tk, err := Parse(got.Merged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tk.MovedTo == nil || *tk.MovedTo != "" {
+		t.Fatalf("merge silently erased the invalid safety marker: %q", got.Merged)
+	}
+}
+
 // TestMergeResolvesTheCaseThatMotivatedIt is the conflict from the spike, run
 // through the driver. Branch A sets priority, branch B adds a label. They
 // disagree about nothing, and before this they would not merge, because every

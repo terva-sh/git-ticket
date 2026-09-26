@@ -191,6 +191,8 @@ func promoteUnknown(t *Ticket, target int, rel string) error {
 		switch u.Key {
 		case "origin":
 			t.Origin, err = optionalString(u.Value, u.Key)
+		case "moved_to":
+			t.MovedTo, err = optionalString(u.Value, u.Key)
 		default:
 			// A key the target defines with nothing here to promote it into
 			// means this function fell behind knownFieldsAt. Refusing beats

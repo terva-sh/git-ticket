@@ -2160,6 +2160,7 @@ answers.
   "dependencies": [],
   "blocksOn": "none",
   "references": [{ "ref": "proposal:git-ticket", "path": "docs/plan.md" }],
+  "movedTo": null,
   "claim": null,
   "archive": null,
   "createdAt": "2026-08-31T12:00:00Z",
@@ -2418,13 +2419,13 @@ values without reading this document or hard-coding them:
 {
   "schemaVersion": 1,
   "kind": "schema",
-  "ticketSchema": 1,
+  "ticketSchema": 4,
   "kinds": ["ticket", "ticket-list", "mutation-result", "migrate-result", "check-report", "doctor-report", "error", "schema", "config", "series", "actor", "instructions", "self-update", "version"],
   "statuses": ["draft", "ready", "in-progress", "blocked", "review", "done", "archived"],
   "openStatuses": ["draft", "ready", "in-progress", "blocked", "review"],
   "types": ["task", "bug", "chore", "spike", "epic"],
   "priorities": ["low", "normal", "high", "urgent"],
-  "unreadyReasons": ["draft", "in-progress", "blocked", "review", "done", "archived", "waiting_on_dependencies", "claimed"],
+  "unreadyReasons": ["draft", "in-progress", "blocked", "review", "done", "archived", "waiting_on_dependencies", "claimed", "moved"],
   "titleLimits": { "warn": 72, "max": 120 },
   "seriesLimits": { "minLength": 2, "maxLength": 8, "pattern": "^[A-Z][A-Z0-9]{1,7}$" },
   "transitions": { "draft": ["ready", "archived"] },
@@ -2475,7 +2476,8 @@ a status arrives. It is derived the same way: `statuses` without `ready`, then
 is not in it, because that is the absence of a reason rather than one of them.
 
 Every one of those values is read from the code that enforces it rather than
-copied into the command. A status the library accepts and this document forgot
+copied into the command. Schema 4 adds `moved` for an otherwise ready ticket
+whose work moved to another store. A status the library accepts and this document forgot
 still appears here, which makes `schema` the answer of record when the two
 disagree.
 
@@ -2868,6 +2870,8 @@ Errors:
 | `schema_unsupported` | `schema` is newer than this binary supports |
 | `merge_conflict` | Git conflict markers in a ticket file, reported as this rather than as a YAML parse failure, because that is what a user needs to be told |
 | `dependency_missing` | a `dependencies` entry names a ticket that does not exist |
+| `dependency_moved` | an open dependent still names a prerequisite with `moved_to` |
+| `move_destination_invalid` | a schema-4 `moved_to` has no typed, nonempty destination |
 | `parent_missing` | `parent` names a ticket that does not exist |
 | `origin_missing` | `origin` names a ticket that does not exist, per 5.6 |
 | `unknown_series` | the series in a ticket's ID is not one `config.yml` declares, per 5.6 |
@@ -2902,12 +2906,10 @@ Warnings:
 | `layout_ticket_missing` | a board's card or frame member names a ticket the store does not have, per 12.10. `field` is the record, `cards.ID` or `frames.ID.members` |
 | `layout_not_canonical` | a board file is valid but its bytes are not what a save writes, per 12.10: an older schema, a comment, unsorted records, or float noise |
 
-The reference and move designs reserve four future **error** codes:
+The reference design reserves two future **error** codes:
 `reference_registry_invalid` for a malformed or unsupported tracked registry,
-`reference_identifier_invalid` for a ref that misses its declared grammar,
-`move_destination_invalid` for an untyped or empty schema-4 `moved_to`, and
-`dependency_moved` for each open dependent still pointing at a moved
-original. Add each to the error table, schema vocabulary, and fixture corpus
+`reference_identifier_invalid` for a ref that misses its declared grammar.
+Add each to the error table, schema vocabulary, and fixture corpus
 in the implementation change that first emits it. The corpus test requires
 those to land together, so design alone must not advertise a code as live.
 
@@ -3105,6 +3107,8 @@ git ticket search QUERY [--regex]
 git ticket create --title T [--template NAME --file PATH --from ID --series S --type --priority --label --assignee --milestone --parent --blocks-on --due-on --depends-on --description --description-file --plan --plan-file --ac --dod --status done|archived --created TS --reason R]   # --template per 4.2; --file per 4.3, which supplies the title and so makes --title optional; --from and --series per 5.6; --status, --created, --reason per 6.2.1
 git ticket update ID [--title --type --priority --description --description-file --milestone --parent --origin --blocks-on --due-on --add-label --remove-label --assign --unassign]
 git ticket status ID STATUS [--reason R]
+git ticket move ID --to-ref REF --reason TEXT
+git ticket resolve-move DEPENDENT --from ORIGINAL --if-source-revision R --reason TEXT [--wait-on LOCAL-ID]
 git ticket claim  ID [--expires-in D] [--force]
 git ticket release ID
 git ticket link   ID [--depends-on OTHER | --ref proposal:x [--path P]]

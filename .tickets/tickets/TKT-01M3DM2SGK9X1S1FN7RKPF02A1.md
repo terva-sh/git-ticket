@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:23:42Z
+updated_at: 2026-09-26T02:26:55Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -66,3 +66,7 @@ PR #226 targeted review run #588 reviewed fc1dbbc against cb5c790 and found that
 **agent:codex/reference-registry** at 2026-09-26T02:23:42Z
 
 PR #226 review run #591 on abdaa83 confirmed the encoded-placeholder fix and found a tracked-registry symlink could make check depend on an outside target or silently treat a dangling link as absence. Accepted and fixed in 9ba240e: Lstat requires references.yml to be a regular file before reading; regression tests cover live and dangling links. Full just ci passed. Requesting a fresh review.
+
+**agent:codex/reference-registry** at 2026-09-26T02:26:55Z
+
+PR #226 review run #593 on 6d107d1 confirmed the symlink fix and found that a later .gitignore negation could expose references.local.yml in an adopted store. Accepted and fixed in a4555d8: initialization appends a final positive ignore rule unless it is already last; regression test covers a later !*.yml. Full just ci passed. Requesting a fresh review.

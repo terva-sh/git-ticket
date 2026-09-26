@@ -312,10 +312,13 @@ func ensureLocalReferenceIgnore(storePath string) error {
 	if err != nil {
 		return err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if line == "references.local.yml" || line == "/references.local.yml" {
-			return nil
-		}
+	// Git uses the last matching pattern. An earlier positive rule can be
+	// cancelled by a later !*.yml, so only the final rule proves this file
+	// remains ignored after adoption.
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	last := lines[len(lines)-1]
+	if last == "references.local.yml" || last == "/references.local.yml" {
+		return nil
 	}
 	appendText := "references.local.yml\n"
 	if len(data) > 0 && data[len(data)-1] != '\n' {

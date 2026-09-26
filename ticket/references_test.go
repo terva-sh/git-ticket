@@ -85,6 +85,25 @@ func TestInitPreservesAnAdoptedStoresIgnoreRules(t *testing.T) {
 	}
 }
 
+func TestInitOverridesLaterLocalReferenceIgnoreNegation(t *testing.T) {
+	root := t.TempDir()
+	storePath := filepath.Join(root, StoreDirName)
+	if err := os.MkdirAll(storePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(storePath, ".gitignore")
+	if err := os.WriteFile(file, []byte("references.local.yml\n!*.yml\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Init(root, InitOptions{Actor: testActor, Now: fixedClock()}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(file)
+	if err != nil || string(data) != "references.local.yml\n!*.yml\nreferences.local.yml\n" {
+		t.Fatalf("local binding ignore did not override negation: %q %v", data, err)
+	}
+}
+
 func TestResolveReferenceUsesPortableURLAndOptionalLocalCheckout(t *testing.T) {
 	s := newTestStore(t)
 	putRegistry(t, s, exampleRegistry)

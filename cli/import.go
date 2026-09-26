@@ -141,6 +141,9 @@ func runImport(ctx *cmdContext, args []string) error {
 	if len(plan.Tickets) == 0 {
 		return fmt.Errorf("%s carries no tickets; it may be a patch series rather than an export", dir)
 	}
+	if plan.MapRevision != mappingPlan.MapRevision {
+		return fmt.Errorf("reference registry changed while import was planned; preview again")
+	}
 	if adoptMappings {
 		result, err := s.ApplyReferenceMappings(context.Background(), mappingPlan, ifMapRevision)
 		if err != nil {
@@ -151,6 +154,7 @@ func runImport(ctx *cmdContext, args []string) error {
 		} else {
 			fmt.Fprintf(ctx.env.Stderr, "reference mappings unchanged (revision %s)\n", result.MapRevision)
 		}
+		plan.MapRevision = result.MapRevision
 	} else if ifMapRevision != "" && ifMapRevision != mappingPlan.MapRevision {
 		return fmt.Errorf("reference registry revision does not match --if-map-revision")
 	}

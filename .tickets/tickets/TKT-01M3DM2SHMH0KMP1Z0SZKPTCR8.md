@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:49:33Z
+updated_at: 2026-09-26T02:55:03Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -70,3 +70,7 @@ PR #227 review 759 (head 4e94a2238bf48ef38370546c5387ddb09dcf09cc, base 3567f319
 **agent:codex/reference-lookup** at 2026-09-26T02:49:33Z
 
 PR #227 review 761 on c7a2eb0 (Actions run #605, id 11686) confirmed the identical-decline finding resolved and identified a high race: the mapping planner parsed references.yml, then read its revision from a second file snapshot. Accepted. Commit 48aa497 makes ReadReferenceRegistry and planning share readReferenceRegistrySnapshot, parsing and hashing the same bytes; a concurrent atomic-replacement test checks that declarations and revision always pair. Full just ci passed after the code fix; the targeted concurrency test passed under the race detector. Requesting a fresh targeted review.
+
+**agent:codex/reference-lookup** at 2026-09-26T02:55:03Z
+
+PR #227 review 762 identified that ticket adoption could use a registry changed after planning even when no mapping write was requested. Accepted. ImportPlan now records the registry revision; ApplyImport checks it under a single store lock and holds the lock through ticket filing. The CLI checks that mapping and ticket plans used the same registry snapshot and advances the ticket plan only after its own accepted mapping write. Choosing only a mapping-write precondition was insufficient for ticket-only imports; re-reading without the lock would leave the same race. A regression test changes references.yml after planning and verifies stale_revision before any ticket lands; another files a ticket after adopting mappings. Full just ci passed, including the race suite and strict store check.

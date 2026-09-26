@@ -3953,6 +3953,14 @@ mapping preview and write separately from `PlanImport`/`ApplyImport`, so a
 host can take the `git am` route without a ticket adoption.
 `--if-map-revision` uses the hash of the registry's current bytes; the
 existing `--if-revision` keeps its ticket meaning.
+Ticket import plans also retain that registry revision. `ApplyImport` takes the
+store lock, checks the revision before filing anything, and holds the lock
+through all ticket writes. This protects a preview that chose an alias or kept
+an incoming namespace opaque from a later registry edit that would give the
+same reference a different destination. When one import command accepts and
+writes mappings first, it advances the ticket plan to the revision of that
+accepted write; any further registry change still refuses ticket filing with
+`stale_revision`. Ticket adoption remains partial after it begins, as above.
 
 `--from-store NAME` remains a provenance string for old exports. When NAME
 is a declared store key and a foreign-ticket namespace is bound to it, import

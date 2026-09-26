@@ -40,6 +40,17 @@ type Result struct {
 // the same directory, fsync, rename over the target, release. A failure at any
 // step leaves the original file untouched.
 func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOptions) (*Result, error) {
+	lock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer lock.release()
+	return s.applyLocked(ctx, ref, m, o)
+}
+
+// applyLocked is also used by ApplyImport, which holds one lock across its
+// registry precondition and every ticket write.
+func (s *Store) applyLocked(ctx context.Context, ref string, m Mutation, o ApplyOptions) (*Result, error) {
 	if m == nil {
 		return nil, codedError(CodeValidationFailed, "no mutation given")
 	}
@@ -47,12 +58,6 @@ func (s *Store) Apply(ctx context.Context, ref string, m Mutation, o ApplyOption
 	if err != nil {
 		return nil, err
 	}
-
-	lock, err := s.lock()
-	if err != nil {
-		return nil, err
-	}
-	defer lock.release()
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -213,6 +218,16 @@ func validateNewTitle(title string) error {
 
 // Create writes a new ticket and returns it.
 func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
+	lock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer lock.release()
+	return s.createLocked(ctx, o)
+}
+
+// createLocked is also used by ApplyImport under its batch-long store lock.
+func (s *Store) createLocked(ctx context.Context, o CreateOptions) (*Result, error) {
 	actor, err := s.resolveActor(o.Actor)
 	if err != nil {
 		return nil, err
@@ -331,12 +346,6 @@ func (s *Store) Create(ctx context.Context, o CreateOptions) (*Result, error) {
 			Field:   "status_reason",
 		}
 	}
-
-	lock, err := s.lock()
-	if err != nil {
-		return nil, err
-	}
-	defer lock.release()
 
 	if err := ctx.Err(); err != nil {
 		return nil, err

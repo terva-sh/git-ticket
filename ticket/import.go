@@ -114,6 +114,9 @@ type ImportPlan struct {
 	Tickets []PlannedTicket
 	// Actor is recorded on everything ApplyImport writes.
 	Actor Actor
+	// MapRevision is the receiver registry snapshot this plan used. ApplyImport
+	// checks it under one store lock before any ticket is filed.
+	MapRevision string
 }
 
 // ImportedTicket pairs the ID a ticket arrived with and the one this store
@@ -153,6 +156,10 @@ type ImportResult struct {
 // exactly as before, because one owner keeping two stores is not one owner
 // keeping two allowlists.
 func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, error) {
+	_, mapRevision, _, err := s.readRegistryForMapping()
+	if err != nil {
+		return nil, err
+	}
 	files, err := ParseAddedFiles(o.Patch)
 	if err != nil {
 		return nil, err
@@ -172,7 +179,7 @@ func (s *Store) PlanImport(ctx context.Context, o ImportOptions) (*ImportPlan, e
 	}
 
 	cfg, root := s.Config(), s.Root()
-	plan := &ImportPlan{Actor: o.Actor, Tickets: make([]PlannedTicket, 0, len(ordered))}
+	plan := &ImportPlan{Actor: o.Actor, MapRevision: mapRevision, Tickets: make([]PlannedTicket, 0, len(ordered))}
 	for _, in := range ordered {
 		pt := planTicket(cfg, root, in, o, ordered)
 		pt.DroppedEdges = droppedEdges(in, ordered, pt.keptParent)
@@ -207,6 +214,21 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 	}
 	remap := make(map[string]string, len(p.Tickets))
 	out := &ImportResult{Filed: make([]ImportedTicket, 0, len(p.Tickets))}
+	lock, err := s.lock()
+	if err != nil {
+		return out, err
+	}
+	defer lock.release()
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	_, actualRevision, _, err := s.readRegistryForMapping()
+	if err != nil {
+		return out, err
+	}
+	if p.MapRevision != "" && p.MapRevision != actualRevision {
+		return out, &Error{Code: CodeStaleRevision, Field: "references.yml", Message: "reference registry changed since import planning"}
+	}
 
 	for _, pt := range p.Tickets {
 		create := pt.Create
@@ -226,7 +248,7 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 			}
 		}
 
-		res, err := s.Create(ctx, create)
+		res, err := s.createLocked(ctx, create)
 		if err != nil {
 			return out, fmt.Errorf("filing %s (%s): %w", pt.Incoming.Title, pt.Incoming.ID, err)
 		}
@@ -238,7 +260,7 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 		})
 
 		for _, ref := range pt.Refs {
-			if _, err := s.Apply(ctx, res.Ticket.ID, ref, ApplyOptions{Actor: p.Actor}); err != nil {
+			if _, err := s.applyLocked(ctx, res.Ticket.ID, ref, ApplyOptions{Actor: p.Actor}); err != nil {
 				return out, fmt.Errorf("carrying reference %s to %s: %w", ref.Ref, res.Ticket.ID, err)
 			}
 		}
@@ -248,12 +270,12 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 		// just seeded in the same order, so they line up by construction.
 		for _, tick := range pt.Ticks {
 			m := SetChecklistItem{Section: tick.Section, Index: tick.Index, Checked: true}
-			if _, err := s.Apply(ctx, res.Ticket.ID, m, ApplyOptions{Actor: p.Actor}); err != nil {
+			if _, err := s.applyLocked(ctx, res.Ticket.ID, m, ApplyOptions{Actor: p.Actor}); err != nil {
 				return out, fmt.Errorf("carrying %s item %d to %s: %w", tick.Section, tick.Index, res.Ticket.ID, err)
 			}
 		}
 		if pt.Record != "" {
-			if _, err := s.Apply(ctx, res.Ticket.ID, AppendNote{Text: pt.Record}, ApplyOptions{Actor: p.Actor}); err != nil {
+			if _, err := s.applyLocked(ctx, res.Ticket.ID, AppendNote{Text: pt.Record}, ApplyOptions{Actor: p.Actor}); err != nil {
 				return out, fmt.Errorf("carrying the work record to %s: %w", res.Ticket.ID, err)
 			}
 		}

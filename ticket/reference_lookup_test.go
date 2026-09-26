@@ -78,6 +78,14 @@ func TestMappingChoicesWriteRegistryAndRewriteAdoptedRefs(t *testing.T) {
 	if refs[0].Ref != "source-pr:team/docs#12" || refs[1].Ref != "legacy:opaque" {
 		t.Fatalf("adopted refs = %+v", refs)
 	}
+	filed, err := dest.ApplyImport(context.Background(), importPlan)
+	if err != nil || len(filed.Filed) != 1 {
+		t.Fatalf("ticket adoption after mapping write: %+v %v", filed, err)
+	}
+	landed, err := dest.Get(context.Background(), filed.Filed[0].ID)
+	if err != nil || landed.References[0].Ref != "source-pr:team/docs#12" {
+		t.Fatalf("adopted ticket lost its mapped reference: %+v %v", landed, err)
+	}
 }
 
 func TestConflictingMappingNeedsOpaqueTargetForTicketAdoption(t *testing.T) {
@@ -205,6 +213,24 @@ func TestMappingWriteSurvivesPartialTicketAdoption(t *testing.T) {
 	registry, err := dest.ReadReferenceRegistry()
 	if err != nil || registry.Namespaces["pr"].Kind != "url" {
 		t.Fatalf("accepted mapping was lost after a ticket failure: %+v %v", registry, err)
+	}
+}
+
+func TestApplyImportRejectsChangedRegistryBeforeFiling(t *testing.T) {
+	art, _ := lookupFixture(t)
+	dest := newTestStore(t)
+	plan, err := dest.PlanImport(context.Background(), ImportOptions{Patch: string(art.Patch), Actor: testActor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	putRegistry(t, dest, exampleRegistry)
+	result, err := dest.ApplyImport(context.Background(), plan)
+	if CodeOf(err) != CodeStaleRevision || result == nil || len(result.Filed) != 0 {
+		t.Fatalf("changed registry filed tickets: %+v %v", result, err)
+	}
+	all, err := dest.List(context.Background(), Filter{All: true})
+	if err != nil || len(all) != 0 {
+		t.Fatalf("stale import changed ticket store: %+v %v", all, err)
 	}
 }
 

@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T01:09:51Z
+updated_at: 2026-09-26T01:13:21Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -103,6 +103,10 @@ Criterion 5 remains unticked: the two-store run proved the current premature-rea
 **agent:codex/reference-design** at 2026-09-26T01:08:48Z
 
 Correction to the checklist progress: criteria 1-3 state implemented behavior, so I left them unticked with criterion 5. Only criterion 4 is a design deliverable. The implementation task carries the remaining acceptance checks.
+
+**agent:codex/reference-design** at 2026-09-26T01:13:21Z
+
+PR #224 targeted review on head bb2dd6f852921344cbe989edd67777b582e503c6 against base abebb684bdbd7256352831d91b136386ba6b0099 ran as c708f22b-cc93-4036-a3be-c5ac6abb964a (Actions run 571, review 752). It found a medium safety gap: checking the source marker only at execution time cannot detect that it changed after human inspection. Accepted. resolve-move now requires --if-source-revision and compares that revision under the lock; the dependent retains optional --if-revision. A follow-up review will check the new head.
 
 ## Summary
 

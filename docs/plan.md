@@ -1228,7 +1228,9 @@ original is excluded from `ready` even when its status is ready. It never
 satisfies a dependency while `moved_to` is present, even when its status is
 done or archived from done. `Readiness` reports `moved` for an otherwise
 ready original and lists it among a dependent's blocking IDs. No foreign
-store is polled.
+store is polled. The implementation adds `moved` to the live
+`unreadyReasons` vocabulary in sections 8 and 10 together with the code;
+design alone does not change the published schema response.
 
 `check` reports `dependency_moved` as an error on **each open dependent**
 that still has an edge to the original. It includes the original ID and
@@ -1238,14 +1240,16 @@ is an error on a marker without a typed, nonempty destination. The error is
 intentional: until a person examines the receiving work, the dependency
 cannot be declared satisfied or discarded.
 
-`git ticket resolve-move DEPENDENT --from ORIGINAL --reason TEXT` is the
+`git ticket resolve-move DEPENDENT --from ORIGINAL --if-source-revision R --reason TEXT` is the
 manual resolution. It checks the current `moved_to` under the store lock,
 removes that dependency, adds the destination as a reference on the dependent,
 and records the asserted reason in a note. An optional `--wait-on LOCAL-ID`
 adds a replacement local dependency in the same write. It does **not** mark
-the remote ticket done or infer satisfaction from a remote status. A
-`--if-revision` guard protects the dependent; if the original's destination
-changed during the decision, the command refuses and asks for a fresh look.
+the remote ticket done or infer satisfaction from a remote status.
+`--if-source-revision` is required and guards the original under the lock;
+the existing optional `--if-revision` also guards the dependent. If the
+original changed after the person inspected it, the command refuses and asks
+for a fresh look. A supplied dependent revision is checked the same way.
 After resolution the particular `dependency_moved` finding clears, while
 the original keeps its `moved_to` provenance.
 
@@ -3906,9 +3910,12 @@ opaque. Each offered mapping can be chosen explicitly with repeated
 declaration only when that namespace is absent or identical. `alias` adds
 it under a free local namespace and rewrites the namespace of adopted ticket
 references; a store key collision is handled by namespacing the imported
-store entry under that alias. `decline` stores an otherwise unclaimed
-reference unchanged and opaque. If the receiver already uses the same
-namespace with different meaning, decline must name a free opaque target as
+store entry under that alias. `decline` means no mapping is copied. When
+the receiver has no declaration, the unchanged reference stays opaque.
+When its existing declaration is identical, the unchanged reference keeps
+resolving through that local declaration; declining a duplicate does not
+turn resolution off. If the receiver uses the same namespace with a
+different meaning, decline must name a free opaque target as
 `decline:LOCAL` so adoption never makes the arriving reference point at
 the receiver's unrelated target. The `git am` route leaves ticket bytes
 unchanged; for a conflict, its preview warns that the person must rename

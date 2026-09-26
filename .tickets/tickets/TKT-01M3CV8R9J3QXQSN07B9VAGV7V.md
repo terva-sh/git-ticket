@@ -30,7 +30,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T01:10:53Z
+updated_at: 2026-09-26T01:13:21Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -132,6 +132,10 @@ Criteria 6-8 remain unticked because they describe shipping the sidecar, receive
 **agent:codex/reference-design** at 2026-09-26T01:10:53Z
 
 The first full just ci run failed because section 11 listed four future check codes before any implementation fixtures existed. TestCorpusCoversEveryPlanCode intentionally requires the live table and fixture corpus to land together. I moved those codes to a planned-error paragraph in section 11; the implementation tasks must add each to the live table with fixtures. A second env -u NO_COLOR mise exec go@1.27.1 -- just ci run passed.
+
+**agent:codex/reference-design** at 2026-09-26T01:13:21Z
+
+PR #224 targeted review on head bb2dd6f852921344cbe989edd67777b582e503c6 against base abebb684bdbd7256352831d91b136386ba6b0099 ran as c708f22b-cc93-4036-a3be-c5ac6abb964a (Actions run 571, review 752). It found a medium mapping gap: declining an identical offered mapping cannot make an unchanged reference opaque when the receiver already has that same declaration. Accepted. Plan 12.8 now says decline copies nothing, unchanged refs remain opaque only when no local declaration exists, and an identical local declaration continues resolving them; conflicting meanings require an opaque alias. The same review found a separate moved-origin revision gap, accepted on the related spike. A follow-up review will check the new head.
 
 ## Summary
 

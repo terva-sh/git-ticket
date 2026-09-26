@@ -758,6 +758,8 @@ rewrite that file through `RenderConfig` when `series add` or `migrate` runs
 and discard keys they do not understand. A scratch run confirmed the loss for a
 `references:` key. The new file has its own `version: 1`; it does not raise
 the ticket schema, because the `Reference` frontmatter shape is unchanged.
+The tracked registry must be a regular file; a symlink would make offline
+validation depend on a target outside this store, including a missing target.
 Older binaries ignore it and preserve it. A future incompatible registry format
 must raise this file's version and be refused by a reader that cannot parse it.
 

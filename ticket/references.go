@@ -376,10 +376,18 @@ func RenderLocalReferenceBindings(local LocalReferenceBindings) ([]byte, error) 
 // ReadReferenceRegistry reads only the tracked registry. Nil means the store
 // has not declared any namespace; old and legacy references stay opaque.
 func (s *Store) ReadReferenceRegistry() (*ReferenceRegistry, error) {
-	data, err := os.ReadFile(filepath.Join(s.path, referencesFile))
+	file := filepath.Join(s.path, referencesFile)
+	info, err := os.Lstat(file)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, registryError(referencesFile, err.Error(), err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, registryError(referencesFile, "tracked registry must be a regular file, not a symlink or directory", nil)
+	}
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, registryError(referencesFile, err.Error(), err)
 	}

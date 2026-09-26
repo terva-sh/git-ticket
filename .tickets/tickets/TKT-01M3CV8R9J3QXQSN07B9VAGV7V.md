@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3CV8R9J3QXQSN07B9VAGV7V
 title: Decide how a store declares where each reference namespace resolves
 type: spike
-status: draft
+status: ready
 status_reason: null
 priority: normal
 due_on: null
@@ -24,7 +24,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:46:31Z
+updated_at: 2026-09-26T00:47:37Z
 created_by:
   id: agent:claude-code/opus
   name: ""

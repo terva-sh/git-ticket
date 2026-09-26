@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3CV8R9J3QXQSN07B9VAGV7V
 title: Decide how a store declares where each reference namespace resolves
 type: spike
-status: ready
+status: in-progress
 status_reason: null
 priority: normal
 due_on: null
@@ -21,15 +21,21 @@ references:
     path: null
   - ref: ticket:TKT-01M3CT0GV02WDW2W7B3EJSC6R1
     path: null
-claim: null
+claim:
+  actor: agent:codex/reference-namespaces
+  branch: feat/reference-namespace-design
+  worktree: /home/sothr/.t3/worktrees/git-ticket/file-reference-questions
+  commit: abebb684bdbd7256352831d91b136386ba6b0099
+  claimed_at: 2026-09-26T00:59:37Z
+  expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:50:57Z
+updated_at: 2026-09-26T00:59:37Z
 created_by:
   id: agent:claude-code/opus
   name: ""
 updated_by:
-  id: agent:codex/reference-groom
+  id: agent:codex/reference-namespaces
   name: ""
 extensions: {}
 ---

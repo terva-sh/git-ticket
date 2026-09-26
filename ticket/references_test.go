@@ -220,3 +220,30 @@ func TestRegistryRejectsUnsafeTemplatesAndTraversal(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckRejectsTrackedRegistrySymlinks(t *testing.T) {
+	for _, target := range []string{"outside.yml", "missing.yml"} {
+		t.Run(target, func(t *testing.T) {
+			s := newTestStore(t)
+			if target == "outside.yml" {
+				if err := os.WriteFile(filepath.Join(filepath.Dir(s.Path()), target), []byte(exampleRegistry), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Symlink(filepath.Join("..", target), filepath.Join(s.Path(), referencesFile)); err != nil {
+				t.Fatal(err)
+			}
+			report, err := s.Check(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, finding := range report.Errors {
+				found = found || finding.Code == CodeReferenceRegistryInvalid
+			}
+			if !found {
+				t.Fatalf("symlink was not reported: %+v", report)
+			}
+		})
+	}
+}

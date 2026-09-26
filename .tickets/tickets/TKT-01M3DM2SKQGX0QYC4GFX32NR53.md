@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T01:46:13Z
+updated_at: 2026-09-26T01:48:01Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -47,3 +47,7 @@ Implement schema-4 moved_to and the source-side move/resolve-move workflow in pl
 - [ ] Moved original never satisfies dependencies; each open dependent gets dependency_moved
 - [ ] move and resolve-move preserve destination and manual reason with revision safety
 - [ ] Two-store run proves no premature ready result and valid source-side advice
+
+## Implementation plan
+
+Add schema-4 moved_to parsing, rendering and explicit migration. Gate readiness and report each open dependent until a person resolves it. Provide move and resolve-move with locked source revision checks and durable reason notes; update import advice. Verify schema compatibility, failures, and a two-store workflow before proposing the change.

@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T01:59:37Z
+updated_at: 2026-09-26T02:01:33Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -65,3 +65,7 @@ PR #225 review: head 0e8f16cc36fec48a11c9db16945df1fc267b184b, base cb5c79007969
 **agent:codex/moved-dependent** at 2026-09-26T01:59:37Z
 
 Review references: PR https://git.local.sothr.com/terva-sh/git-ticket/pulls/225 ; run https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/579 ; review https://git.local.sothr.com/api/v1/repos/terva-sh/git-ticket/pulls/225/reviews/754 .
+
+**agent:codex/moved-dependent** at 2026-09-26T02:01:33Z
+
+PR #225 second targeted review: head e7885d800738c4184782e1d09468990872179e5e, base cb5c790079691414000261846dc4c504c5ce60cc; review 755 at https://git.local.sothr.com/api/v1/repos/terva-sh/git-ticket/pulls/225/reviews/755 and run #581 at https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/581 (request after-json-fix). It confirmed review 754 was resolved. Accepted its medium finding: a post-write dependent lookup could fail and make a committed move look failed. Commit ea65cba queries dependents before Apply, so a lookup failure leaves the marker untouched. The list is advisory if another writer changes edges after the snapshot; check remains authoritative. Full just ci passed after the fix.

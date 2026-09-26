@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:26:55Z
+updated_at: 2026-09-26T02:28:39Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -70,3 +70,7 @@ PR #226 review run #591 on abdaa83 confirmed the encoded-placeholder fix and fou
 **agent:codex/reference-registry** at 2026-09-26T02:26:55Z
 
 PR #226 review run #593 on 6d107d1 confirmed the symlink fix and found that a later .gitignore negation could expose references.local.yml in an adopted store. Accepted and fixed in a4555d8: initialization appends a final positive ignore rule unless it is already last; regression test covers a later !*.yml. Full just ci passed. Requesting a fresh review.
+
+**agent:codex/reference-registry** at 2026-09-26T02:28:39Z
+
+PR #226 clean targeted review: head 480b375aa562eecc86de9416f4ad0ad74158c2ff, base cb5c790079691414000261846dc4c504c5ce60cc; request local-binding-ignore-fix, Actions run #596 (id 11669), clean run 159c037a-47a0-4f6f-9e38-c753709d75d6. Reviewer confirmed earlier findings resolved. CI on that head passed. The only subsequent commit is this ticket record; carry the review status to it. PR remains open pending merge authorization.

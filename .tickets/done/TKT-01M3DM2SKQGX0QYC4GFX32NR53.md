@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DM2SKQGX0QYC4GFX32NR53
 title: Gate dependents when a prerequisite moves to another store
 type: task
-status: review
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -18,21 +18,15 @@ blocks_on: none
 references:
   - ref: ticket:TKT-01M3CV8RASXJ4PPHD7N78T7XHK
     path: null
-claim:
-  actor: agent:codex/moved-dependent
-  branch: feat/moved-dependent-gate
-  worktree: /home/sothr/.t3/worktrees/git-ticket/moved-dependent-gate
-  commit: cb5c790079691414000261846dc4c504c5ce60cc
-  claimed_at: 2026-09-26T01:46:13Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T03:08:09Z
+updated_at: 2026-09-26T03:09:03Z
 created_by:
   id: agent:codex/reference-design
   name: ""
 updated_by:
-  id: agent:codex/moved-dependent
+  id: agent:codex/landing
   name: ""
 extensions: {}
 ---
@@ -81,3 +75,7 @@ Landing integration: merged origin/main at 9d1332f9505f6073c6b8d16406ed84a2d5419
 **agent:codex/moved-dependent** at 2026-09-26T03:08:09Z
 
 PR #225 targeted review is clean on combined head ca4aa2755595ac9304713b33c6d3cb2717b588eb, base 9d1332f9505f6073c6b8d16406ed84a2d5419637 (request combined-main-review; Actions run #633, id 11724; clean summary comment 13879). Review 755's post-write lookup finding remains resolved. Full local just ci passed on the integrated code. Recording this ticket-only review result and carrying the status to the bookkeeping head before merge.
+
+## Summary
+
+Schema-4 moved prerequisite gating, manual resolution, and corrected import advice are implemented in PR #225. Full CI and targeted review passed against the combined main; this branch carries the completed ticket into the merge.

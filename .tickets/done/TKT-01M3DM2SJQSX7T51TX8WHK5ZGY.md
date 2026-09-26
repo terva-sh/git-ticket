@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DM2SJQSX7T51TX8WHK5ZGY
 title: Show resolved reference targets across readers
 type: task
-status: review
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -19,21 +19,15 @@ blocks_on: none
 references:
   - ref: ticket:TKT-01M3CV8R9J3QXQSN07B9VAGV7V
     path: null
-claim:
-  actor: agent:codex/reference-readers
-  branch: feat/reference-readers
-  worktree: /home/sothr/.t3/worktrees/git-ticket/reference-readers
-  commit: 3567f3197260cb0dc9e413b0e990e56e67e7e8ad
-  claimed_at: 2026-09-26T02:41:03Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T03:01:34Z
+updated_at: 2026-09-26T03:09:03Z
 created_by:
   id: agent:codex/reference-design
   name: ""
 updated_by:
-  id: agent:codex/reference-readers
+  id: agent:codex/landing
   name: ""
 extensions: {}
 ---
@@ -73,3 +67,7 @@ PR #228 review 765 (head 91ac609, base 3567f31; Actions run #617, id 11702) conf
 **agent:codex/reference-readers** at 2026-09-26T03:01:34Z
 
 PR #228 targeted review is clean on head 3015d4f99b31ea4a31aea6e62907a74a9e978dc2, base 3567f3197260cb0dc9e413b0e990e56e67e7e8ad (request resolve-ids-review; Actions run #619, id 11708; clean summary comment 13943). Review 765's --ids finding is resolved. Full local just ci passed on the reviewed code. Recording this ticket-only result and carrying the review status to the bookkeeping head; review success is not merge authorization.
+
+## Summary
+
+Resolved targets in show, JSON, refs, and the TUI landed through PR #228. The opener and ID display review findings were fixed; full CI and targeted review passed.

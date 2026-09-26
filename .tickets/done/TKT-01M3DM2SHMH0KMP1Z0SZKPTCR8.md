@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DM2SHMH0KMP1Z0SZKPTCR8
 title: Carry reference lookup mappings through export and import
 type: task
-status: review
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -19,21 +19,15 @@ blocks_on: none
 references:
   - ref: ticket:TKT-01M3CV8R9J3QXQSN07B9VAGV7V
     path: null
-claim:
-  actor: agent:codex/reference-lookup
-  branch: feat/reference-lookup-interchange
-  worktree: /home/sothr/.t3/worktrees/git-ticket/reference-lookup-interchange
-  commit: abdaa83986a75838757464f8c06ed5abfc483f11
-  claimed_at: 2026-09-26T02:21:53Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T03:02:03Z
+updated_at: 2026-09-26T03:09:02Z
 created_by:
   id: agent:codex/reference-design
   name: ""
 updated_by:
-  id: agent:codex/reference-lookup
+  id: agent:codex/landing
   name: ""
 extensions: {}
 ---
@@ -86,3 +80,7 @@ PR #227 review 766 (head 385ba5d, base 3567f31; Actions run #616, id 11701) conf
 **agent:codex/reference-lookup** at 2026-09-26T03:02:03Z
 
 PR #227 targeted review is clean on head 6778e55252db4c826809cb39dd5d070f68b581d4, base 3567f3197260cb0dc9e413b0e990e56e67e7e8ad (request unchanged-mapping-review; Actions run #622, id 11713; clean summary comment 13948). Review 766's unchanged-mapping finding is resolved. Full local just ci passed on the reviewed code. Recording this ticket-only result and carrying the review status to the bookkeeping head; review success is not merge authorization.
+
+## Summary
+
+Reference lookup sidecar, explicit receiver mapping choices, and registry revision protection landed through PR #227. Full CI and targeted review passed on the merged code.

@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DM2SGK9X1S1FN7RKPF02A1
 title: Implement portable reference registry and offline validation
 type: task
-status: review
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -18,21 +18,15 @@ blocks_on: none
 references:
   - ref: ticket:TKT-01M3CV8R9J3QXQSN07B9VAGV7V
     path: null
-claim:
-  actor: agent:codex/reference-registry
-  branch: feat/reference-registry
-  worktree: /home/sothr/.t3/worktrees/git-ticket/reference-registry
-  commit: cb5c790079691414000261846dc4c504c5ce60cc
-  claimed_at: 2026-09-26T02:04:34Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:28:39Z
+updated_at: 2026-09-26T03:09:02Z
 created_by:
   id: agent:codex/reference-design
   name: ""
 updated_by:
-  id: agent:codex/reference-registry
+  id: agent:codex/landing
   name: ""
 extensions: {}
 ---
@@ -74,3 +68,7 @@ PR #226 review run #593 on 6d107d1 confirmed the symlink fix and found that a la
 **agent:codex/reference-registry** at 2026-09-26T02:28:39Z
 
 PR #226 clean targeted review: head 480b375aa562eecc86de9416f4ad0ad74158c2ff, base cb5c790079691414000261846dc4c504c5ce60cc; request local-binding-ignore-fix, Actions run #596 (id 11669), clean run 159c037a-47a0-4f6f-9e38-c753709d75d6. Reviewer confirmed earlier findings resolved. CI on that head passed. The only subsequent commit is this ticket record; carry the review status to it. PR remains open pending merge authorization.
+
+## Summary
+
+Portable reference registry and offline validation landed through PR #226. Strict store validation and the reference registry tests passed; the reviewed branch is on main.

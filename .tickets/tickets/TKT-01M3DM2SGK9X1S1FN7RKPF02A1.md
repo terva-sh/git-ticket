@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:20:59Z
+updated_at: 2026-09-26T02:23:42Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -62,3 +62,7 @@ Implementation decision: Keep the portable version-1 registry in references.yml,
 **agent:codex/reference-registry** at 2026-09-26T02:20:59Z
 
 PR #226 targeted review run #588 reviewed fc1dbbc against cb5c790 and found that percent-encoded URL template braces passed validation but were not expanded by the resolver. Accepted and fixed in eb5fc48: reject encoded braces before URL parsing, test URL path and browse query cases, and state the literal-brace rule in plan 5.5. Targeted tests and full just ci passed. Requesting a fresh review of the substantive fix.
+
+**agent:codex/reference-registry** at 2026-09-26T02:23:42Z
+
+PR #226 review run #591 on abdaa83 confirmed the encoded-placeholder fix and found a tracked-registry symlink could make check depend on an outside target or silently treat a dangling link as absence. Accepted and fixed in 9ba240e: Lstat requires references.yml to be a regular file before reading; regression tests cover live and dangling links. Full just ci passed. Requesting a fresh review.

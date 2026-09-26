@@ -836,6 +836,16 @@ remains governed by the existing path rule and takes precedence when it
 resolves. An `extensions` entry is ticket-specific integration data, not a
 store-wide namespace definition.
 
+The terminal detail view displays each stored reference beside its resolved
+local path and portable URL. `r` opens a picker for those references; Enter
+passes the chosen local path, or the URL when no local file exists, to the
+platform opener. The picker makes selection explicit and works where terminal
+hyperlinks do not. It never opens a destination merely because a ticket was
+rendered. The detail footer names `r` by moving the Ctrl+C hint to the help
+page; its width remains within the 60-column budget. JSON `refs --resolve`
+keeps the existing `ticket-list` kind, whose reference objects now carry the
+optional resolved fields.
+
 `origin-ticket:TKT-...` plus `origin-store:ledger` remains legacy provenance:
 the pair does not establish an unambiguous per-reference store binding, so
 readers must not silently infer one. New imports with `--from-store ledger`
@@ -1433,12 +1443,19 @@ every one of those calls sits in one of the helpers, and every helper call names
 a command from this table. A fourth call site added tomorrow has to pass all
 three, and a new helper fails the second rather than slipping past the third.
 
-The clipboard tools of 12.7 are the one exec outside this table. They are not
+The clipboard tools of 12.7 are an exec outside this table. They are not
 git, they are write-only, and they run from `runClipboardTool` in the cli
 package and from nowhere else. The binary there comes from a PATH probe, so it
 cannot be a string literal. The test pins the exemption to that one function
 name rather than loosening the rule: an `exec.Command` in `runClipboardTool`
 skips the git-only checks, and one anywhere else still fails all three.
+
+The reference picker of 5.5 adds one more narrow non-Git exec: after a person
+selects a resolved target and presses Enter, `openReferenceTarget` in `cli`
+asks the platform opener to open that HTTPS URL or absolute local path. It
+passes the target as one argument, never through a shell, and does nothing
+without that keypress. The same source test pins this exemption to that one
+function rather than permitting desktop commands elsewhere.
 
 No command that moves history or the working tree joins this table. Section 15
 records that decision under sync helpers, so a change that needs `fetch` or

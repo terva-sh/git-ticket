@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -414,8 +415,10 @@ type readinessJSON struct {
 }
 
 type referenceJSON struct {
-	Ref  string  `json:"ref"`
-	Path *string `json:"path"`
+	Ref               string  `json:"ref"`
+	Path              *string `json:"path"`
+	ResolvedURL       *string `json:"resolvedUrl,omitempty"`
+	ResolvedLocalPath *string `json:"resolvedLocalPath,omitempty"`
 }
 
 type actorJSON struct {
@@ -492,7 +495,7 @@ type entryJSON struct {
 	Text  string  `json:"text"`
 }
 
-func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticketJSON {
+func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) (*ticketJSON, error) {
 	out := &ticketJSON{
 		ID:           t.ID,
 		Revision:     t.Revision,
@@ -549,7 +552,16 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 		},
 	}
 	for _, r := range t.References {
-		out.References = append(out.References, referenceJSON{Ref: r.Ref, Path: copyString(r.Path)})
+		item := referenceJSON{Ref: r.Ref, Path: copyString(r.Path)}
+		target, err := s.ResolveReference(context.Background(), r)
+		if err != nil {
+			return nil, err
+		}
+		if target != nil {
+			item.ResolvedURL = optionalString(target.URL)
+			item.ResolvedLocalPath = optionalString(target.LocalPath)
+		}
+		out.References = append(out.References, item)
 	}
 	for _, s := range t.Body.Extra {
 		out.Body.Extra = append(out.Body.Extra, sectionJSON{Heading: s.Heading, Text: s.Text})
@@ -572,7 +584,7 @@ func newTicketJSON(s *ticket.Store, t *ticket.Ticket, r ticket.Readiness) *ticke
 			Reason:     copyString(a.Reason),
 		}
 	}
-	return out
+	return out, nil
 }
 
 // newCheckEnvelope converts a report for the wire. ok is the verdict rather

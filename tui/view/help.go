@@ -60,6 +60,7 @@ var helpLines = []string{
 	"  \x1b[1mDetail\x1b[22m",
 	"",
 	"  j/k ↑/↓ scroll · g/G jump · y copy the body · t linked tickets ·",
+	"  r reference targets · Enter opens the selected target ·",
 	"  Esc back one level. Opening a linked ticket stacks: Esc unwinds",
 	"  the dive one ticket at a time, and the list is the floor.",
 	"",

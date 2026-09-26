@@ -14,13 +14,14 @@ import (
 // list as the floor. The pickers, the form, and the help page stay
 // single fields: nothing stacks on top of them but more detail.
 type App struct {
-	list    *ListView
-	details []*DetailView
-	links   *LinkPicker
-	picker  *StatusPicker
-	tmpl    *TemplatePicker
-	form    *FormView
-	help    *HelpView
+	list       *ListView
+	details    []*DetailView
+	links      *LinkPicker
+	references *ReferencePicker
+	picker     *StatusPicker
+	tmpl       *TemplatePicker
+	form       *FormView
+	help       *HelpView
 }
 
 // top is the detail view under the keyboard, nil when the list has it.
@@ -36,8 +37,43 @@ func NewApp(relist Lister, acts Actions) *App {
 	return &App{list: NewListView(relist, acts)}
 }
 
+func (a *App) openDetail(t *ticket.Ticket) {
+	detail := NewDetailView(t)
+	if a.list.acts.References != nil {
+		refs, err := a.list.acts.References(t.ID)
+		if err != nil {
+			detail.say("references failed: " + err.Error())
+		} else {
+			detail.setReferences(refs)
+		}
+	}
+	a.details = append(a.details, detail)
+}
+
 // HandleKey routes one key to whichever view is on top.
 func (a *App) HandleKey(k tui.Key) (quit bool) {
+	if a.references != nil {
+		act := a.references.HandleKey(k)
+		switch {
+		case act.Quit:
+			return true
+		case act.Cancel:
+			a.references = nil
+		case act.NoTarget:
+			a.references = nil
+			a.top().say("this reference has no resolved target")
+		case act.OpenTarget != "":
+			a.references = nil
+			if a.list.acts.OpenTarget == nil {
+				a.top().say("opening reference targets is not wired in this host")
+			} else if err := a.list.acts.OpenTarget(act.OpenTarget); err != nil {
+				a.top().say("opening reference failed: " + err.Error())
+			} else {
+				a.top().say("opened reference target")
+			}
+		}
+		return false
+	}
 	if a.links != nil {
 		act := a.links.HandleKey(k)
 		if act.Quit {
@@ -49,7 +85,7 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 		}
 		if act.Open != nil {
 			a.links = nil
-			a.details = append(a.details, NewDetailView(act.Open))
+			a.openDetail(act.Open)
 		}
 		return false
 	}
@@ -63,6 +99,10 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 		}
 		if k.Kind == tui.KeyRune && k.Rune == 't' {
 			a.openLinks()
+			return false
+		}
+		if k.Kind == tui.KeyRune && k.Rune == 'r' {
+			a.openReferences()
 			return false
 		}
 		back, quit := top.HandleKey(k)
@@ -142,7 +182,7 @@ func (a *App) HandleKey(k tui.Key) (quit bool) {
 	case k.Kind == tui.KeyEnter,
 		k.Kind == tui.KeyRune && k.Rune == 'l':
 		if t := a.list.SelectedTicket(); t != nil {
-			a.details = append(a.details, NewDetailView(t))
+			a.openDetail(t)
 		}
 		return false
 	case k.Kind == tui.KeyRune && k.Rune == 's':
@@ -226,6 +266,15 @@ func (a *App) openLinks() {
 	a.links = NewLinkPicker(top.t, links)
 }
 
+func (a *App) openReferences() {
+	top := a.top()
+	if len(top.refs) == 0 {
+		top.say("this ticket has no references")
+		return
+	}
+	a.references = NewReferencePicker(top.t, top.refs)
+}
+
 // saveForm performs the form's write and decides what the form does
 // next. Success closes it and reports on the list footer. A stale
 // revision is the loop this view exists to close correctly: reload,
@@ -265,6 +314,9 @@ func (a *App) saveForm() {
 
 // Render draws whichever view is on top.
 func (a *App) Render(cols, rows int) []string {
+	if a.references != nil {
+		return a.references.Render(cols, rows)
+	}
 	if a.help != nil {
 		return a.help.Render(cols, rows)
 	}

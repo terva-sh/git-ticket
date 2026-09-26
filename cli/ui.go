@@ -44,5 +44,6 @@ func runUI(ctx *cmdContext, args []string) error {
 		Clipboard: func(body []byte) (string, error) {
 			return writeClipboard(env, body)
 		},
+		OpenTarget: openReferenceTarget,
 	})
 }

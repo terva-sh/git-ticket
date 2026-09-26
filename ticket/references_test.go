@@ -221,6 +221,25 @@ func TestUndeclaredLegacyReferencesStayOpaque(t *testing.T) {
 	}
 }
 
+func TestResolveRefsKeepsRefsMatchingRule(t *testing.T) {
+	s := newTestStore(t)
+	putRegistry(t, s, exampleRegistry)
+	tk := mustCreate(t, s, "Query resolved references")
+	mustApply(t, s, tk.ID, AddReference{Ref: "pr:team/docs#12"})
+	mustApply(t, s, tk.ID, AddReference{Ref: "origin-ticket:TKT-01M2NZ88"})
+	pr, err := s.ResolveRefs(context.Background(), "PR:")
+	if err != nil || len(pr) != 1 || pr[0].Reference.Ref != "pr:team/docs#12" || pr[0].Target.URL != "https://git.local.example/team/docs/pulls/12" {
+		t.Fatalf("case-insensitive namespace query: %+v %v", pr, err)
+	}
+	if wrong, err := s.ResolveRefs(context.Background(), "pr:team/docs#13"); err != nil || len(wrong) != 0 {
+		t.Fatalf("identifier was not exact: %+v %v", wrong, err)
+	}
+	legacy, err := s.ResolveRefs(context.Background(), "origin-ticket:")
+	if err != nil || len(legacy) != 1 || legacy[0].Target != nil {
+		t.Fatalf("undeclared legacy query: %+v %v", legacy, err)
+	}
+}
+
 func TestRegistryRejectsUnsafeTemplatesAndTraversal(t *testing.T) {
 	cases := []string{
 		strings.Replace(exampleRegistry, "version: 1", "version: 2", 1),

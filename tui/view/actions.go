@@ -43,6 +43,12 @@ type Actions struct {
 	// an epic's done children are exactly what a person checks an epic
 	// for.
 	Links func(ref string) ([]Linked, error)
+	// References resolves this ticket's stored references for the detail
+	// view and its picker. The stored ref and path stay on the ticket.
+	References func(ref string) ([]ReferenceTarget, error)
+	// OpenTarget opens the target explicitly selected in the reference
+	// picker. A nil action leaves targets visible but not launchable.
+	OpenTarget func(target string) error
 	// Templates lists the store's templates for the create flow, per
 	// plan 4.2, with each description along so the form can prefill
 	// its editor: the person edits the skeleton instead of typing over
@@ -62,6 +68,21 @@ type TemplateChoice struct {
 type Linked struct {
 	Role   string
 	Ticket *ticket.Ticket
+}
+
+// ReferenceTarget joins a stored reference with its optional read-time
+// navigation destinations. LocalPath takes precedence when it exists.
+type ReferenceTarget struct {
+	Reference ticket.Reference
+	URL       string
+	LocalPath string
+}
+
+func (r ReferenceTarget) Openable() string {
+	if r.LocalPath != "" {
+		return r.LocalPath
+	}
+	return r.URL
 }
 
 // The roles a Linked can carry, phrased from the viewed ticket's side
@@ -89,7 +110,8 @@ type StoreParams struct {
 	// it took, per plan 12.7. The cli package binds its probing helper
 	// here; nil leaves Copy unwired and the view says so instead of
 	// doing nothing silently.
-	Clipboard func(body []byte) (via string, err error)
+	Clipboard  func(body []byte) (via string, err error)
+	OpenTarget func(target string) error
 }
 
 // RunProcStore runs the TUI on the process terminal over a store. It
@@ -164,8 +186,32 @@ func StoreActions(p StoreParams) Actions {
 		Release: func(ref, revision string) error {
 			return apply(ref, revision, ticket.ReleaseClaim{})
 		},
-		Copy:  storeCopy(p),
-		Links: storeLinks(p),
+		Copy:       storeCopy(p),
+		Links:      storeLinks(p),
+		References: storeReferences(p),
+		OpenTarget: p.OpenTarget,
+	}
+}
+
+func storeReferences(p StoreParams) func(string) ([]ReferenceTarget, error) {
+	return func(ref string) ([]ReferenceTarget, error) {
+		t, err := p.Store.Get(context.Background(), ref)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]ReferenceTarget, 0, len(t.References))
+		for _, stored := range t.References {
+			target, err := p.Store.ResolveReference(context.Background(), stored)
+			if err != nil {
+				return nil, err
+			}
+			item := ReferenceTarget{Reference: stored}
+			if target != nil {
+				item.URL, item.LocalPath = target.URL, target.LocalPath
+			}
+			out = append(out, item)
+		}
+		return out, nil
 	}
 }
 

@@ -30,12 +30,12 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:59:37Z
+updated_at: 2026-09-26T01:07:30Z
 created_by:
   id: agent:claude-code/opus
   name: ""
 updated_by:
-  id: agent:codex/reference-namespaces
+  id: agent:codex/reference-design
   name: ""
 extensions: {}
 ---
@@ -114,3 +114,13 @@ The plan uses a versioned sidecar as the leading design, not a ruling yet. It wo
 **agent:codex/reference-groom** at 2026-09-26T00:50:57Z
 
 PR #222 review recorded. The targeted Terva review ran on head 3bca1d6eaa0be750be136a6e90f537743876473c against base adbcaa2452744a07efa706df2eebc7f50de96ef0, request groomed-ready-3bca1d6, run ce377a7a-4b8b-41f7-ab4e-de097aef61c6: https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/566. The maintained clean summary is on https://git.local.sothr.com/terva-sh/git-ticket/pulls/222. It reported no findings, so there is no review change to accept, dispute, or defer. It saw only the ticket diff and could not verify runtime behavior; the local scratch-store runs and full just ci result are the evidence for those claims. This note records the result without changing either design scope.
+
+**agent:codex/reference-design** at 2026-09-26T01:07:30Z
+
+Design decision for plan 5.1, 5.5, 11, and 12.8: use a versioned tracked .tickets/references.yml with opt-in namespace declarations, named RE2 capture groups, HTTPS templates, and portable foreign-store bindings. Machine-local checkout paths go in ignored references.local.yml and never affect check. The ticket frontmatter shape stays unchanged; no ticket schema bump is needed for the registry. check reports malformed tracked declarations and invalid identifiers in declared namespaces as errors, while undeclared namespaces stay legal and opaque. No check path reaches the network or requires a foreign checkout.
+
+Evidence: this store has 82 references in ten namespaces, including ticket:report and an abbreviated origin-ticket: ID. In a scratch store, pr:Sothr-Infrastructure/documentation#1, origin-ticket:TKT-01M2NZ88, origin-store:ledger, and a literal url: reference all stored, refs found the typed values by namespace, and check --strict passed. Existing code validates only a repository-relative reference path; refs is a lookup, not a resolver. A previous scratch run put a references key in config.yml, then series add rewrote config and lost it, so adding an unrecognized config key is unsafe for older binaries.
+
+Export offers a versioned references.json sidecar containing only declarations used by the ticket patch, their portable stores, undeclared namespace names, and SHA-256 of the exact 0001-tickets.patch bytes. It stays outside *.patch, preserving git am. Import verifies the digest before preview, displays each mapping, and requires adopt, alias, or decline choices; conflicts cannot take a local namespace silently. A conflicting declined reference must be rewritten to a free opaque namespace when tickets are adopted. The sidecar hash binds files within the artifact but is not an identity signature. Mapping adoption is a separate locked registry write, reported separately from partial ticket filing. Legacy origin-ticket: plus origin-store: remains opaque; a declared foreign-ticket namespace adds an independently resolvable reference for new imports.
+
+Alternatives rejected: config.yml loses unknown keys through old renderers; per-reference URLs duplicate destinations and do not bind a typed PR or foreign ID; embedding the map in the ticket patch would make git am write unapproved config; embedding it in the cover is hard to parse and bind; mandatory declarations would invalidate existing references. No built-in ticket grammar is safe against the measured ticket:report and abbreviated provenance. The plan now gives a PR and a foreign-ticket example through export, preview, adoption or decline, and reading. Implementation is separate work; this spike records its contract, not a shipped feature.

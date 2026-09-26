@@ -24,7 +24,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:47:37Z
+updated_at: 2026-09-26T00:50:57Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -104,3 +104,7 @@ Alternatives considered: display-only resolution would leave malformed declared 
 Groomed. The user added a material requirement after the first grooming note: an export should offer a lookup table so the receiving store can choose whether to adopt the sender's reference mappings. I read the current artifact path: Export returns a cover letter and one ticket patch, CLI writes those as 0000-cover-letter.txt and 0001-tickets.patch, and import reads only the patch. This means the mapping must be a new artifact and API input if the receiver is to preview it mechanically.
 
 The plan uses a versioned sidecar as the leading design, not a ruling yet. It would stay outside *.patch so git am continues to apply the ticket files alone; the receiver could inspect or explicitly adopt the map through git-ticket. The table should carry only declarations relevant to exported references, not every configuration value or a machine-local path. A conflicting namespace may already mean something different in the receiver, so adopting must offer alias or decline and must not silently overwrite. The table also needs an integrity tie to the patch, since the patch's ticket blobs are verified but an unrelated sidecar would not be. Embedding in the cover is harder to parse reliably; putting it in the patch would make git am write configuration the receiver never accepted. The design spike will settle the artifact format, trust boundary, and partial-failure semantics before implementation.
+
+**agent:codex/reference-groom** at 2026-09-26T00:50:57Z
+
+PR #222 review recorded. The targeted Terva review ran on head 3bca1d6eaa0be750be136a6e90f537743876473c against base adbcaa2452744a07efa706df2eebc7f50de96ef0, request groomed-ready-3bca1d6, run ce377a7a-4b8b-41f7-ab4e-de097aef61c6: https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/566. The maintained clean summary is on https://git.local.sothr.com/terva-sh/git-ticket/pulls/222. It reported no findings, so there is no review change to accept, dispute, or defer. It saw only the ticket diff and could not verify runtime behavior; the local scratch-store runs and full just ci result are the evidence for those claims. This note records the result without changing either design scope.

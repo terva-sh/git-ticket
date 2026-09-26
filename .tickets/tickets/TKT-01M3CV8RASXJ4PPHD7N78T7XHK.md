@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T01:13:21Z
+updated_at: 2026-09-26T01:14:37Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -107,6 +107,10 @@ Correction to the checklist progress: criteria 1-3 state implemented behavior, s
 **agent:codex/reference-design** at 2026-09-26T01:13:21Z
 
 PR #224 targeted review on head bb2dd6f852921344cbe989edd67777b582e503c6 against base abebb684bdbd7256352831d91b136386ba6b0099 ran as c708f22b-cc93-4036-a3be-c5ac6abb964a (Actions run 571, review 752). It found a medium safety gap: checking the source marker only at execution time cannot detect that it changed after human inspection. Accepted. resolve-move now requires --if-source-revision and compares that revision under the lock; the dependent retains optional --if-revision. A follow-up review will check the new head.
+
+**agent:codex/reference-design** at 2026-09-26T01:14:37Z
+
+PR #224 targeted rereview on head d3acaa5c4445c848bebd8afebb096677b36b70d9 against base abebb684bdbd7256352831d91b136386ba6b0099 ran as 7851d4a8-e12c-4f5a-aced-a3bdda9046ea (Actions run 573; maintained clean summary in PR comment 13842). It marked the source-revision finding resolved and found no new concrete correctness bug in the design diff. It did not test the future move command. The subsequent change is ticket-only review record and should carry that review.
 
 ## Summary
 

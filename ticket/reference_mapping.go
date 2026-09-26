@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -53,7 +52,7 @@ type ReferenceMappingResult struct {
 }
 
 func (s *Store) readRegistryForMapping() (ReferenceRegistry, string, bool, error) {
-	registry, err := s.ReadReferenceRegistry()
+	registry, data, err := s.readReferenceRegistrySnapshot()
 	if err != nil {
 		return ReferenceRegistry{}, "", false, err
 	}
@@ -65,10 +64,6 @@ func (s *Store) readRegistryForMapping() (ReferenceRegistry, string, bool, error
 	}
 	if registry.Namespaces == nil {
 		registry.Namespaces = map[string]ReferenceNamespace{}
-	}
-	data, err := os.ReadFile(filepath.Join(s.path, referencesFile))
-	if err != nil {
-		return ReferenceRegistry{}, "", false, err
 	}
 	return *registry, Revision(data), true, nil
 }

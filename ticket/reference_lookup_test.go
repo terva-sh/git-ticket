@@ -207,3 +207,58 @@ func TestMappingWriteSurvivesPartialTicketAdoption(t *testing.T) {
 		t.Fatalf("accepted mapping was lost after a ticket failure: %+v %v", registry, err)
 	}
 }
+
+func TestMappingPlanKeepsRegistryAndRevisionFromOneSnapshot(t *testing.T) {
+	art, _ := lookupFixture(t)
+	dest := newTestStore(t)
+	first, err := ParseReferenceRegistry([]byte(exampleRegistry))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := ParseReferenceRegistry([]byte(exampleRegistry))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := second.Namespaces["pr"]
+	pr.Template = "https://other.invalid/{owner}/{repo}/pulls/{number}"
+	second.Namespaces["pr"] = pr
+	a, err := RenderReferenceRegistry(*first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := RenderReferenceRegistry(*second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dest.Path(), referencesFile)
+	if err := os.WriteFile(file, a, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		for i := 0; i < 300; i++ {
+			if err := writeFileAtomic(file, [][]byte{a, b}[i%2]); err != nil {
+				done <- err
+				return
+			}
+		}
+		done <- nil
+	}()
+	for i := 0; i < 300; i++ {
+		plan, err := dest.PlanReferenceMappings(art.Patch, art.References, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		template := plan.Registry.Namespaces["pr"].Template
+		if template == first.Namespaces["pr"].Template && plan.MapRevision == Revision(a) {
+			continue
+		}
+		if template == second.Namespaces["pr"].Template && plan.MapRevision == Revision(b) {
+			continue
+		}
+		t.Fatalf("parsed registry %q with unrelated revision %q", template, plan.MapRevision)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}

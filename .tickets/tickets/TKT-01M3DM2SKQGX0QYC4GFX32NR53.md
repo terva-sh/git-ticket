@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:03:20Z
+updated_at: 2026-09-26T03:07:00Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -73,3 +73,7 @@ PR #225 second targeted review: head e7885d800738c4184782e1d09468990872179e5e, b
 **agent:codex/moved-dependent** at 2026-09-26T02:03:20Z
 
 PR #225 clean targeted review: head 76a4d987b91c29d890a45d00284ff7de08cdff6b, base cb5c790079691414000261846dc4c504c5ce60cc; run 955a5943-7f3b-45e7-800f-0f80aa6e5f48, request before-write-fix, https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/583 ; clean summary comment https://git.local.sothr.com/terva-sh/git-ticket/pulls/225#issuecomment-13879 . It marks review 755 finding resolved and reports no new concrete issue. Deterministic PR CI and local just ci passed. No merge has been performed.
+
+**agent:codex/moved-dependent** at 2026-09-26T03:07:00Z
+
+Landing integration: merged origin/main at 9d1332f9505f6073c6b8d16406ed84a2d5419637 into this branch without rewriting its published commits. The first merge resolved two overlapping declarations: docs/plan.md retains both the moved-dependency and reference-registry finding rows, and ticket/errors.go retains both pairs of codes. It also corrected the plan's now-obsolete wording that called both implemented code pairs future. The subsequent reader merge was conflict-free. Full just ci passed on combined head e25e90bb4911cdc046b44c18f810b53050558f45, including vet, race suite, and strict ticket-store check. Requesting a fresh targeted review against the combined main before merge.

@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DM2SKQGX0QYC4GFX32NR53
 title: Gate dependents when a prerequisite moves to another store
 type: task
-status: draft
+status: in-progress
 status_reason: null
 priority: normal
 due_on: null
@@ -18,15 +18,21 @@ blocks_on: none
 references:
   - ref: ticket:TKT-01M3CV8RASXJ4PPHD7N78T7XHK
     path: null
-claim: null
+claim:
+  actor: agent:codex/moved-dependent
+  branch: feat/moved-dependent-gate
+  worktree: /home/sothr/.t3/worktrees/git-ticket/moved-dependent-gate
+  commit: cb5c790079691414000261846dc4c504c5ce60cc
+  claimed_at: 2026-09-26T01:46:13Z
+  expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T01:08:20Z
+updated_at: 2026-09-26T01:46:13Z
 created_by:
   id: agent:codex/reference-design
   name: ""
 updated_by:
-  id: agent:codex/reference-design
+  id: agent:codex/moved-dependent
   name: ""
 extensions: {}
 ---

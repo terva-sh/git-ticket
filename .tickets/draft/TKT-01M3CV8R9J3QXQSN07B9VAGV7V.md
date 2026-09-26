@@ -24,7 +24,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:45:44Z
+updated_at: 2026-09-26T00:46:31Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -76,14 +76,18 @@ Related: TKT-01M3CT0GV02WDW2W7B3EJSC6R1 (Default series stays TKT after a store 
 - [ ] Validation covers declared identifier syntax and configuration while check remains offline; unknown namespace policy, finding severity, and unavailable foreign stores are settled against existing tickets.
 - [ ] The design states what show, ui, JSON, import --from-store, and refs expose or preserve, with an end-to-end example for a PR and a foreign ticket.
 - [ ] Compatibility, schema impact, and the plan sections to change are recorded before implementation tasks are filed.
+- [ ] Export carries a versioned lookup table for the namespace declarations used by its tickets, excludes machine-local paths, and keeps the existing git am DIR/*.patch route usable.
+- [ ] Import previews the offered mappings and lets the receiver explicitly adopt, alias, or decline them; conflicts never silently overwrite a local namespace, and partial-failure behavior is defined.
+- [ ] The mapping is bound to the ticket artifact so a stale or substituted table cannot be accepted as the source declaration for a different export.
 
 ## Implementation plan
 
 1. Inventory reference namespaces in this store and exercise the real PR and foreign-ticket examples. Confirm what refs, path checking, and a literal url: reference already provide.
-2. Design a namespace declaration that pairs a typed identifier with a destination. Compare a per-namespace registry with a direct target on each reference, then specify the committed fields, identifier grammar, URL template or foreign-store binding, and any machine-local override. Keep machine-specific paths out of committed config.
-3. Design validation and compatibility together: validate syntax and local configuration without network access; decide undeclared-namespace behavior and finding severity after measuring existing stores. Define behavior when a foreign store is absent.
-4. Specify the reader contract for show, ui, JSON, and refs, and the meaning of import --from-store under a declared binding. Walk one PR and one foreign-ticket reference through the design.
-5. Record the chosen format and behavior in plan sections 5.1, 5.5, 11, and 12.8, identify any schema migration, then file bounded implementation work.
+2. Design a portable namespace declaration that pairs typed identifiers with destinations. Compare a per-namespace registry with a direct target on each reference; specify grammar, URL templates, foreign-store bindings, and machine-local overrides.
+3. Design a versioned export lookup table for the declarations used by the exported tickets. Compare a sidecar with cover or patch embedding; keep git am DIR/*.patch working without adoption, exclude machine-local paths, and bind the table to its ticket patch.
+4. Design receiver preview and explicit adoption of that table: keep, alias, or decline each incoming mapping; never overwrite a conflicting local declaration silently. Specify whether config adoption is a separate write or part of ApplyImport, including lock and partial-failure behavior.
+5. Design validation and compatibility together: validate declared syntax and local configuration without network access; decide undeclared-namespace behavior and finding severity after measuring existing stores. Define absent foreign-store behavior and the reader contract for show, ui, JSON, refs, and import --from-store.
+6. Walk one PR and one foreign-ticket reference through export, preview, optional mapping adoption, ticket adoption, and later reading. Record the chosen format in plan sections 5.1, 5.5, 11, and 12.8, identify any schema migration, then file bounded implementation work.
 
 ## Notes
 
@@ -94,3 +98,9 @@ Groomed. The trigger fired in the reported move between stores. I checked the cu
 The user chose to design full namespace declarations and validation together as the first work. This remains a design spike: the plan must specify portable declarations, local overrides, identifier grammar, resolution, and an offline validation contract before implementation. Check cannot verify an external URL or a missing foreign store by reaching the network; its existing no-network guarantee stays part of the design.
 
 Alternatives considered: display-only resolution would leave malformed declared identifiers unchecked; documentation alone would leave the live references uninterpretable; a direct URL per reference is useful but duplicates destinations and does not answer the store-wide binding question. Treating every undeclared namespace as invalid may break existing stores, so enforcement and finding severity need a measured compatibility decision. The ticket's area label now leads, matching this store's convention. The trigger fired; the implementation choice has not been made.
+
+**agent:codex/reference-groom** at 2026-09-26T00:46:31Z
+
+Groomed. The user added a material requirement after the first grooming note: an export should offer a lookup table so the receiving store can choose whether to adopt the sender's reference mappings. I read the current artifact path: Export returns a cover letter and one ticket patch, CLI writes those as 0000-cover-letter.txt and 0001-tickets.patch, and import reads only the patch. This means the mapping must be a new artifact and API input if the receiver is to preview it mechanically.
+
+The plan uses a versioned sidecar as the leading design, not a ruling yet. It would stay outside *.patch so git am continues to apply the ticket files alone; the receiver could inspect or explicitly adopt the map through git-ticket. The table should carry only declarations relevant to exported references, not every configuration value or a machine-local path. A conflicting namespace may already mean something different in the receiver, so adopting must offer alias or decline and must not silently overwrite. The table also needs an integrity tie to the patch, since the patch's ticket blobs are verified but an unrelated sidecar would not be. Embedding in the cover is harder to parse reliably; putting it in the patch would make git am write configuration the receiver never accepted. The design spike will settle the artifact format, trust boundary, and partial-failure semantics before implementation.

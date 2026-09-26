@@ -461,15 +461,18 @@ func runShow(ctx *cmdContext, args []string) error {
 	}
 
 	if ctx.g.json {
+		converted, err := newTicketJSON(s, t, ready[t.ID])
+		if err != nil {
+			return err
+		}
 		writeJSON(ctx.out, ticketEnvelope{
 			SchemaVersion: schemaVersion,
 			Kind:          "ticket",
-			Ticket:        newTicketJSON(s, t, ready[t.ID]),
+			Ticket:        converted,
 		})
 		return nil
 	}
-	writeTicketHuman(ctx.out, s, t, ready[t.ID])
-	return nil
+	return writeTicketHuman(ctx.out, s, t, ready[t.ID])
 }
 
 // parentNone is what a caller types to ask for the tickets that have no parent,
@@ -1181,7 +1184,11 @@ func runFiles(ctx *cmdContext, args []string) error {
 // Like files, this reads what agents wrote and is only as complete as they were.
 func runRefs(ctx *cmdContext, args []string) error {
 	var ids idsOption
-	rest, err := ctx.parseFlags("refs", args, ids.register)
+	var resolve bool
+	rest, err := ctx.parseFlags("refs", args, func(fs *flag.FlagSet) {
+		ids.register(fs)
+		fs.BoolVar(&resolve, "resolve", false, "show the targets of matching references")
+	})
 	if err != nil {
 		return err
 	}
@@ -1199,6 +1206,34 @@ func runRefs(ctx *cmdContext, args []string) error {
 	tickets, err := s.Refs(context.Background(), rest[0])
 	if err != nil {
 		return err
+	}
+	if resolve && !ctx.g.json {
+		matches, err := s.ResolveRefs(context.Background(), rest[0])
+		if err != nil {
+			return err
+		}
+		if len(matches) == 0 {
+			fmt.Fprintln(ctx.out, "No ticket carries that reference.")
+			return nil
+		}
+		short := storeAbbreviations(s, tickets, ids.mode)
+		for _, match := range matches {
+			id := short[match.Ticket.ID]
+			if id == "" {
+				id = match.Ticket.ID
+			}
+			fmt.Fprintf(ctx.out, "%s  %s\n  %s", id, match.Ticket.Title, match.Reference.Ref)
+			if match.Target != nil {
+				if match.Target.LocalPath != "" {
+					fmt.Fprintf(ctx.out, " -> %s", match.Target.LocalPath)
+				}
+				if match.Target.URL != "" {
+					fmt.Fprintf(ctx.out, " (web: %s)", match.Target.URL)
+				}
+			}
+			fmt.Fprintln(ctx.out)
+		}
+		return nil
 	}
 	return ctx.writeTicketListWith(s, tickets,
 		"No ticket carries that reference.", listView{IDs: ids.mode})
@@ -2271,7 +2306,11 @@ func (ctx *cmdContext) writeTicketListWith(s *ticket.Store, tickets []*ticket.Ti
 		}
 		out := make([]*ticketJSON, 0, len(tickets))
 		for _, t := range tickets {
-			out = append(out, newTicketJSON(s, t, ready[t.ID]))
+			converted, err := newTicketJSON(s, t, ready[t.ID])
+			if err != nil {
+				return err
+			}
+			out = append(out, converted)
 		}
 		// A query leaves out a file it could not parse, per plan section 8, so
 		// the envelope has to say which ones. A host building a board on this
@@ -2333,7 +2372,15 @@ func writeListHuman(w io.Writer, tickets []*ticket.Ticket, short map[string]stri
 	tw.Flush()
 }
 
-func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready ticket.Readiness) {
+func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready ticket.Readiness) error {
+	resolved := make([]*ticket.ResolvedReference, 0, len(t.References))
+	for _, ref := range t.References {
+		target, err := s.ResolveReference(context.Background(), ref)
+		if err != nil {
+			return err
+		}
+		resolved = append(resolved, target)
+	}
 	fmt.Fprintf(w, "%s  %s\n", t.ID, t.Title)
 	fmt.Fprintf(w, "%s  %s  %s\n", t.Status, t.Type, t.Priority)
 	if t.StatusReason != nil {
@@ -2378,6 +2425,21 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready tick
 	field("revision", t.Revision)
 	field("file", displayPath(s, t.Path))
 	tw.Flush()
+	if len(t.References) > 0 {
+		fmt.Fprintln(w, "references:")
+		for i, ref := range t.References {
+			fmt.Fprintf(w, "  %s", ref.Ref)
+			if target := resolved[i]; target != nil {
+				if target.LocalPath != "" {
+					fmt.Fprintf(w, " -> %s", target.LocalPath)
+				}
+				if target.URL != "" {
+					fmt.Fprintf(w, " (web: %s)", target.URL)
+				}
+			}
+			fmt.Fprintln(w)
+		}
+	}
 
 	section := func(heading, text string) {
 		if strings.TrimSpace(text) == "" {
@@ -2395,6 +2457,7 @@ func writeTicketHuman(w io.Writer, s *ticket.Store, t *ticket.Ticket, ready tick
 	for _, extra := range t.Body.Extra {
 		section(extra.Heading, extra.Text)
 	}
+	return nil
 }
 
 // reportAdoption says what init found and what is left to do with it, and says

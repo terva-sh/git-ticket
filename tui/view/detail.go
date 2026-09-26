@@ -14,8 +14,9 @@ import (
 // correctly as written; styled rendering is a later lift and this view
 // does not wait for it.
 type DetailView struct {
-	t  *ticket.Ticket
-	vp tui.Viewport
+	t    *ticket.Ticket
+	refs []ReferenceTarget
+	vp   tui.Viewport
 
 	// body is the built section lines, cached against the width that
 	// built them, because a Draw happens on every keypress and the
@@ -31,7 +32,16 @@ type DetailView struct {
 
 // NewDetailView shows t. The caller keeps ownership of the ticket.
 func NewDetailView(t *ticket.Ticket) *DetailView {
-	return &DetailView{t: t}
+	d := &DetailView{t: t}
+	for _, ref := range t.References {
+		d.refs = append(d.refs, ReferenceTarget{Reference: ref})
+	}
+	return d
+}
+
+func (d *DetailView) setReferences(refs []ReferenceTarget) {
+	d.refs = refs
+	d.body = nil // resolved destinations change what the body renders
 }
 
 // say puts m on the footer line until the next key.
@@ -94,7 +104,7 @@ func (d *DetailView) Render(cols, rows int) []string {
 	// now g/G go unhinted here and live on the ? page instead, because
 	// t links earns the room more than a jump nobody reaches for
 	// blind. The help page carries the complete detail key list.
-	out = append(out, dim("  j/k scroll · y copy · t links · Esc back · Ctrl+C quit"))
+	out = append(out, dim("  j/k scroll · y copy · t links · r refs · Esc back"))
 	return out
 }
 
@@ -135,6 +145,24 @@ func (d *DetailView) build(cols int) {
 	limit := cols - 4 // two cells of margin each side
 	if limit < 20 {
 		limit = 20
+	}
+	if len(d.refs) > 0 {
+		d.body = append(d.body, "  \x1b[1mReferences\x1b[22m")
+		for _, ref := range d.refs {
+			line := ref.Reference.Ref
+			if ref.Reference.Path != nil && *ref.Reference.Path != "" {
+				line += " [path: " + *ref.Reference.Path + "]"
+			}
+			if ref.LocalPath != "" {
+				line += " -> " + ref.LocalPath
+			}
+			if ref.URL != "" {
+				line += " (web: " + ref.URL + ")"
+			}
+			for _, wrapped := range tui.WrapANSILineKeepStyle(line, limit) {
+				d.body = append(d.body, "  "+wrapped)
+			}
+		}
 	}
 
 	b := d.t.Body

@@ -839,6 +839,38 @@ func (s *Store) Refs(ctx context.Context, ref string) ([]*Ticket, error) {
 	return out, nil
 }
 
+// ResolvedReferenceMatch is one stored reference that answered a refs query,
+// with an optional read-time destination. Reference retains its original bytes.
+type ResolvedReferenceMatch struct {
+	Ticket    *Ticket
+	Reference Reference
+	Target    *ResolvedReference
+}
+
+// ResolveRefs uses exactly the matching rule of Refs, then resolves only the
+// matching values. Undeclared namespaces remain visible with a nil Target.
+func (s *Store) ResolveRefs(ctx context.Context, query string) ([]ResolvedReferenceMatch, error) {
+	tickets, err := s.Refs(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	wantNS, wantID, typed := splitRef(query)
+	var matches []ResolvedReferenceMatch
+	for _, t := range tickets {
+		for _, ref := range t.References {
+			if !matchesRef(ref, wantNS, wantID, typed) {
+				continue
+			}
+			target, err := s.ResolveReference(ctx, ref)
+			if err != nil {
+				return nil, err
+			}
+			matches = append(matches, ResolvedReferenceMatch{Ticket: t, Reference: ref, Target: target})
+		}
+	}
+	return matches, nil
+}
+
 // Files returns the tickets that record a reference to a path.
 //
 // This reads the references the agents wrote and is only as complete as they

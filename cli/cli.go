@@ -87,7 +87,8 @@ type UIParams struct {
 	// how a clipboard is reached. The field sits last in both structs,
 	// because the cast in the composition root needs the field order
 	// identical.
-	Clipboard func(body []byte) (via string, err error)
+	Clipboard  func(body []byte) (via string, err error)
+	OpenTarget func(target string) error
 }
 
 func (e Env) getenv(key string) string {

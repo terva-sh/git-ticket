@@ -25,12 +25,10 @@ import (
 // saying why in plan 7.4, which is the review this test exists to force.
 var gitHelpers = map[string]bool{"runGit": true, "readGit": true, "writeGit": true}
 
-// nonGitExec are the functions plan 7.4 exempts from the git-only rule: the
-// clipboard tools of plan 12.7 run from runClipboardTool and from nowhere
-// else. The binary there comes from a PATH probe, so it cannot be a string
-// literal, and pinning the function name is what keeps the exemption from
-// leaking to a call site added tomorrow.
-var nonGitExec = map[string]bool{"runClipboardTool": true}
+// nonGitExec are the functions plan 7.4 exempts from the git-only rule:
+// clipboard tools and the reference picker's explicit desktop opener. Pinning
+// each function keeps the exemption from leaking to another call site.
+var nonGitExec = map[string]bool{"runClipboardTool": true, "openReferenceTarget": true}
 
 // planGitCommandPattern reads the command column of the table in plan 7.4.
 // The character class allows the hyphen because `symbolic-ref` has one.

@@ -146,6 +146,10 @@ func TestResolveReferenceUsesPortableURLAndOptionalLocalCheckout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The resolver answers with the symlink-free path it checked containment
+	// against, so compare in that name space. A temp dir reached through a
+	// symlink, or spelled with a Windows 8.3 short name, differs otherwise.
+	file = realPath(t, file)
 	if resolved.LocalPath != file || resolved.URL != remote.URL {
 		t.Fatalf("local resolution: %+v", resolved)
 	}
@@ -156,6 +160,7 @@ func TestResolveReferenceUsesPortableURLAndOptionalLocalCheckout(t *testing.T) {
 	if err := os.WriteFile(own, []byte("decision"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	own = realPath(t, own)
 	withRoot, err := OpenWith(s.Path(), OpenOptions{Root: checkout})
 	if err != nil {
 		t.Fatal(err)
@@ -284,4 +289,13 @@ func TestCheckRejectsTrackedRegistrySymlinks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func realPath(t *testing.T, path string) string {
+	t.Helper()
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return real
 }

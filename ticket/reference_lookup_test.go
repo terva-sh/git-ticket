@@ -2,8 +2,11 @@ package ticket
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -263,7 +266,15 @@ func TestMappingPlanKeepsRegistryAndRevisionFromOneSnapshot(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		for i := 0; i < 300; i++ {
-			if err := writeFileAtomic(file, [][]byte{a, b}[i%2]); err != nil {
+			err := writeFileAtomic(file, [][]byte{a, b}[i%2])
+			// Windows refuses to rename over a file another handle holds open,
+			// and the reader below holds this one open on purpose. A refused
+			// write leaves the old bytes whole, which is the snapshot the
+			// reader must still agree with, so it is not this test's failure.
+			if runtime.GOOS == "windows" && errors.Is(err, fs.ErrPermission) {
+				continue
+			}
+			if err != nil {
 				done <- err
 				return
 			}

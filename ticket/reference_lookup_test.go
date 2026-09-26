@@ -156,3 +156,40 @@ func TestUndeclaredIncomingNamespaceCannotAcquireLocalMeaning(t *testing.T) {
 		t.Fatalf("opaque rewrite for undeclared ref: %+v %v", plan, err)
 	}
 }
+
+func TestMappingWriteSurvivesPartialTicketAdoption(t *testing.T) {
+	src := newTestStore(t)
+	putRegistry(t, src, exampleRegistry)
+	first := mustCreate(t, src, "First incoming ticket")
+	second := mustCreate(t, src, "Second incoming ticket")
+	mustApply(t, src, first.ID, AddReference{Ref: "pr:team/docs#12"})
+	art, err := src.Export(context.Background(), ExportOptions{IDs: []string{first.ID, second.ID}, From: "Sender <sender@example.invalid>", Now: fixedClock()()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dest := newTestStore(t)
+	mappings, err := dest.PlanReferenceMappings(art.Patch, art.References, []MappingSelection{{Namespace: "pr", Action: "adopt"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapResult, err := dest.ApplyReferenceMappings(context.Background(), mappings, "")
+	if err != nil || !mapResult.Changed {
+		t.Fatalf("mapping write: %+v %v", mapResult, err)
+	}
+	plan, err := dest.PlanImport(context.Background(), ImportOptions{Patch: string(art.Patch), Actor: testActor, ReferenceRegistry: &mappings.Registry})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.Tickets[1].Create.Title = "" // simulate a later ticket refusing to file
+	filed, err := dest.ApplyImport(context.Background(), plan)
+	if err == nil || filed == nil || len(filed.Filed) != 1 {
+		t.Fatalf("partial adoption result: %+v %v", filed, err)
+	}
+	if filed.Filed[0].FromID != plan.Tickets[0].Incoming.ID {
+		t.Fatalf("partial result lost the source ID: %+v", filed.Filed)
+	}
+	registry, err := dest.ReadReferenceRegistry()
+	if err != nil || registry.Namespaces["pr"].Kind != "url" {
+		t.Fatalf("accepted mapping was lost after a ticket failure: %+v %v", registry, err)
+	}
+}

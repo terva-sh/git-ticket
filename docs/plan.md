@@ -766,6 +766,8 @@ The portable registry maps lower-case namespace names to one of two kinds:
 pattern with named capture groups. A `url` declaration has an HTTPS
 `template`; every placeholder names one capture and occupies a complete URL
 path segment. Captures are percent-encoded as path segments before expansion.
+Placeholders use literal braces; percent-encoded braces are rejected because
+the resolver expands the original template bytes.
 Namespace and store keys start with a lower-case ASCII letter and continue with
 lower-case letters, digits, hyphens or underscores.
 Literal query strings, fragments, credentials, and dynamic hosts are not part

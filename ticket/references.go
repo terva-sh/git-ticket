@@ -236,6 +236,12 @@ func safeRelativeStorePath(p string) bool {
 var placeholder = regexp.MustCompile(`\{([A-Za-z][A-Za-z0-9_]*)\}`)
 
 func validTemplate(raw string, allowed map[string]bool, browse bool) error {
+	// url.Parse and url.ParseQuery decode escaped braces, but resolution
+	// expands placeholders in the original template bytes.
+	lower := strings.ToLower(raw)
+	if strings.Contains(lower, "%7b") || strings.Contains(lower, "%7d") {
+		return fmt.Errorf("placeholders must use literal braces")
+	}
 	u, err := url.Parse(raw)
 	if err != nil || u == nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" || u.Opaque != "" || strings.ContainsAny(u.Host, "{}") {
 		return fmt.Errorf("expected an HTTPS URL with a literal host, no credentials or fragment")

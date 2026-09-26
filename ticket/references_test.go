@@ -211,6 +211,8 @@ func TestRegistryRejectsUnsafeTemplatesAndTraversal(t *testing.T) {
 		strings.Replace(exampleRegistry, "https://git.local.example/{owner}", "https://name@git.local.example/{owner}", 1),
 		strings.Replace(exampleRegistry, "repository: https://git.local.example/", "repository: https://name@git.local.example/", 1),
 		strings.Replace(exampleRegistry, "identifier: '(?P<id>", "identifier: 'prefix(?P<id>", 1),
+		strings.Replace(exampleRegistry, "{owner}/{repo}", "%7Bowner%7D/{repo}", 1),
+		strings.Replace(exampleRegistry, "search?q={id}", "search?q=%7Bid%7D", 1),
 	}
 	for i, body := range cases {
 		if _, err := ParseReferenceRegistry([]byte(body)); err == nil {

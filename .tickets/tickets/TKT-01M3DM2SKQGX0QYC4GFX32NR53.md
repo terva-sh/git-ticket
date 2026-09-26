@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T01:56:33Z
+updated_at: 2026-09-26T01:59:37Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -57,3 +57,11 @@ Add schema-4 moved_to parsing, rendering and explicit migration. Gate readiness 
 **agent:codex/moved-dependent** at 2026-09-26T01:56:04Z
 
 Implementation decision: Schema 4 is explicit because an older reader would otherwise count a moved done ticket as satisfying dependencies. The original keeps its status and a typed moved_to marker; changing status to done as a move signal loses the distinction and releases local dependents. Resolution requires the original revision checked under the store lock and a written reason; polling the receiving store would claim certainty this store cannot establish. Import advice leaves the receiver namespace for the owner to choose, because an invented ticket namespace could collide across stores. Verification: full just ci including race tests and strict store check passed; a built binary moved a done prerequisite between two scratch stores, kept its local dependent unready, reported dependency_moved, and cleared it only after resolve-move.
+
+**agent:codex/moved-dependent** at 2026-09-26T01:59:32Z
+
+PR #225 review: head 0e8f16cc36fec48a11c9db16945df1fc267b184b, base cb5c790079691414000261846dc4c504c5ce60cc; targeted review run #579 (id 11646, request ready-review), review 754. Accepted its medium finding: move --json omitted affected dependents. Commit 406237f adds affectedDependents with ID and title to every mutation-result (empty for other mutations), queries before emitting either output mode, documents the field, and tests the JSON path. Full just ci passed after the fix. Request a fresh review of this substantive change.
+
+**agent:codex/moved-dependent** at 2026-09-26T01:59:37Z
+
+Review references: PR https://git.local.sothr.com/terva-sh/git-ticket/pulls/225 ; run https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/579 ; review https://git.local.sothr.com/api/v1/repos/terva-sh/git-ticket/pulls/225/reviews/754 .

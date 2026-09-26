@@ -254,6 +254,9 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 				fmt.Fprintf(ctx.out, ":%s", offer.Local)
 			}
 			fmt.Fprintln(ctx.out)
+			if offer.Existing == "identical" && offer.Action == "decline" {
+				fmt.Fprintln(ctx.out, "    identical local mapping remains active; decline copies nothing")
+			}
 		}
 		for _, name := range mappings.Undeclared {
 			if local, renamed := mappings.Rewrites[name]; renamed {

@@ -157,6 +157,20 @@ func TestUndeclaredIncomingNamespaceCannotAcquireLocalMeaning(t *testing.T) {
 	}
 }
 
+func TestDecliningIdenticalMappingKeepsExistingResolution(t *testing.T) {
+	art, _ := lookupFixture(t)
+	dest := newTestStore(t)
+	putRegistry(t, dest, exampleRegistry)
+	plan, err := dest.PlanReferenceMappings(art.Patch, art.References, []MappingSelection{{Namespace: "pr", Action: "decline"}})
+	if err != nil || plan.Changed || len(plan.Rewrites) != 0 || plan.Offers[0].Existing != "identical" {
+		t.Fatalf("identical decline: %+v %v", plan, err)
+	}
+	resolved, err := dest.ResolveReference(context.Background(), Reference{Ref: "pr:team/docs#12"})
+	if err != nil || resolved == nil || resolved.URL != "https://git.local.example/team/docs/pulls/12" {
+		t.Fatalf("existing local meaning did not remain active: %+v %v", resolved, err)
+	}
+}
+
 func TestMappingWriteSurvivesPartialTicketAdoption(t *testing.T) {
 	src := newTestStore(t)
 	putRegistry(t, src, exampleRegistry)

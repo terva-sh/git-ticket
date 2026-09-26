@@ -24,6 +24,12 @@ type ImportOptions struct {
 	// directory is what lets an import come off a wire, and what makes this
 	// testable without a filesystem.
 	Patch string
+	// ReferenceRewrites comes from the receiver's explicit mapping plan.
+	// Only namespace prefixes change; identifier bytes remain the sender's.
+	ReferenceRewrites map[string]string
+	// ReferenceRegistry is the registry after selected mappings are accepted.
+	// It also lets --from-store add a resolvable foreign-ticket reference.
+	ReferenceRegistry *ReferenceRegistry
 	// FromStore names the sending store, recorded as provenance. It is empty
 	// when the sender did not say.
 	FromStore string
@@ -225,6 +231,11 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 			return out, fmt.Errorf("filing %s (%s): %w", pt.Incoming.Title, pt.Incoming.ID, err)
 		}
 		remap[pt.Incoming.ID] = res.Ticket.ID
+		out.Filed = append(out.Filed, ImportedTicket{
+			FromID: pt.Incoming.ID,
+			ID:     res.Ticket.ID,
+			Title:  pt.Incoming.Title,
+		})
 
 		for _, ref := range pt.Refs {
 			if _, err := s.Apply(ctx, res.Ticket.ID, ref, ApplyOptions{Actor: p.Actor}); err != nil {
@@ -247,11 +258,6 @@ func (s *Store) ApplyImport(ctx context.Context, p *ImportPlan) (*ImportResult, 
 			}
 		}
 
-		out.Filed = append(out.Filed, ImportedTicket{
-			FromID: pt.Incoming.ID,
-			ID:     res.Ticket.ID,
-			Title:  pt.Incoming.Title,
-		})
 	}
 	return out, nil
 }
@@ -311,6 +317,11 @@ func planTicket(cfg Config, root string, in IncomingTicket, o ImportOptions, all
 
 	for _, ref := range t.References {
 		keep := AddReference{Ref: ref.Ref, Path: ref.Path}
+		if namespace, identifier, typed := splitRef(keep.Ref); typed {
+			if local, ok := o.ReferenceRewrites[strings.ToLower(namespace)]; ok {
+				keep.Ref = local + ":" + identifier
+			}
+		}
 		if keep.Path != nil && *keep.Path != "" && !repoHasPath(root, *keep.Path) {
 			// The reference survives without its path. What the sender pointed
 			// at is still worth knowing, and only the path is the thing that
@@ -328,6 +339,25 @@ func planTicket(cfg Config, root string, in IncomingTicket, o ImportOptions, all
 	p.Refs = append(p.Refs, AddReference{Ref: "origin-ticket:" + t.ID})
 	if o.FromStore != "" {
 		p.Refs = append(p.Refs, AddReference{Ref: "origin-store:" + o.FromStore})
+		if o.ReferenceRegistry != nil {
+			for _, name := range sortedKeys(o.ReferenceRegistry.Namespaces) {
+				declaration := o.ReferenceRegistry.Namespaces[name]
+				if declaration.Kind != "ticket-store" || declaration.Store != o.FromStore {
+					continue
+				}
+				candidate := name + ":" + t.ID
+				if o.ReferenceRegistry.validIdentifier(candidate) {
+					already := false
+					for _, ref := range p.Refs {
+						already = already || ref.Ref == candidate
+					}
+					if !already {
+						p.Refs = append(p.Refs, AddReference{Ref: candidate})
+					}
+					break
+				}
+			}
+		}
 	}
 	// A parent left behind is the link the move loses, and it is not the same
 	// loss as a dependency left behind. Under one owner the hierarchy is a real

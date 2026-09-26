@@ -6,9 +6,36 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/terva-sh/git-ticket/ticket"
 )
+
+type mappingFlags []string
+
+func (f *mappingFlags) String() string { return strings.Join(*f, ",") }
+func (f *mappingFlags) Set(value string) error {
+	*f = append(*f, value)
+	return nil
+}
+
+func parseMappingFlags(values mappingFlags) ([]ticket.MappingSelection, error) {
+	choices := make([]ticket.MappingSelection, 0, len(values))
+	for _, value := range values {
+		parts := strings.SplitN(value, "=", 2)
+		if len(parts) != 2 || parts[0] == "" {
+			return nil, fmt.Errorf("--map needs NAMESPACE=adopt|alias:LOCAL|decline[:LOCAL]")
+		}
+		choice := ticket.MappingSelection{Namespace: parts[0]}
+		action := strings.SplitN(parts[1], ":", 2)
+		choice.Action = action[0]
+		if len(action) == 2 {
+			choice.Local = action[1]
+		}
+		choices = append(choices, choice)
+	}
+	return choices, nil
+}
 
 // import is the half of the export pair that git cannot do alone.
 //
@@ -43,10 +70,14 @@ import (
 
 // runImport adopts the tickets an export carries into this store.
 func runImport(ctx *cmdContext, args []string) error {
-	var adopt, sameOwner bool
-	var fromStore string
+	var adopt, adoptMappings, sameOwner bool
+	var fromStore, ifMapRevision string
+	var maps mappingFlags
 	rest, err := ctx.parseFlags("import", args, func(fs *flag.FlagSet) {
 		fs.BoolVar(&adopt, "adopt", false, "file every ticket afresh under this store's series; without it nothing is written")
+		fs.BoolVar(&adoptMappings, "adopt-mappings", false, "write explicitly accepted portable reference mappings")
+		fs.Var(&maps, "map", "choose NAMESPACE=adopt|alias:LOCAL|decline[:LOCAL]; repeat for each mapping")
+		fs.StringVar(&ifMapRevision, "if-map-revision", "", "require the current reference registry revision")
 		fs.BoolVar(&sameOwner, "same-owner", false, "both stores are yours, so carry the ticks, the status and the filing instant")
 		fs.StringVar(&fromStore, "from-store", "", "the store this export came from, recorded as provenance")
 	})
@@ -66,6 +97,28 @@ func runImport(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
+	var sidecar []byte
+	sidecar, err = os.ReadFile(filepath.Join(dir, exportReferenceLookup))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if os.IsNotExist(err) {
+		sidecar = nil // exports before references.json remain importable
+	}
+	choices, err := parseMappingFlags(maps)
+	if err != nil {
+		return err
+	}
+	mappingPlan, err := s.PlanReferenceMappings([]byte(patch), sidecar, choices)
+	if err != nil {
+		return err
+	}
+	if adopt && len(mappingPlan.Unresolved) > 0 {
+		return fmt.Errorf("conflicting references need --map NAMESPACE=decline:LOCAL (or alias:LOCAL for offered mappings) before ticket adoption: %s", strings.Join(mappingPlan.Unresolved, ", "))
+	}
+	if adopt && !adoptMappings && mappingPlan.Changed {
+		return fmt.Errorf("selected mappings need --adopt-mappings before ticket adoption")
+	}
 
 	// The zero actor for a preview, because it files nothing and asking for the
 	// real one warns on stderr about a store that declares no default.
@@ -75,10 +128,12 @@ func runImport(ctx *cmdContext, args []string) error {
 	}
 
 	plan, err := s.PlanImport(context.Background(), ticket.ImportOptions{
-		Patch:     patch,
-		FromStore: fromStore,
-		SameOwner: sameOwner,
-		Actor:     actor,
+		Patch:             patch,
+		ReferenceRewrites: mappingPlan.Rewrites,
+		ReferenceRegistry: &mappingPlan.Registry,
+		FromStore:         fromStore,
+		SameOwner:         sameOwner,
+		Actor:             actor,
 	})
 	if err != nil {
 		return fmt.Errorf("%s: %w", filepath.Join(dir, exportTicketPatch), err)
@@ -86,13 +141,26 @@ func runImport(ctx *cmdContext, args []string) error {
 	if len(plan.Tickets) == 0 {
 		return fmt.Errorf("%s carries no tickets; it may be a patch series rather than an export", dir)
 	}
+	if adoptMappings {
+		result, err := s.ApplyReferenceMappings(context.Background(), mappingPlan, ifMapRevision)
+		if err != nil {
+			return err
+		}
+		if result.Changed {
+			fmt.Fprintf(ctx.env.Stderr, "adopted reference mappings in .tickets/references.yml (revision %s)\n", result.MapRevision)
+		} else {
+			fmt.Fprintf(ctx.env.Stderr, "reference mappings unchanged (revision %s)\n", result.MapRevision)
+		}
+	} else if ifMapRevision != "" && ifMapRevision != mappingPlan.MapRevision {
+		return fmt.Errorf("reference registry revision does not match --if-map-revision")
+	}
 
 	// --same-owner is legal on its own. It changes what the reconciliation
 	// decides, so a preview that ignored it would show a different answer from
 	// the one --adopt carries out, and the preview's whole promise is that it
 	// does not.
 	if !adopt {
-		return importPreview(ctx, s, dir, plan, sameOwner)
+		return importPreview(ctx, s, dir, plan, mappingPlan, sameOwner, adoptMappings)
 	}
 	return importAdopt(ctx, s, plan, sameOwner)
 }
@@ -168,7 +236,7 @@ func changeLine(c ticket.Change) string {
 // It renders the plan and decides nothing. That is the guarantee the preview is
 // making: what it shows is what --adopt will carry out, because both read the
 // same ImportPlan rather than each working the answer out.
-func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.ImportPlan, sameOwner bool) error {
+func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.ImportPlan, mappings *ticket.ReferenceMappingPlan, sameOwner, mappingsWritten bool) error {
 	cfg := s.Config()
 	shared := 0
 	for _, pt := range plan.Tickets {
@@ -178,6 +246,33 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 	}
 
 	fmt.Fprintf(ctx.out, "%s carries %s\n\n", dir, plural(len(plan.Tickets), "ticket"))
+	if mappings.HasSidecar {
+		fmt.Fprintln(ctx.out, "Reference lookup offered (destinations are claims by the sender):")
+		for _, offer := range mappings.Offers {
+			fmt.Fprintf(ctx.out, "  %s  %s -> %s\n    receiver: %s; choice: %s", offer.Namespace, offer.Example, offer.Destination, offer.Existing, offer.Action)
+			if offer.Local != "" {
+				fmt.Fprintf(ctx.out, ":%s", offer.Local)
+			}
+			fmt.Fprintln(ctx.out)
+		}
+		for _, name := range mappings.Undeclared {
+			if local, renamed := mappings.Rewrites[name]; renamed {
+				fmt.Fprintf(ctx.out, "  %s: used but undeclared; renamed to opaque %s\n", name, local)
+			} else {
+				fmt.Fprintf(ctx.out, "  %s: used but undeclared; remains opaque when no local declaration exists\n", name)
+			}
+		}
+		for _, name := range mappings.Unresolved {
+			fmt.Fprintf(ctx.out, "  %s: choose decline:LOCAL before --adopt (alias:LOCAL is also available for offered mappings)\n", name)
+		}
+		fmt.Fprintln(ctx.out)
+	} else if len(mappings.Undeclared) > 0 {
+		fmt.Fprintln(ctx.out, "No reference lookup was supplied by this older export; reference destinations are unknown.")
+		for _, name := range mappings.Unresolved {
+			fmt.Fprintf(ctx.out, "  %s: local declaration exists; choose --map %s=decline:LOCAL before --adopt\n", name, name)
+		}
+		fmt.Fprintln(ctx.out)
+	}
 	for _, pt := range plan.Tickets {
 		fmt.Fprintf(ctx.out, "  %s  %s\n", pt.Incoming.ID, pt.Incoming.Title)
 		for _, c := range pt.Changes {
@@ -188,7 +283,11 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 		}
 	}
 
-	fmt.Fprintf(ctx.out, "\nNothing written. --adopt files all %s afresh under this store's series.\n", plural(len(plan.Tickets), "ticket"))
+	if mappingsWritten {
+		fmt.Fprintf(ctx.out, "\nNo tickets written. --adopt files all %s afresh under this store's series.\n", plural(len(plan.Tickets), "ticket"))
+	} else {
+		fmt.Fprintf(ctx.out, "\nNothing written. --adopt files all %s afresh under this store's series.\n", plural(len(plan.Tickets), "ticket"))
+	}
 	// Named here rather than left for the adopt to reveal, because the commands
 	// are the half of the move this tool will not perform, and a person deciding
 	// whether to adopt should know the origin is still theirs to close.
@@ -218,6 +317,13 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 func importAdopt(ctx *cmdContext, s *ticket.Store, plan *ticket.ImportPlan, sameOwner bool) error {
 	res, err := s.ApplyImport(context.Background(), plan)
 	if err != nil {
+		if res != nil {
+			for _, filed := range res.Filed {
+				fmt.Fprintf(ctx.env.Stderr, "filed before error: %s <- %s  %s\n", filed.ID, filed.FromID, filed.Title)
+				fmt.Fprintf(ctx.env.Stderr, "  inspect: git ticket show %s\n", filed.ID)
+			}
+		}
+		fmt.Fprintln(ctx.env.Stderr, "recover: git ticket check --strict; inspect the filed tickets before retrying import")
 		return err
 	}
 

@@ -297,11 +297,14 @@ func TestExportJSONReportsWhatItWrote(t *testing.T) {
 		t.Errorf("kind = %v, want mutation-result", env["kind"])
 	}
 	paths, _ := env["pathsChanged"].([]any)
-	if len(paths) != 2 {
-		t.Fatalf("pathsChanged = %v, want the cover and one patch", paths)
+	if len(paths) != 3 {
+		t.Fatalf("pathsChanged = %v, want the cover, ticket patch and lookup table", paths)
 	}
 	if first, _ := paths[0].(string); !strings.HasSuffix(first, ".txt") {
 		t.Errorf("first path = %v, want the cover letter first", paths[0])
+	}
+	if last, _ := paths[2].(string); !strings.HasSuffix(last, "references.json") {
+		t.Errorf("last path = %v, want the lookup table", paths[2])
 	}
 }
 

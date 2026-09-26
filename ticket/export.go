@@ -47,6 +47,9 @@ type Export struct {
 	Cover []byte
 	// Patch is the one patch of the series, adding the ticket files.
 	Patch []byte
+	// References is the versioned lookup sidecar bound to Patch. It is never
+	// part of the git-am patch series.
+	References []byte
 	// Tickets are the tickets it carries, resolved, for a caller that wants to
 	// report on them without reading them again.
 	Tickets []*Ticket
@@ -70,10 +73,16 @@ func (s *Store) Export(ctx context.Context, o ExportOptions) (*Export, error) {
 	if err != nil {
 		return nil, err
 	}
+	patch := []byte(MboxMessage(o.From, o.Now, exportSubject(tickets), exportCommitBody(tickets), body))
+	lookup, err := s.BuildReferenceLookup(tickets, patch)
+	if err != nil {
+		return nil, err
+	}
 	return &Export{
-		Cover:   []byte(exportCover(o.From, o.Now, tickets, exportSeriesPatches)),
-		Patch:   []byte(MboxMessage(o.From, o.Now, exportSubject(tickets), exportCommitBody(tickets), body)),
-		Tickets: tickets,
+		Cover:      []byte(exportCover(o.From, o.Now, tickets, exportSeriesPatches)),
+		Patch:      patch,
+		References: lookup,
+		Tickets:    tickets,
 	}, nil
 }
 
@@ -189,6 +198,8 @@ func exportCover(who string, when time.Time, tickets []*Ticket, patches int) str
 			}
 		}
 	}
+	b.WriteString("Reference lookup: references.json offers portable mappings for the ticket patch.\n")
+	b.WriteString("Applying the patch does not adopt these mappings; import previews each choice.\n")
 	return b.String()
 }
 

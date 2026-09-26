@@ -42,6 +42,7 @@ const exportCoverName = "0000-cover-letter.txt"
 // report and a code contribution are then the same artifact with different
 // contents, and the receiving side has one thing to do rather than two.
 const exportTicketPatch = "0001-tickets.patch"
+const exportReferenceLookup = "references.json"
 
 // runExport writes an export directory for one or more tickets.
 func runExport(ctx *cmdContext, args []string) error {
@@ -103,6 +104,11 @@ func runExport(ctx *cmdContext, args []string) error {
 		return err
 	}
 	written = append([]string{coverPath}, written...)
+	lookupPath := filepath.Join(dir, exportReferenceLookup)
+	if err := os.WriteFile(lookupPath, art.References, 0o644); err != nil {
+		return err
+	}
+	written = append(written, lookupPath)
 
 	// Before the --json branch, because an edge that will not travel breaks the
 	// receiving store and a caller passing --json is the one least likely to be

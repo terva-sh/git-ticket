@@ -34,17 +34,17 @@ type ReferenceRegistry struct {
 
 // ReferenceStore names a foreign repository and how to browse its tickets.
 type ReferenceStore struct {
-	Repository string `yaml:"repository"`
-	Path       string `yaml:"path"`
-	Browse     string `yaml:"browse"`
+	Repository string `yaml:"repository" json:"repository"`
+	Path       string `yaml:"path" json:"path"`
+	Browse     string `yaml:"browse" json:"browse"`
 }
 
 // ReferenceNamespace declares one identifier grammar and destination kind.
 type ReferenceNamespace struct {
-	Kind       string `yaml:"kind"`
-	Identifier string `yaml:"identifier"`
-	Template   string `yaml:"template"`
-	Store      string `yaml:"store"`
+	Kind       string `yaml:"kind" json:"kind"`
+	Identifier string `yaml:"identifier" json:"identifier"`
+	Template   string `yaml:"template" json:"template,omitempty"`
+	Store      string `yaml:"store" json:"store,omitempty"`
 }
 
 // LocalReferenceBindings names checkout roots for portable store keys. This

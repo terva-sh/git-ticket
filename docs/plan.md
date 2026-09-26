@@ -3904,7 +3904,11 @@ the patch does not adopt its mappings. Code patches added from number 2
 onward are outside the hash; the table claims only the ticket patch it
 describes.
 
-Import accepts an old two-file export as having no offered mappings. For a
+Import accepts an old two-file export as having no offered mappings. Its
+reference destinations are unknown; when one of its namespaces has a local
+declaration, ticket adoption requires `--map NAMESPACE=decline:LOCAL` to keep
+the arriving value opaque. A namespace listed as undeclared by a new export
+gets the same protection. For a
 present sidecar it verifies the version, format, patch digest, declaration
 syntax, and exact namespace use before showing a preview or writing anything.
 A mismatch or unsupported version is an error, not a silently ignored table.
@@ -3936,7 +3940,10 @@ the references in those files before relying on local resolution.
 `.tickets/references.yml` under the store lock, atomically for that one file.
 It lets a receiver use the `git am` route and still choose destinations.
 `import DIR --adopt --map ...` files tickets using the same alias and opaque
-rewrites the preview showed. If both writes are requested together, mapping
+rewrites the preview showed. An `adopt` or `alias` choice that would change the
+registry requires `--adopt-mappings` alongside `--adopt`, so the ticket cannot
+land with a destination the receiver selected but did not install. If both
+writes are requested together, mapping
 adoption completes first and is reported separately, then ticket filing
 follows the existing partial-failure rule: `ImportResult.Filed` names every
 ticket that landed, and the accepted registry remains. Preflight catches

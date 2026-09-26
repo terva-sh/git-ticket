@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -107,6 +108,15 @@ func TestExportMatchesThePinnedBeforeImage(t *testing.T) {
 		have, err := os.ReadFile(filepath.Join(out, name))
 		if err != nil {
 			t.Fatalf("read the produced %s: %v", name, err)
+		}
+		// The new lookup notice is appended after the pinned cover bytes;
+		// the original wire image remains a byte-for-byte prefix.
+		if name == exportCoverName {
+			const notice = "Reference lookup: references.json offers portable mappings for the ticket patch.\nApplying the patch does not adopt these mappings; import previews each choice.\n"
+			if !strings.HasSuffix(string(have), notice) {
+				t.Fatal("cover letter omitted its reference lookup notice")
+			}
+			have = []byte(strings.TrimSuffix(string(have), notice))
 		}
 		if string(have) != string(want) {
 			t.Errorf("%s moved.\n--- pinned ---\n%s\n--- produced ---\n%s", name, want, have)

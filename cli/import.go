@@ -144,12 +144,14 @@ func runImport(ctx *cmdContext, args []string) error {
 	if plan.MapRevision != mappingPlan.MapRevision {
 		return fmt.Errorf("reference registry changed while import was planned; preview again")
 	}
+	mappingsChanged := false
 	if adoptMappings {
 		result, err := s.ApplyReferenceMappings(context.Background(), mappingPlan, ifMapRevision)
 		if err != nil {
 			return err
 		}
 		if result.Changed {
+			mappingsChanged = true
 			fmt.Fprintf(ctx.env.Stderr, "adopted reference mappings in .tickets/references.yml (revision %s)\n", result.MapRevision)
 		} else {
 			fmt.Fprintf(ctx.env.Stderr, "reference mappings unchanged (revision %s)\n", result.MapRevision)
@@ -164,7 +166,7 @@ func runImport(ctx *cmdContext, args []string) error {
 	// the one --adopt carries out, and the preview's whole promise is that it
 	// does not.
 	if !adopt {
-		return importPreview(ctx, s, dir, plan, mappingPlan, sameOwner, adoptMappings)
+		return importPreview(ctx, s, dir, plan, mappingPlan, sameOwner, mappingsChanged)
 	}
 	return importAdopt(ctx, s, plan, sameOwner)
 }
@@ -265,7 +267,9 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 			if mappingsWritten {
 				switch offer.Action {
 				case "adopt":
-					fmt.Fprintf(ctx.out, "    receiver now: mapping installed as %s\n", offer.Namespace)
+					if offer.Existing == "absent" {
+						fmt.Fprintf(ctx.out, "    receiver now: mapping installed as %s\n", offer.Namespace)
+					}
 				case "alias":
 					fmt.Fprintf(ctx.out, "    receiver now: mapping installed as %s\n", offer.Local)
 				}

@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:57:45Z
+updated_at: 2026-09-26T03:00:28Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -78,3 +78,7 @@ PR #227 review 762 identified that ticket adoption could use a registry changed 
 **agent:codex/reference-lookup** at 2026-09-26T02:57:45Z
 
 PR #227 review 763 (head 38d6bac, base 3567f31; Actions run #610, id 11695) confirmed review 762's registry race resolved and raised a low finding: mapping-only adoption printed the pre-write receiver state as though it were current. Accepted. The mapping-only preview now labels the old state as before the mapping write and reports the installed namespace after the write. Replanning after an alias write was rejected because the selected alias would then collide with the newly installed namespace. A CLI regression test checks both before and after wording. Full just ci passed. Requesting fresh targeted review.
+
+**agent:codex/reference-lookup** at 2026-09-26T03:00:28Z
+
+PR #227 review 766 (head 385ba5d, base 3567f31; Actions run #616, id 11701) confirmed review 763's stale-preview finding resolved and raised a low finding for an unchanged identical mapping reported as newly installed. Accepted. The preview now uses ApplyReferenceMappings.Result.Changed rather than the --adopt-mappings request to say whether a write happened, and it reports installation only for a namespace previously absent or explicitly aliased. A regression test runs mapping-only adoption twice and checks that the second, unchanged run does not claim installation. Full just ci passed. Requesting fresh targeted review.

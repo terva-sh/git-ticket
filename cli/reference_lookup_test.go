@@ -113,6 +113,12 @@ func TestMappingsCanBeAcceptedBeforeGitAm(t *testing.T) {
 		!strings.Contains(accepted.stdout, "receiver now: mapping installed as pr") {
 		t.Fatalf("mapping-only adoption: %s%s", accepted.stdout, accepted.stderr)
 	}
+	unchanged := runCLI(t, dest, nil, "import", dir, "--adopt-mappings", "--map", "pr=adopt")
+	if unchanged.code != exitOK || !strings.Contains(unchanged.stderr, "reference mappings unchanged") ||
+		!strings.Contains(unchanged.stdout, "receiver: identical") ||
+		strings.Contains(unchanged.stdout, "mapping installed") || strings.Contains(unchanged.stdout, "before mapping write") {
+		t.Fatalf("unchanged mapping reported as installed: %s%s", unchanged.stdout, unchanged.stderr)
+	}
 	if rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all")); len(rows) != 0 {
 		t.Fatalf("mapping-only adoption filed tickets: %v", rows)
 	}

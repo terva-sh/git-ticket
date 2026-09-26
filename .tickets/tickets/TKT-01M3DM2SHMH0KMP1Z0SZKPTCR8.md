@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:21:54Z
+updated_at: 2026-09-26T02:37:24Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -44,11 +44,17 @@ Implement the reference lookup sidecar and explicit receiver choices from plan 1
 
 ## Acceptance criteria
 
-- [ ] Export sidecar contains used portable mappings and exact ticket-patch digest; git am glob still applies
-- [ ] Import preview verifies sidecar and shows adopt, alias, and decline outcomes, including conflicts
-- [ ] Explicit mapping write is atomic; partial ticket filing reports both filed tickets and mapping outcome
-- [ ] Older two-file exports remain importable and undeclared references remain opaque
+- [x] Export sidecar contains used portable mappings and exact ticket-patch digest; git am glob still applies
+- [x] Import preview verifies sidecar and shows adopt, alias, and decline outcomes, including conflicts
+- [x] Explicit mapping write is atomic; partial ticket filing reports both filed tickets and mapping outcome
+- [x] Older two-file exports remain importable and undeclared references remain opaque
 
 ## Implementation plan
 
 Build a versioned JSON sidecar from used namespaces, bind it to the exact ticket patch, and verify all declarations and namespace use before import. Plan receiver choices separately from ticket adoption, with explicit alias and opaque rewrites. Write accepted registry mappings under the store lock with a revision precondition, report that write separately from partial ticket filing, and preserve old exports. Exercise both CLI routes and git am.
+
+## Notes
+
+**agent:codex/reference-lookup** at 2026-09-26T02:37:24Z
+
+Implemented references.json as a versioned sidecar bound to the exact ticket patch; only used declared namespaces and their stores travel, with undeclared names listed. A sidecar beats patching references.yml because git am must leave receiver mapping adoption as a separate choice. The receiver defaults to decline; adopt and alias require explicit --map and --adopt-mappings, while conflicting or undeclared names that match a local declaration require an opaque decline target before ticket filing. Silent reuse of a local name was rejected because it could point at unrelated work. The mapping write uses the store lock, an atomic replacement and a registry revision precondition. Preview and write share the same plan; ticket filing keeps partial result IDs and reports the earlier mapping outcome separately. Old exports still import, with collisions treated as unknown destinations. Full just ci passed after integration with the reviewed registry branch. Built-binary two-store run passed sidecar export, alias adoption and check --strict; tests cover git am, digest tampering, conflicts, old exports, store-key aliasing, foreign-ticket provenance and partial filing.

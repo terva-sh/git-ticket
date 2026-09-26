@@ -437,6 +437,12 @@ updated_by:
 extensions: {}
 ```
 
+`references` keeps the same `ref` and optional repository-relative `path`
+fields when a namespace is declared. The optional registry in 5.5 interprets
+a `ref`; it does not change a ticket's frontmatter or schema.
+Schema 4 adds `moved_to: null` or one complete typed destination reference,
+with the dependency meaning specified in 6.3.
+
 `title` is one line saying what the ticket is about, written for a person
 reading it next to an ID that says nothing. A ULID is not something anybody
 holds in their head, so the title is the only part of a reference that carries
@@ -743,6 +749,101 @@ warning rather than an error because the ref does name something, and only a
 person knows which namespace it belonged in. A query with no colon matches an
 untyped ref whole and reaches into no namespace, so `PROJ-1234` does not find
 `jira:PROJ-1234`. Ask for a namespace with the colon.
+
+#### Declared reference namespaces
+
+A store may opt a namespace into resolution by adding the tracked
+`.tickets/references.yml`. It is separate from `config.yml`: older binaries
+rewrite that file through `RenderConfig` when `series add` or `migrate` runs
+and discard keys they do not understand. A scratch run confirmed the loss for a
+`references:` key. The new file has its own `version: 1`; it does not raise
+the ticket schema, because the `Reference` frontmatter shape is unchanged.
+Older binaries ignore it and preserve it. A future incompatible registry format
+must raise this file's version and be refused by a reader that cannot parse it.
+
+The portable registry maps lower-case namespace names to one of two kinds:
+`url` or `ticket-store`. Each declares an anchored Go RE2 `identifier`
+pattern with named capture groups. A `url` declaration has an HTTPS
+`template`; every placeholder names one capture and occupies a complete URL
+path segment. Captures are percent-encoded as path segments before expansion.
+Literal query strings, fragments, credentials, and dynamic hosts are not part
+of version 1. A `ticket-store` declaration names a key in `stores`. Each
+store entry has a stable repository URL, a repository-relative store path
+(normally `.tickets`), and an HTTPS `browse` template with one `{id}`
+placeholder in a complete path segment or query value. The repository URL
+identifies the store; the browse URL is only
+for navigation and need not prove the ticket exists. The ticket ID grammar is
+declared by that namespace, so a foreign series need not match this store's.
+
+```yaml
+version: 1
+stores:
+  ledger:
+    repository: https://git.local.example/team/ledger.git
+    path: .tickets
+    browse: https://git.local.example/team/ledger/search?q={id}
+namespaces:
+  pr:
+    kind: url
+    identifier: '(?P<owner>[A-Za-z0-9_-]+)/(?P<repo>[A-Za-z0-9_.-]+)#(?P<number>[0-9]+)'
+    template: https://git.local.example/{owner}/{repo}/pulls/{number}
+  ledger-ticket:
+    kind: ticket-store
+    identifier: '(?P<id>[A-Z][A-Z0-9-]*-[0-9A-HJKMNP-TV-Z]{26})'
+    store: ledger
+```
+
+For `ticket-store`, `{id}` is the whole identifier after the colon; the
+named `id` group must cover it. A browse template encodes it for its path or
+query position. A resolver never fetches it during `check`. A local checkout
+binding belongs in ignored
+`.tickets/references.local.yml`, with the same version and a `stores` map
+from portable keys to absolute paths. The file is ignored by the store's
+`.gitignore`; it contains no portable declaration and must never be exported.
+Its syntax is checked when a resolver uses it, not by `check`, so CI does not
+depend on one machine's directories. A missing local checkout falls back to
+the browse URL without a finding.
+
+An undeclared namespace remains legal and opaque. Declaring `ticket` does
+not happen by default: this repository already has `ticket:report`, and its
+`origin-ticket:` values include abbreviated IDs. The measured store has 82
+references across ten namespaces, so a built-in full-ID grammar would make
+current valid data fail. A declared identifier that misses its grammar is
+`reference_identifier_invalid`, an error; an invalid registry is
+`reference_registry_invalid`, also an error. Opting into a grammar is an
+explicit contract, while the absence of a declaration says nothing. Both
+checks use only the tracked bytes and never contact a foreign store. An
+unavailable foreign store is not an error or warning.
+
+`refs` keeps its exact stored-value lookup. `show` adds a target beside each
+resolvable reference, the UI detail view makes that target openable, and their
+JSON ticket reference objects add optional `resolvedUrl` and
+`resolvedLocalPath` fields without changing `ref` or `path`. The local
+path appears only in a local read, never in an export. `refs --resolve REF`
+uses the same matching rule as `refs REF` and prints the targets of the
+matching references; without the flag its output stays as it is. A missing
+local binding does not erase the portable URL. A repository-relative `path`
+remains governed by the existing path rule and takes precedence when it
+resolves. An `extensions` entry is ticket-specific integration data, not a
+store-wide namespace definition.
+
+`origin-ticket:TKT-...` plus `origin-store:ledger` remains legacy provenance:
+the pair does not establish an unambiguous per-reference store binding, so
+readers must not silently infer one. New imports with `--from-store ledger`
+may use a declared foreign-ticket namespace for that store (here
+`ledger-ticket:`) while retaining the existing provenance references. If no
+declaration exists, import keeps today's opaque provenance exactly. A receiver
+can alias an offered `ledger-ticket` declaration to a local namespace; ticket
+adoption rewrites that namespace in the new ticket, while `git am` leaves the
+source bytes intact and requires a deliberate ticket edit to use the alias.
+
+For example, `pr:team/docs#12` expands to
+`https://git.local.example/team/docs/pulls/12` without a network read.
+`ledger-ticket:TKT-01K3ZYEE00HV9ZDBB8BEASXBBG` resolves through the
+portable `ledger` entry to a browse URL, or to a ticket in the locally bound
+checkout when that checkout exists. Export offers these two declarations in
+the lookup table of 12.8; the receiver previews and accepts, aliases, or
+declines each. A declined mapping leaves both references intact but opaque.
 
 ### 5.6 Series
 
@@ -1108,6 +1209,66 @@ A dependency is satisfied when the depended-on ticket is `done`, or when it is
 not satisfy anything, and `check` warns when a live ticket depends on one. This
 is why `from_status` is recorded: the ordinary flow is done and then archive,
 and without it every archive would silently block its dependents.
+
+#### A prerequisite moved to another store
+
+Schema 4 adds an optional `moved_to` frontmatter field to the *original*
+ticket, holding one complete typed reference such as
+`ledger-ticket:TKT-01K3ZYEE00HV9ZDBB8BEASXBBG`. This is a source-side
+declaration of where the work went, not an assertion that the foreign work is
+done. The namespace may be declared through 5.5 for navigation, but a missing
+declaration does not undo the safety marker. The receiving import never writes
+the sending store.
+
+`git ticket move ID --to-ref REF --reason TEXT` writes or replaces that marker
+and records the old and new destination in a note. It works from draft, ready,
+in-progress, blocked, review, done, or archived without inventing a lifecycle
+transition; the current status remains a truthful local record. A moved
+original is excluded from `ready` even when its status is ready. It never
+satisfies a dependency while `moved_to` is present, even when its status is
+done or archived from done. `Readiness` reports `moved` for an otherwise
+ready original and lists it among a dependent's blocking IDs. No foreign
+store is polled. The implementation adds `moved` to the live
+`unreadyReasons` vocabulary in sections 8 and 10 together with the code;
+design alone does not change the published schema response.
+
+`check` reports `dependency_moved` as an error on **each open dependent**
+that still has an edge to the original. It includes the original ID and
+`moved_to` destination, and does not also report
+`dependency_archived_incomplete` for that edge. `move_destination_invalid`
+is an error on a marker without a typed, nonempty destination. The error is
+intentional: until a person examines the receiving work, the dependency
+cannot be declared satisfied or discarded.
+
+`git ticket resolve-move DEPENDENT --from ORIGINAL --if-source-revision R --reason TEXT` is the
+manual resolution. It checks the current `moved_to` under the store lock,
+removes that dependency, adds the destination as a reference on the dependent,
+and records the asserted reason in a note. An optional `--wait-on LOCAL-ID`
+adds a replacement local dependency in the same write. It does **not** mark
+the remote ticket done or infer satisfaction from a remote status.
+`--if-source-revision` is required and guards the original under the lock;
+the existing optional `--if-revision` also guards the dependent. If the
+original changed after the person inspected it, the command refuses and asks
+for a fresh look. A supplied dependent revision is checked the same way.
+After resolution the particular `dependency_moved` finding clears, while
+the original keeps its `moved_to` provenance.
+
+The existing `deps ID --dependents` query enumerates affected tickets and
+remains the first source-side inspection. A move should print that list with
+titles. For a draft origin, the old advice to run `status ID done` needed a
+reason; for ready and blocked origins that transition is forbidden altogether.
+The source-side move command replaces that advice. Its marker is valid at
+every source status, and the person may separately use an allowed status
+transition with a reason. A blocked source with a destination reference is the
+safe interim procedure on older binaries.
+
+Schema 4 is required even though the field could be spelled as a reference.
+An older binary treats a `done` origin as satisfying every dependent; if it
+silently ignored a new marker, it could recommend work early. The schema
+gate makes older readers refuse a migrated store before they can give that
+answer. The implementation must migrate config before writing any schema-4
+ticket, as 12.5 requires, and write all tickets at the new level under the
+store lock. Stores not using this feature can remain at their current level.
 
 ### 6.4 Claims
 
@@ -2741,6 +2902,15 @@ Warnings:
 | `layout_ticket_missing` | a board's card or frame member names a ticket the store does not have, per 12.10. `field` is the record, `cards.ID` or `frames.ID.members` |
 | `layout_not_canonical` | a board file is valid but its bytes are not what a save writes, per 12.10: an older schema, a comment, unsorted records, or float noise |
 
+The reference and move designs reserve four future **error** codes:
+`reference_registry_invalid` for a malformed or unsupported tracked registry,
+`reference_identifier_invalid` for a ref that misses its declared grammar,
+`move_destination_invalid` for an untyped or empty schema-4 `moved_to`, and
+`dependency_moved` for each open dependent still pointing at a moved
+original. Add each to the error table, schema vocabulary, and fixture corpus
+in the implementation change that first emits it. The corpus test requires
+those to land together, so design alone must not advertise a code as live.
+
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
 a parse failure would be noise.
@@ -3566,6 +3736,15 @@ moving any value. A store on schema 2 is not obliged to move: `check` compares a
 ticket's schema against its own `config.yml` rather than against the binary's
 maximum, so a consistent schema-2 store stays quiet under a schema-3 binary.
 
+Schema 4 adds `moved_to` at the top level and changes the dependency
+satisfaction rule in 6.3. The new field alone would round-trip through older
+readers, but an older `ready` treats a done moved origin as satisfying its
+dependents. That is a quiet unsafe answer, so the version gate is for meaning
+as well as bytes. Migration first raises `config.yml`, then rewrites each
+ticket with `moved_to: null`. A store below schema 4 cannot write a move
+marker; the command tells the caller to run `migrate` explicitly. The
+independent `references.yml` registry of 5.5 does not require this migration.
+
 `check --fix` does not repair it. The repair is `migrate`, which rewrites every
 ticket in the store under the lock, and that is a different operation from the
 three recomputations `--fix` performs. A `--fix` that silently migrated a store
@@ -3664,10 +3843,13 @@ patches, so a ticket can reach another project as a ticket rather than as prose
 somebody re-types. `git ticket import DIR` is the receiving half, for the one
 case git cannot serve on its own.
 
-An export is two files. `0000-cover-letter.txt` reads as a report: what this is,
-how to apply it, and every ticket's body in full. `0001-tickets.patch` adds the
-ticket files themselves. The receiver types `git am DIR/*.patch` and needs no
-git-ticket at all, because the patch adds ordinary Markdown files.
+An export originally had two files. `0000-cover-letter.txt` reads as a report:
+what this is, how to apply it, and every ticket's body in full.
+`0001-tickets.patch` adds the ticket files themselves. With the reference
+registry of 5.5, export also writes `references.json`, the optional lookup
+table described below. The receiver still types `git am DIR/*.patch` and
+needs no git-ticket at all to apply the ticket files, because the lookup table
+is outside that glob and the patch adds ordinary Markdown files.
 
 "Needs no git-ticket at all" is true of applying the export and was not true of
 what came next. `git am` writes ticket files and no `config.yml`, and a receiver
@@ -3695,6 +3877,72 @@ glob, and `git am` stops on its empty diff and wants `--empty=drop`, which is
 git 2.34 or newer. Named `.txt` the glob never sees it, plain `git am` works on
 any git, and the cover still opens in an editor. One character, one fewer
 version floor, and it was found by testing rather than by reasoning.
+
+#### Reference lookup table
+
+`references.json` is a versioned sidecar, not a ticket patch and not a
+configuration write. Version 1 contains the exact SHA-256 of
+`0001-tickets.patch`, the portable declarations for namespaces actually used
+by the exported tickets, the store entries those declarations name, and a
+list of used but undeclared namespaces. It never includes
+`references.local.yml` or an absolute path. The JSON has stable sorted keys
+and a `formatVersion` integer. Export writes it even when the maps are empty,
+so a receiver can distinguish a new export that offered no mapping from an old
+export with no sidecar. The cover names the file and explains that applying
+the patch does not adopt its mappings. Code patches added from number 2
+onward are outside the hash; the table claims only the ticket patch it
+describes.
+
+Import accepts an old two-file export as having no offered mappings. For a
+present sidecar it verifies the version, format, patch digest, declaration
+syntax, and exact namespace use before showing a preview or writing anything.
+A mismatch or unsupported version is an error, not a silently ignored table.
+The digest detects an accidentally stale or substituted sidecar; it is not a
+signature and makes no claim about the sender's identity. The receiver must
+still decide whether to trust each destination.
+
+The default `import DIR` preview shows each offered namespace, its example
+reference and destination, and whether the receiver has no declaration, an
+identical one, or a conflicting one. It also shows undeclared namespaces as
+opaque. Each offered mapping can be chosen explicitly with repeated
+`--map NAMESPACE=adopt`, `--map NAMESPACE=alias:LOCAL`, or
+`--map NAMESPACE=decline`. No flag means decline. `adopt` adds the offered
+declaration only when that namespace is absent or identical. `alias` adds
+it under a free local namespace and rewrites the namespace of adopted ticket
+references; a store key collision is handled by namespacing the imported
+store entry under that alias. `decline` means no mapping is copied. When
+the receiver has no declaration, the unchanged reference stays opaque.
+When its existing declaration is identical, the unchanged reference keeps
+resolving through that local declaration; declining a duplicate does not
+turn resolution off. If the receiver uses the same namespace with a
+different meaning, decline must name a free opaque target as
+`decline:LOCAL` so adoption never makes the arriving reference point at
+the receiver's unrelated target. The `git am` route leaves ticket bytes
+unchanged; for a conflict, its preview warns that the person must rename
+the references in those files before relying on local resolution.
+
+`import DIR --adopt-mappings --map ...` writes only chosen mappings to
+`.tickets/references.yml` under the store lock, atomically for that one file.
+It lets a receiver use the `git am` route and still choose destinations.
+`import DIR --adopt --map ...` files tickets using the same alias and opaque
+rewrites the preview showed. If both writes are requested together, mapping
+adoption completes first and is reported separately, then ticket filing
+follows the existing partial-failure rule: `ImportResult.Filed` names every
+ticket that landed, and the accepted registry remains. Preflight catches
+mapping collisions before either write. The CLI prints an explicit recovery
+command and the mapping outcome on an error. The library exposes the
+mapping preview and write separately from `PlanImport`/`ApplyImport`, so a
+host can take the `git am` route without a ticket adoption.
+`--if-map-revision` uses the hash of the registry's current bytes; the
+existing `--if-revision` keeps its ticket meaning.
+
+`--from-store NAME` remains a provenance string for old exports. When NAME
+is a declared store key and a foreign-ticket namespace is bound to it, import
+also records a resolvable reference in that namespace to the original ID.
+It keeps `origin-ticket:` and `origin-store:` for compatibility; their
+legacy pair is not silently treated as a binding. A receiver that declines
+the offered foreign-ticket mapping keeps the new ref opaque, and can still
+read both provenance fields.
 
 A ticket with no code change still carries a patch, the one adding its own file.
 A bare report and a code contribution are then the same artifact with different
@@ -3849,10 +4097,17 @@ different one.
 Closing the origin is advice and never action. `import` runs in the receiving
 store, 7.3 forbids a sync helper rewriting another worktree, and the sending
 store is a second repository somebody else may be working in. So the command
-prints the `summary` that names the adopted ID and, when the origin has a
-transition left to make, the `status` that closes it, and the person who owns
-both stores runs them there. That is the same move the preview makes when it
-offers `git am`: name the better route and let the reader take it.
+prints source-side advice, and the person who owns both stores runs it there.
+The old advice to `status ID done` was invalid from ready or blocked, and
+from draft it required a reason. Worse, closing a prerequisite as done let
+its local dependents become ready while the work was still open elsewhere.
+For a move, the advice is now `deps ID --dependents` followed by
+`move ID --to-ref REF --reason TEXT`, then `resolve-move` on each open
+dependent after a person checks the receiving work. Section 6.3 specifies
+the marker, finding, and readiness gate. The receiving command never executes
+those source-side writes. A source ticket with no affected dependents can
+then follow whatever lifecycle transition is actually valid from its current
+status; no one universal `status done` command is printed.
 
 Tickets are filed in dependency order so a parent exists before the child naming
 it, and the edges among the imported set are rewritten to the new IDs. An edge

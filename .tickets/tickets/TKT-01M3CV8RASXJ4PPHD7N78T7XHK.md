@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3CV8RASXJ4PPHD7N78T7XHK
 title: Decide what a move does to dependents left in the sending store
 type: spike
-status: ready
+status: review
 status_reason: null
 priority: normal
 due_on: null
@@ -19,15 +19,21 @@ blocks_on: none
 references:
   - ref: ticket:TKT-01M3CV8R9J3QXQSN07B9VAGV7V
     path: null
-claim: null
+claim:
+  actor: agent:codex/reference-design
+  branch: feat/reference-namespace-design
+  worktree: /home/sothr/.t3/worktrees/git-ticket/file-reference-questions
+  commit: dc64d4fdc67b4440851b1cf86c083dd18450e16d
+  claimed_at: 2026-09-26T01:07:36Z
+  expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:50:57Z
+updated_at: 2026-09-26T01:14:37Z
 created_by:
   id: agent:claude-code/opus
   name: ""
 updated_by:
-  id: agent:codex/reference-groom
+  id: agent:codex/reference-design
   name: ""
 extensions: {}
 ---
@@ -61,16 +67,12 @@ Related: TKT-01M3CV8R9J3QXQSN07B9VAGV7V (Decide how a store declares where each 
 - [ ] A move records a machine-readable destination on the original ticket through a source-side action; the receiving import does not write the sending store.
 - [ ] The sending store identifies each open dependent of a moved ticket and gives it a distinct finding; readiness does not treat the moved original as satisfying that dependency before manual resolution.
 - [ ] A person can resolve each dependent after checking the receiving work, with the destination and the reason preserved in the record.
-- [ ] The design uses existing deps --dependents where it fits and specifies the marker, finding severity, readiness rule, and valid lifecycle commands for draft, ready, and in-progress origins.
+- [x] The design uses existing deps --dependents where it fits and specifies the marker, finding severity, readiness rule, and valid lifecycle commands for draft, ready, and in-progress origins.
 - [ ] Plan sections 6.3 and 12.8 record the offline source-side workflow; a two-store run proves no premature ready result and check reports unresolved dependents.
 
 ## Implementation plan
 
-1. Reproduce the two current outcomes with a source ticket and dependent: closing the source as done makes the dependent ready early; archiving before done leaves it waiting and makes check --strict report dependency_archived_incomplete. Confirm that deps ID --dependents already enumerates the affected tickets.
-2. Define a source-side move marker naming the destination. Compare a reserved reference with a structured field and align its destination syntax with the namespace-design spike where useful. Import may print source-side advice but must not edit the sending store.
-3. Specify the local safety rule: each unresolved dependent gets a distinct finding and remains unready while the prerequisite is marked moved, regardless of the original ticket's final status. Decide severity and the explicit manual resolution action; no remote polling is part of this first work.
-4. Correct the close-at-origin workflow for each source status. The current printed status ID done command fails for a draft without --reason and for ready or blocked because those transitions are not permitted. Use the existing blocked-plus-reference path as a documented interim procedure.
-5. Walk a move across two scratch stores, including an affected dependent, a destination mapping, and manual resolution. Record the contract in plan sections 6.3 and 12.8, then file bounded implementation work.
+Reproduce the sending-store failure in two scratch stores; specify a schema-gated moved_to reference, a source-side move command, per-dependent check/readiness behavior, and an explicit manual resolution command. Record valid lifecycle advice in plan 6.3 and 12.8, then file implementation work.
 
 ## Notes
 
@@ -85,3 +87,31 @@ Two corrections to the filed options matter. Import only receives the ticket pat
 **agent:codex/reference-groom** at 2026-09-26T00:50:57Z
 
 PR #222 review recorded. The targeted Terva review ran on head 3bca1d6eaa0be750be136a6e90f537743876473c against base adbcaa2452744a07efa706df2eebc7f50de96ef0, request groomed-ready-3bca1d6, run ce377a7a-4b8b-41f7-ab4e-de097aef61c6: https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/566. The maintained clean summary is on https://git.local.sothr.com/terva-sh/git-ticket/pulls/222. It reported no findings, so there is no review change to accept, dispute, or defer. It saw only the ticket diff and could not verify runtime behavior; the local scratch-store runs and full just ci result are the evidence for those claims. This note records the result without changing either design scope.
+
+**agent:codex/reference-design** at 2026-09-26T01:07:47Z
+
+Design decision for plan 6.3, 11, 12.5, and 12.8: schema 4 adds moved_to as a complete typed reference on the original ticket. A source-side move command writes it from any status and records a reason; receiving import only prints advice. A moved original is excluded from ready and cannot satisfy an in-store dependency even if it is done or archived from done. check reports dependency_moved as an error on every open dependent edge, naming the destination. The manual resolve-move command removes one such edge, carries the destination as a reference on the dependent, records the human reason, and can add a local replacement dependency. It never polls a foreign store. Schema 4 is required because an older reader that ignored a marker on a done original would recommend the dependent too early.
+
+Scratch evidence in two stores: source TKT-01M3DKYVKAPMSR1H1WF9WJ9WWS (Remote prerequisite) had dependent TKT-01M3DKYVKV6TY379E5C9G27835 (Local dependent). It was exported and adopted in the receiver as TKT-01M3DKYV4G4ZKCKRC8RYEP42JY (Remote prerequisite). deps --dependents named the local dependent. The current import advice printed status SOURCE done, which failed from ready with invalid_transition. After a valid ready -> in-progress -> done path, ready incorrectly listed Local dependent. Reopening with a reason, blocking the origin, and adding a destination-ticket: reference removed that premature ready result; check --strict still said No problems found. Manually unlinking the old edge, adding the destination reference on the dependent, and writing a reason restored ready and left check --strict clean. These are baseline and interim-behavior measurements; the new dependency_moved finding needs an implementation test.
+
+Alternatives rejected: advice alone names the problem but cannot gate readiness; automatic remote status polling conflicts with offline check and needs a trust and availability model; a bare reference has no safety meaning to old readers. A blocked status alone works as an interim hold but does not say which dependent requires resolution, and a later done transition can release it early. The new source-side command replaces the invalid universal close-at-origin advice. The plan states the lifecycle, finding, and manual resolution contract. Implementation is separate work.
+
+**agent:codex/reference-design** at 2026-09-26T01:08:41Z
+
+Criterion 5 remains unticked: the two-store run proved the current premature-ready failure and the blocked interim path, but the new dependency_moved finding cannot be observed before implementation. TKT-01M3DM2SKQGX0QYC4GFX32NR53 (Gate dependents when a prerequisite moves to another store) owns that run and check assertion.
+
+**agent:codex/reference-design** at 2026-09-26T01:08:48Z
+
+Correction to the checklist progress: criteria 1-3 state implemented behavior, so I left them unticked with criterion 5. Only criterion 4 is a design deliverable. The implementation task carries the remaining acceptance checks.
+
+**agent:codex/reference-design** at 2026-09-26T01:13:21Z
+
+PR #224 targeted review on head bb2dd6f852921344cbe989edd67777b582e503c6 against base abebb684bdbd7256352831d91b136386ba6b0099 ran as c708f22b-cc93-4036-a3be-c5ac6abb964a (Actions run 571, review 752). It found a medium safety gap: checking the source marker only at execution time cannot detect that it changed after human inspection. Accepted. resolve-move now requires --if-source-revision and compares that revision under the lock; the dependent retains optional --if-revision. A follow-up review will check the new head.
+
+**agent:codex/reference-design** at 2026-09-26T01:14:37Z
+
+PR #224 targeted rereview on head d3acaa5c4445c848bebd8afebb096677b36b70d9 against base abebb684bdbd7256352831d91b136386ba6b0099 ran as 7851d4a8-e12c-4f5a-aced-a3bdda9046ea (Actions run 573; maintained clean summary in PR comment 13842). It marked the source-revision finding resolved and found no new concrete correctness bug in the design diff. It did not test the future move command. The subsequent change is ticket-only review record and should carry that review.
+
+## Summary
+
+The source-side move contract is in docs/plan.md sections 6.3, 11, 12.5, and 12.8: schema-4 moved_to, an offline readiness gate, one dependency_moved error per open dependent, and explicit manual resolution. A two-store scratch run reproduced the invalid ready-to-done advice and premature ready result; blocked plus a destination reference held the dependent back but did not give check a finding. TKT-01M3DM2SKQGX0QYC4GFX32NR53 (Gate dependents when a prerequisite moves to another store) carries implementation and the future two-store assertion. Runtime criteria remain unticked until it ships.

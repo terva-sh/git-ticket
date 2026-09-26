@@ -42,8 +42,5 @@ func openReferenceTarget(target string) error {
 			return fmt.Errorf("no desktop opener found for reference target")
 		}
 	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	return cmd.Process.Release()
+	return cmd.Run()
 }

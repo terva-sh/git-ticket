@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:55:45Z
+updated_at: 2026-09-26T02:57:50Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -61,3 +61,7 @@ Implemented read-time target decoration in show, JSON ticket reference objects a
 **agent:codex/reference-readers** at 2026-09-26T02:55:45Z
 
 PR #228 is open against feat/reference-registry (PR #226) at implementation head 88d8b52b124f71b937d7b24a2ec9f60006ceec55. Local full just ci and the built-binary reader run passed before opening. The ticket is in review; requesting targeted review and PR CI. The PRs remain unmerged pending explicit authorization.
+
+**agent:codex/reference-readers** at 2026-09-26T02:57:50Z
+
+PR #228 review 764 (head ce1105c, base 3567f31; Actions run #613, id 11698) raised a medium finding: the TUI opener returned success on process start and released the child without waiting. Accepted. The opener now waits and propagates the desktop command's exit error, so the TUI reports success only when that command succeeds. A Linux regression test installs a failing fake xdg-open and checks error propagation. Full just ci passed. Requesting fresh targeted review.

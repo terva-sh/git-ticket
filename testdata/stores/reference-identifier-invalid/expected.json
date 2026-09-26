@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "reference_identifier_invalid",
+      "file": "tickets/TKT-01K4BBP7C0N8ZQR4TXVM6JHW2D.md",
+      "ticket": "TKT-01K4BBP7C0N8ZQR4TXVM6JHW2D",
+      "field": "references.ref"
+    }
+  ],
+  "warnings": []
+}

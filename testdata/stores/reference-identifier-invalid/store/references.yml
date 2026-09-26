@@ -1,0 +1,7 @@
+version: 1
+stores: {}
+namespaces:
+  jira:
+    kind: url
+    identifier: '(?P<key>[A-Z]+-[0-9]{3})'
+    template: https://jira.example/{key}

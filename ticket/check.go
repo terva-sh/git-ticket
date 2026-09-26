@@ -122,6 +122,10 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 		return nil, err
 	}
 	r := &Report{Errors: []Finding{}, Warnings: []Finding{}}
+	registry, registryErr := s.ReadReferenceRegistry()
+	if registryErr != nil {
+		r.addError(Finding{Code: CodeReferenceRegistryInvalid, File: referencesFile, Message: registryErr.Error()})
+	}
 	now := s.now()
 	cfg := s.config
 	root := s.Root()
@@ -164,6 +168,13 @@ func (s *Store) Check(ctx context.Context) (*Report, error) {
 		}
 		for _, w := range warns {
 			r.addWarning(w)
+		}
+		if registry != nil {
+			for _, ref := range t.References {
+				if !registry.validIdentifier(ref.Ref) {
+					r.addError(Finding{Code: CodeReferenceIdentifierInvalid, File: f.Rel, Ticket: t.ID, Title: t.Title, Field: "references.ref", Message: fmt.Sprintf("%q misses its declared namespace grammar", ref.Ref)})
+				}
+			}
 		}
 
 		if len(byID[t.ID]) > 1 {

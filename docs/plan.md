@@ -766,6 +766,8 @@ The portable registry maps lower-case namespace names to one of two kinds:
 pattern with named capture groups. A `url` declaration has an HTTPS
 `template`; every placeholder names one capture and occupies a complete URL
 path segment. Captures are percent-encoded as path segments before expansion.
+Namespace and store keys start with a lower-case ASCII letter and continue with
+lower-case letters, digits, hyphens or underscores.
 Literal query strings, fragments, credentials, and dynamic hosts are not part
 of version 1. A `ticket-store` declaration names a key in `stores`. Each
 store entry has a stable repository URL, a repository-relative store path
@@ -800,6 +802,9 @@ binding belongs in ignored
 `.tickets/references.local.yml`, with the same version and a `stores` map
 from portable keys to absolute paths. The file is ignored by the store's
 `.gitignore`; it contains no portable declaration and must never be exported.
+`init` writes that ignore rule for new and adopted stores. An existing store
+that does not run `init` adds `references.local.yml` to `.tickets/.gitignore`
+before writing local bindings.
 Its syntax is checked when a resolver uses it, not by `check`, so CI does not
 depend on one machine's directories. A missing local checkout falls back to
 the browse URL without a finding.
@@ -2073,9 +2078,10 @@ Stable codes, which callers may switch on:
 `ambiguous_id`, `unknown_series`, `stale_revision`, `invalid_transition`,
 `invalid_field`, `dependency_missing`, `dependency_cycle`, `claim_conflict`,
 `ticket_referenced`, `ticket_touched`, `parse_error`, `merge_conflict`,
-`schema_unsupported`, `lock_timeout`, `validation_failed`, `usage`.
+`schema_unsupported`, `lock_timeout`, `validation_failed`,
+`reference_registry_invalid`, `reference_identifier_invalid`, `usage`.
 
-The last two are `remove`'s, per 9.1. They are their own codes rather than a
+`ticket_referenced` and `ticket_touched` are `remove`'s, per 9.1. They are their own codes rather than a
 `validation_failed` apiece because the repairs differ, so a caller that reads
 the code knows which to do: `unlink` the tickets that point at it, or `archive`
 it instead. `claim_conflict` is the precedent, a refusal belonging to one
@@ -2853,8 +2859,9 @@ exits nonzero on any error, and `--strict` promotes warnings to errors.
 Every finding carries a stable code, so a caller switches on the code instead of
 matching a message. These codes overlap the operation codes in section 10 only
 where the condition is the same one: `parse_error`, `merge_conflict`,
-`schema_unsupported`, `dependency_missing`, `dependency_cycle`, and
-`unknown_series`. The operation code `invalid_field` does not appear here,
+`schema_unsupported`, `dependency_missing`, `dependency_cycle`,
+`unknown_series`, `reference_registry_invalid`, and
+`reference_identifier_invalid`. The operation code `invalid_field` does not appear here,
 because a report says which field is wrong rather than that some field is.
 
 Errors:
@@ -2868,6 +2875,8 @@ Errors:
 | `schema_unsupported` | `schema` is newer than this binary supports |
 | `merge_conflict` | Git conflict markers in a ticket file, reported as this rather than as a YAML parse failure, because that is what a user needs to be told |
 | `dependency_missing` | a `dependencies` entry names a ticket that does not exist |
+| `reference_registry_invalid` | the tracked `references.yml` is malformed or unsupported |
+| `reference_identifier_invalid` | a reference misses its declared namespace grammar |
 | `parent_missing` | `parent` names a ticket that does not exist |
 | `origin_missing` | `origin` names a ticket that does not exist, per 5.6 |
 | `unknown_series` | the series in a ticket's ID is not one `config.yml` declares, per 5.6 |
@@ -2902,9 +2911,7 @@ Warnings:
 | `layout_ticket_missing` | a board's card or frame member names a ticket the store does not have, per 12.10. `field` is the record, `cards.ID` or `frames.ID.members` |
 | `layout_not_canonical` | a board file is valid but its bytes are not what a save writes, per 12.10: an older schema, a comment, unsorted records, or float noise |
 
-The reference and move designs reserve four future **error** codes:
-`reference_registry_invalid` for a malformed or unsupported tracked registry,
-`reference_identifier_invalid` for a ref that misses its declared grammar,
+The move design reserves two future **error** codes:
 `move_destination_invalid` for an untyped or empty schema-4 `moved_to`, and
 `dependency_moved` for each open dependent still pointing at a moved
 original. Add each to the error table, schema vocabulary, and fixture corpus

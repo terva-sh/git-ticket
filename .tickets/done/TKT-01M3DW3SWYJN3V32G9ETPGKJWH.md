@@ -19,7 +19,7 @@ references: []
 claim: null
 archive: null
 created_at: 2026-09-26T03:28:33Z
-updated_at: 2026-09-26T03:28:51Z
+updated_at: 2026-09-26T03:30:10Z
 created_by:
   id: agent:terva/release-v0.24.0
   name: ""
@@ -64,6 +64,10 @@ the reference registry, and this ticket does not change it.
 **agent:terva/release-v0.24.0** at 2026-09-26T03:28:42Z
 
 Reproduced the path failure on Linux with TMPDIR=/tmp/linktmp, a symlink to /tmp/realtmp: the test fails exactly as on the runner and passes after the fix. The whole ticket suite passes under that TMPDIR, and just ci passes. The rename fix cannot be proven off Windows; the lane after the merge is its evidence, which is criterion 1.
+
+**agent:terva/release-v0.24.0** at 2026-09-26T03:30:10Z
+
+PR #229 review 768 (run 9d6da90c-402d-4bec-b769-8b9cc16dacff, head 8d31814) raised one medium finding: on Windows the writer could have every write refused and the test would still pass with readers seeing a single revision. Accepted and fixed: the writer counts landed writes and fails under two. Proven able to fail by raising the threshold to 301, which reported 'only 300 of 300 registry writes landed'.
 
 ## Summary
 

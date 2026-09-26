@@ -3,6 +3,7 @@ package ticket
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -265,12 +266,13 @@ func TestMappingPlanKeepsRegistryAndRevisionFromOneSnapshot(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
+		written := 0
 		for i := 0; i < 300; i++ {
 			err := writeFileAtomic(file, [][]byte{a, b}[i%2])
 			// Windows refuses to rename over a file another handle holds open,
-			// and the reader below holds this one open on purpose. A refused
-			// write leaves the old bytes whole, which is the snapshot the
-			// reader must still agree with, so it is not this test's failure.
+			// and the reader below opens this one on every pass. A refused
+			// write leaves the old bytes whole, which is a snapshot the reader
+			// must still agree with, so it is not this test's failure.
 			if runtime.GOOS == "windows" && errors.Is(err, fs.ErrPermission) {
 				continue
 			}
@@ -278,6 +280,13 @@ func TestMappingPlanKeepsRegistryAndRevisionFromOneSnapshot(t *testing.T) {
 				done <- err
 				return
 			}
+			written++
+		}
+		// If every write were refused, the reader would only ever see the
+		// first revision and the test would prove nothing.
+		if written < 2 {
+			done <- fmt.Errorf("only %d of 300 registry writes landed", written)
+			return
 		}
 		done <- nil
 	}()

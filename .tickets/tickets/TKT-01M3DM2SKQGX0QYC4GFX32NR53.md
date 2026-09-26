@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DM2SKQGX0QYC4GFX32NR53
 title: Gate dependents when a prerequisite moves to another store
 type: task
-status: in-progress
+status: review
 status_reason: null
 priority: normal
 due_on: null
@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T01:56:11Z
+updated_at: 2026-09-26T01:56:33Z
 created_by:
   id: agent:codex/reference-design
   name: ""

@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T03:00:28Z
+updated_at: 2026-09-26T03:02:03Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -82,3 +82,7 @@ PR #227 review 763 (head 38d6bac, base 3567f31; Actions run #610, id 11695) conf
 **agent:codex/reference-lookup** at 2026-09-26T03:00:28Z
 
 PR #227 review 766 (head 385ba5d, base 3567f31; Actions run #616, id 11701) confirmed review 763's stale-preview finding resolved and raised a low finding for an unchanged identical mapping reported as newly installed. Accepted. The preview now uses ApplyReferenceMappings.Result.Changed rather than the --adopt-mappings request to say whether a write happened, and it reports installation only for a namespace previously absent or explicitly aliased. A regression test runs mapping-only adoption twice and checks that the second, unchanged run does not claim installation. Full just ci passed. Requesting fresh targeted review.
+
+**agent:codex/reference-lookup** at 2026-09-26T03:02:03Z
+
+PR #227 targeted review is clean on head 6778e55252db4c826809cb39dd5d070f68b581d4, base 3567f3197260cb0dc9e413b0e990e56e67e7e8ad (request unchanged-mapping-review; Actions run #622, id 11713; clean summary comment 13948). Review 766's unchanged-mapping finding is resolved. Full local just ci passed on the reviewed code. Recording this ticket-only result and carrying the review status to the bookkeeping head; review success is not merge authorization.

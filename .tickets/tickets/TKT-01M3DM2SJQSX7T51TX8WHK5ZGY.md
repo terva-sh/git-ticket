@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:59:31Z
+updated_at: 2026-09-26T03:01:34Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -69,3 +69,7 @@ PR #228 review 764 (head ce1105c, base 3567f31; Actions run #613, id 11698) rais
 **agent:codex/reference-readers** at 2026-09-26T02:59:31Z
 
 PR #228 review 765 (head 91ac609, base 3567f31; Actions run #617, id 11702) confirmed review 764's opener finding resolved and raised a medium finding: refs --resolve ignored --ids. Accepted. The resolved human listing now uses the same storeAbbreviations helper as ordinary refs listings; JSON still carries full IDs. A regression test checks default abbreviated and explicit full output. Full just ci passed. Requesting fresh targeted review.
+
+**agent:codex/reference-readers** at 2026-09-26T03:01:34Z
+
+PR #228 targeted review is clean on head 3015d4f99b31ea4a31aea6e62907a74a9e978dc2, base 3567f3197260cb0dc9e413b0e990e56e67e7e8ad (request resolve-ids-review; Actions run #619, id 11708; clean summary comment 13943). Review 765's --ids finding is resolved. Full local just ci passed on the reviewed code. Recording this ticket-only result and carrying the review status to the bookkeeping head; review success is not merge authorization.

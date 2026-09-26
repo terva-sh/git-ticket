@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DW3SWYJN3V32G9ETPGKJWH
 title: Make the reference tests pass on the Windows lane
 type: task
-status: in-progress
+status: done
 status_reason: null
 priority: normal
 due_on: null
@@ -16,16 +16,10 @@ origin: null
 dependencies: []
 blocks_on: none
 references: []
-claim:
-  actor: agent:terva/release-v0.24.0
-  branch: test/windows-reference-tests
-  worktree: /home/sothr/.t3/worktrees/git-ticket/t3code-107fb127
-  commit: cf56258f2a232c79cc1dd73fe85b9c23a254f4f8
-  claimed_at: 2026-09-26T03:28:39Z
-  expires_at: null
+claim: null
 archive: null
 created_at: 2026-09-26T03:28:33Z
-updated_at: 2026-09-26T03:28:42Z
+updated_at: 2026-09-26T03:28:51Z
 created_by:
   id: agent:terva/release-v0.24.0
   name: ""
@@ -70,3 +64,7 @@ the reference registry, and this ticket does not change it.
 **agent:terva/release-v0.24.0** at 2026-09-26T03:28:42Z
 
 Reproduced the path failure on Linux with TMPDIR=/tmp/linktmp, a symlink to /tmp/realtmp: the test fails exactly as on the runner and passes after the fix. The whole ticket suite passes under that TMPDIR, and just ci passes. The rename fix cannot be proven off Windows; the lane after the merge is its evidence, which is criterion 1.
+
+## Summary
+
+Both Windows-lane failures in the reference tests were test assumptions, not product faults: the resolver's canonical path is compared canonically, and the snapshot test's writer tolerates Windows refusing a rename over an open file. The path fix is proven on Linux through a symlinked TMPDIR. Criterion 1 stays unticked until the mirror's Windows lane runs green on the merged commit, which is the release's own gate.

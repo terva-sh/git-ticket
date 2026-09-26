@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3DM2SHMH0KMP1Z0SZKPTCR8
 title: Carry reference lookup mappings through export and import
 type: task
-status: draft
+status: in-progress
 status_reason: null
 priority: normal
 due_on: null
@@ -19,15 +19,21 @@ blocks_on: none
 references:
   - ref: ticket:TKT-01M3CV8R9J3QXQSN07B9VAGV7V
     path: null
-claim: null
+claim:
+  actor: agent:codex/reference-lookup
+  branch: feat/reference-lookup-interchange
+  worktree: /home/sothr/.t3/worktrees/git-ticket/reference-lookup-interchange
+  commit: abdaa83986a75838757464f8c06ed5abfc483f11
+  claimed_at: 2026-09-26T02:21:53Z
+  expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T01:08:19Z
+updated_at: 2026-09-26T02:21:54Z
 created_by:
   id: agent:codex/reference-design
   name: ""
 updated_by:
-  id: agent:codex/reference-design
+  id: agent:codex/reference-lookup
   name: ""
 extensions: {}
 ---
@@ -42,3 +48,7 @@ Implement the reference lookup sidecar and explicit receiver choices from plan 1
 - [ ] Import preview verifies sidecar and shows adopt, alias, and decline outcomes, including conflicts
 - [ ] Explicit mapping write is atomic; partial ticket filing reports both filed tickets and mapping outcome
 - [ ] Older two-file exports remain importable and undeclared references remain opaque
+
+## Implementation plan
+
+Build a versioned JSON sidecar from used namespaces, bind it to the exact ticket patch, and verify all declarations and namespace use before import. Plan receiver choices separately from ticket adoption, with explicit alias and opaque rewrites. Write accepted registry mappings under the store lock with a revision precondition, report that write separately from partial ticket filing, and preserve old exports. Exercise both CLI routes and git am.

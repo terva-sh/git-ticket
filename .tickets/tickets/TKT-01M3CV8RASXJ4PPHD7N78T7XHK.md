@@ -22,7 +22,7 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T00:47:37Z
+updated_at: 2026-09-26T00:50:57Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -81,3 +81,7 @@ Groomed. The trigger fired in the reported service-reconciliation move. I reprod
 The user chose a source-side flag and manual resolution as the first work. The design should record a machine-readable move destination on the original, report each local dependent distinctly, and keep it unready until a person resolves its dependency after checking the receiving work. Automatic cross-store readiness is deferred: it would need trusted store binding, availability rules, and a definition of which remote status satisfies a local obligation. Advice alone loses the local gate and was rejected for this scope.
 
 Two corrections to the filed options matter. Import only receives the ticket patch and a plain FromStore name; it cannot enumerate the sender's dependents itself, so option 1 as written needs a source-side query or extra export data. The source query already exists as deps --dependents. The current close-at-origin advice prints status ID done for every nonfinished source. That fails for draft without a reason and for ready or blocked because the transition is forbidden; I ran both draft and ready cases. The chosen first work must replace that advice with valid lifecycle steps. A new source-side marker and finding are preferable to relying on blocked status alone because every dependent then gets an explicit explanation of where its gate went. The area label now leads, matching this store's convention.
+
+**agent:codex/reference-groom** at 2026-09-26T00:50:57Z
+
+PR #222 review recorded. The targeted Terva review ran on head 3bca1d6eaa0be750be136a6e90f537743876473c against base adbcaa2452744a07efa706df2eebc7f50de96ef0, request groomed-ready-3bca1d6, run ce377a7a-4b8b-41f7-ab4e-de097aef61c6: https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/566. The maintained clean summary is on https://git.local.sothr.com/terva-sh/git-ticket/pulls/222. It reported no findings, so there is no review change to accept, dispute, or defer. It saw only the ticket diff and could not verify runtime behavior; the local scratch-store runs and full just ci result are the evidence for those claims. This note records the result without changing either design scope.

@@ -8,8 +8,8 @@ status_reason: null
 priority: normal
 due_on: null
 labels:
-  - question
   - area/format
+  - question
 assignees: []
 milestone: null
 parent: null
@@ -24,12 +24,12 @@ references:
 claim: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-25T17:54:32Z
+updated_at: 2026-09-26T00:45:44Z
 created_by:
   id: agent:claude-code/opus
   name: ""
 updated_by:
-  id: agent:claude-code/opus
+  id: agent:codex/reference-groom
   name: ""
 extensions: {}
 ---
@@ -68,3 +68,29 @@ A declared grammar would let `check` report a malformed identifier the way it re
 6. The relationship to `extensions`, which is the other place integration data lives.
 
 Related: TKT-01M3CT0GV02WDW2W7B3EJSC6R1 (Default series stays TKT after a store stops declaring it), found in the same session, and TKT-01M3CV8RASXJ4PPHD7N78T7XHK (Decide what a move does to dependents left in the sending store).
+
+## Acceptance criteria
+
+- [ ] The existing reference model, refs lookup, path validation, and real pr:/origin-ticket:/origin-store: examples are measured before a new declaration is specified.
+- [ ] One design specifies portable namespace declarations, identifier grammars, external URL templates and foreign-store bindings, including where machine-local overrides live.
+- [ ] Validation covers declared identifier syntax and configuration while check remains offline; unknown namespace policy, finding severity, and unavailable foreign stores are settled against existing tickets.
+- [ ] The design states what show, ui, JSON, import --from-store, and refs expose or preserve, with an end-to-end example for a PR and a foreign ticket.
+- [ ] Compatibility, schema impact, and the plan sections to change are recorded before implementation tasks are filed.
+
+## Implementation plan
+
+1. Inventory reference namespaces in this store and exercise the real PR and foreign-ticket examples. Confirm what refs, path checking, and a literal url: reference already provide.
+2. Design a namespace declaration that pairs a typed identifier with a destination. Compare a per-namespace registry with a direct target on each reference, then specify the committed fields, identifier grammar, URL template or foreign-store binding, and any machine-local override. Keep machine-specific paths out of committed config.
+3. Design validation and compatibility together: validate syntax and local configuration without network access; decide undeclared-namespace behavior and finding severity after measuring existing stores. Define behavior when a foreign store is absent.
+4. Specify the reader contract for show, ui, JSON, and refs, and the meaning of import --from-store under a declared binding. Walk one PR and one foreign-ticket reference through the design.
+5. Record the chosen format and behavior in plan sections 5.1, 5.5, 11, and 12.8, identify any schema migration, then file bounded implementation work.
+
+## Notes
+
+**agent:codex/reference-groom** at 2026-09-26T00:45:44Z
+
+Groomed. The trigger fired in the reported move between stores. I checked the current tree: Reference holds only Ref and optional repository-relative Path; refs finds tickets by namespace/identifier but does not resolve their destination; check validates a local path and warns on an untyped ref. ImportOptions.FromStore is a plain name, and import records origin-ticket: and origin-store: as unverified references. A literal url: reference can carry one destination today, but it does not bind an independently typed pr: or origin-ticket: identifier to that destination.
+
+The user chose to design full namespace declarations and validation together as the first work. This remains a design spike: the plan must specify portable declarations, local overrides, identifier grammar, resolution, and an offline validation contract before implementation. Check cannot verify an external URL or a missing foreign store by reaching the network; its existing no-network guarantee stays part of the design.
+
+Alternatives considered: display-only resolution would leave malformed declared identifiers unchecked; documentation alone would leave the live references uninterpretable; a direct URL per reference is useful but duplicates destinations and does not answer the store-wide binding question. Treating every undeclared namespace as invalid may break existing stores, so enforcement and finding severity need a measured compatibility decision. The ticket's area label now leads, matching this store's convention. The trigger fired; the implementation choice has not been made.

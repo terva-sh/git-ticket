@@ -8,25 +8,27 @@ import (
 // Stable error codes a caller may switch on, per plan section 10. The check
 // codes in section 11 overlap these only where the condition is the same.
 const (
-	CodeStoreNotFound     = "store_not_found"
-	CodeStoreExists       = "store_exists"
-	CodeInvalidRoot       = "invalid_root"
-	CodeTicketNotFound    = "ticket_not_found"
-	CodeAmbiguousID       = "ambiguous_id"
-	CodeUnknownSeries     = "unknown_series"
-	CodeStaleRevision     = "stale_revision"
-	CodeInvalidTransition = "invalid_transition"
-	CodeInvalidField      = "invalid_field"
-	CodeDependencyMissing = "dependency_missing"
-	CodeDependencyCycle   = "dependency_cycle"
-	CodeClaimConflict     = "claim_conflict"
-	CodeTicketReferenced  = "ticket_referenced"
-	CodeTicketTouched     = "ticket_touched"
-	CodeParseError        = "parse_error"
-	CodeMergeConflict     = "merge_conflict"
-	CodeSchemaUnsupported = "schema_unsupported"
-	CodeLockTimeout       = "lock_timeout"
-	CodeValidationFailed  = "validation_failed"
+	CodeStoreNotFound              = "store_not_found"
+	CodeStoreExists                = "store_exists"
+	CodeInvalidRoot                = "invalid_root"
+	CodeTicketNotFound             = "ticket_not_found"
+	CodeAmbiguousID                = "ambiguous_id"
+	CodeUnknownSeries              = "unknown_series"
+	CodeStaleRevision              = "stale_revision"
+	CodeInvalidTransition          = "invalid_transition"
+	CodeInvalidField               = "invalid_field"
+	CodeDependencyMissing          = "dependency_missing"
+	CodeDependencyCycle            = "dependency_cycle"
+	CodeClaimConflict              = "claim_conflict"
+	CodeTicketReferenced           = "ticket_referenced"
+	CodeTicketTouched              = "ticket_touched"
+	CodeParseError                 = "parse_error"
+	CodeMergeConflict              = "merge_conflict"
+	CodeSchemaUnsupported          = "schema_unsupported"
+	CodeLockTimeout                = "lock_timeout"
+	CodeValidationFailed           = "validation_failed"
+	CodeReferenceRegistryInvalid   = "reference_registry_invalid"
+	CodeReferenceIdentifierInvalid = "reference_identifier_invalid"
 )
 
 // Check-only codes, per plan section 11.
@@ -75,7 +77,7 @@ var OperationCodes = []string{
 	CodeDependencyMissing, CodeDependencyCycle, CodeClaimConflict,
 	CodeTicketReferenced, CodeTicketTouched,
 	CodeParseError, CodeMergeConflict, CodeSchemaUnsupported, CodeLockTimeout,
-	CodeValidationFailed,
+	CodeValidationFailed, CodeReferenceRegistryInvalid, CodeReferenceIdentifierInvalid,
 }
 
 // CheckErrorCodes and CheckWarningCodes split the findings of plan section 11
@@ -96,6 +98,7 @@ var CheckErrorCodes = []string{
 	CodeUnknownSeries, CodeOriginMissing,
 	CodeLayoutInvalid,
 	CodeDependencyMoved, CodeMoveDestinationInvalid,
+	CodeReferenceRegistryInvalid, CodeReferenceIdentifierInvalid,
 }
 
 var CheckWarningCodes = []string{

@@ -231,8 +231,15 @@ func TestImportDetectsATamperedPatch(t *testing.T) {
 	if got.code == exitOK {
 		t.Fatal("import accepted a patch whose content no longer matches its blob name")
 	}
-	if !strings.Contains(got.stderr, "blob name") {
-		t.Errorf("stderr = %q, want it to say the content does not match", got.stderr)
+	if !strings.Contains(got.stderr, "digest does not match") {
+		t.Errorf("stderr = %q, want the sidecar to reject the changed patch first", got.stderr)
+	}
+	if err := os.Remove(filepath.Join(dir, exportReferenceLookup)); err != nil {
+		t.Fatal(err)
+	}
+	legacy := runCLI(t, dest, nil, "import", dir)
+	if legacy.code == exitOK || !strings.Contains(legacy.stderr, "blob name") {
+		t.Errorf("old export must still catch the altered blob: %s%s", legacy.stdout, legacy.stderr)
 	}
 }
 

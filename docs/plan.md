@@ -758,6 +758,8 @@ rewrite that file through `RenderConfig` when `series add` or `migrate` runs
 and discard keys they do not understand. A scratch run confirmed the loss for a
 `references:` key. The new file has its own `version: 1`; it does not raise
 the ticket schema, because the `Reference` frontmatter shape is unchanged.
+The tracked registry must be a regular file; a symlink would make offline
+validation depend on a target outside this store, including a missing target.
 Older binaries ignore it and preserve it. A future incompatible registry format
 must raise this file's version and be refused by a reader that cannot parse it.
 
@@ -766,6 +768,10 @@ The portable registry maps lower-case namespace names to one of two kinds:
 pattern with named capture groups. A `url` declaration has an HTTPS
 `template`; every placeholder names one capture and occupies a complete URL
 path segment. Captures are percent-encoded as path segments before expansion.
+Placeholders use literal braces; percent-encoded braces are rejected because
+the resolver expands the original template bytes.
+Namespace and store keys start with a lower-case ASCII letter and continue with
+lower-case letters, digits, hyphens or underscores.
 Literal query strings, fragments, credentials, and dynamic hosts are not part
 of version 1. A `ticket-store` declaration names a key in `stores`. Each
 store entry has a stable repository URL, a repository-relative store path
@@ -800,6 +806,9 @@ binding belongs in ignored
 `.tickets/references.local.yml`, with the same version and a `stores` map
 from portable keys to absolute paths. The file is ignored by the store's
 `.gitignore`; it contains no portable declaration and must never be exported.
+`init` writes that ignore rule for new and adopted stores. An existing store
+that does not run `init` adds `references.local.yml` to `.tickets/.gitignore`
+before writing local bindings.
 Its syntax is checked when a resolver uses it, not by `check`, so CI does not
 depend on one machine's directories. A missing local checkout falls back to
 the browse URL without a finding.
@@ -2079,9 +2088,10 @@ Stable codes, which callers may switch on:
 `ambiguous_id`, `unknown_series`, `stale_revision`, `invalid_transition`,
 `invalid_field`, `dependency_missing`, `dependency_cycle`, `claim_conflict`,
 `ticket_referenced`, `ticket_touched`, `parse_error`, `merge_conflict`,
-`schema_unsupported`, `lock_timeout`, `validation_failed`, `usage`.
+`schema_unsupported`, `lock_timeout`, `validation_failed`,
+`reference_registry_invalid`, `reference_identifier_invalid`, `usage`.
 
-The last two are `remove`'s, per 9.1. They are their own codes rather than a
+`ticket_referenced` and `ticket_touched` are `remove`'s, per 9.1. They are their own codes rather than a
 `validation_failed` apiece because the repairs differ, so a caller that reads
 the code knows which to do: `unlink` the tickets that point at it, or `archive`
 it instead. `claim_conflict` is the precedent, a refusal belonging to one
@@ -2861,8 +2871,9 @@ exits nonzero on any error, and `--strict` promotes warnings to errors.
 Every finding carries a stable code, so a caller switches on the code instead of
 matching a message. These codes overlap the operation codes in section 10 only
 where the condition is the same one: `parse_error`, `merge_conflict`,
-`schema_unsupported`, `dependency_missing`, `dependency_cycle`, and
-`unknown_series`. The operation code `invalid_field` does not appear here,
+`schema_unsupported`, `dependency_missing`, `dependency_cycle`,
+`unknown_series`, `reference_registry_invalid`, and
+`reference_identifier_invalid`. The operation code `invalid_field` does not appear here,
 because a report says which field is wrong rather than that some field is.
 
 Errors:
@@ -2878,6 +2889,8 @@ Errors:
 | `dependency_missing` | a `dependencies` entry names a ticket that does not exist |
 | `dependency_moved` | an open dependent still names a prerequisite with `moved_to` |
 | `move_destination_invalid` | a schema-4 `moved_to` has no typed, nonempty destination |
+| `reference_registry_invalid` | the tracked `references.yml` is malformed or unsupported |
+| `reference_identifier_invalid` | a reference misses its declared namespace grammar |
 | `parent_missing` | `parent` names a ticket that does not exist |
 | `origin_missing` | `origin` names a ticket that does not exist, per 5.6 |
 | `unknown_series` | the series in a ticket's ID is not one `config.yml` declares, per 5.6 |
@@ -2912,12 +2925,10 @@ Warnings:
 | `layout_ticket_missing` | a board's card or frame member names a ticket the store does not have, per 12.10. `field` is the record, `cards.ID` or `frames.ID.members` |
 | `layout_not_canonical` | a board file is valid but its bytes are not what a save writes, per 12.10: an older schema, a comment, unsorted records, or float noise |
 
-The reference design reserves two future **error** codes:
-`reference_registry_invalid` for a malformed or unsupported tracked registry,
-`reference_identifier_invalid` for a ref that misses its declared grammar.
-Add each to the error table, schema vocabulary, and fixture corpus
-in the implementation change that first emits it. The corpus test requires
-those to land together, so design alone must not advertise a code as live.
+The reference and move designs added their error codes to this table, the
+schema vocabulary, and the fixture corpus in the changes that first emitted
+them. The corpus test requires those to land together, so a design alone must
+not advertise a code as live.
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
@@ -3903,7 +3914,11 @@ the patch does not adopt its mappings. Code patches added from number 2
 onward are outside the hash; the table claims only the ticket patch it
 describes.
 
-Import accepts an old two-file export as having no offered mappings. For a
+Import accepts an old two-file export as having no offered mappings. Its
+reference destinations are unknown; when one of its namespaces has a local
+declaration, ticket adoption requires `--map NAMESPACE=decline:LOCAL` to keep
+the arriving value opaque. A namespace listed as undeclared by a new export
+gets the same protection. For a
 present sidecar it verifies the version, format, patch digest, declaration
 syntax, and exact namespace use before showing a preview or writing anything.
 A mismatch or unsupported version is an error, not a silently ignored table.
@@ -3935,7 +3950,10 @@ the references in those files before relying on local resolution.
 `.tickets/references.yml` under the store lock, atomically for that one file.
 It lets a receiver use the `git am` route and still choose destinations.
 `import DIR --adopt --map ...` files tickets using the same alias and opaque
-rewrites the preview showed. If both writes are requested together, mapping
+rewrites the preview showed. An `adopt` or `alias` choice that would change the
+registry requires `--adopt-mappings` alongside `--adopt`, so the ticket cannot
+land with a destination the receiver selected but did not install. If both
+writes are requested together, mapping
 adoption completes first and is reported separately, then ticket filing
 follows the existing partial-failure rule: `ImportResult.Filed` names every
 ticket that landed, and the accepted registry remains. Preflight catches
@@ -3945,6 +3963,14 @@ mapping preview and write separately from `PlanImport`/`ApplyImport`, so a
 host can take the `git am` route without a ticket adoption.
 `--if-map-revision` uses the hash of the registry's current bytes; the
 existing `--if-revision` keeps its ticket meaning.
+Ticket import plans also retain that registry revision. `ApplyImport` takes the
+store lock, checks the revision before filing anything, and holds the lock
+through all ticket writes. This protects a preview that chose an alias or kept
+an incoming namespace opaque from a later registry edit that would give the
+same reference a different destination. When one import command accepts and
+writes mappings first, it advances the ticket plan to the revision of that
+accepted write; any further registry change still refuses ticket filing with
+`stale_revision`. Ticket adoption remains partial after it begins, as above.
 
 `--from-store NAME` remains a provenance string for old exports. When NAME
 is a declared store key and a foreign-ticket namespace is bound to it, import

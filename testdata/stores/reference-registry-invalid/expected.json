@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "code": "reference_registry_invalid",
+      "file": "references.yml",
+      "ticket": null,
+      "field": null
+    }
+  ],
+  "warnings": []
+}

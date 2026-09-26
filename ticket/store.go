@@ -267,6 +267,9 @@ func Init(root string, opts InitOptions) (*Store, error) {
 	if err := os.WriteFile(filepath.Join(path, readmeFile), []byte(storeReadme), 0o644); err != nil {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 	}
+	if err := ensureLocalReferenceIgnore(path); err != nil {
+		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
+	}
 
 	s, err := OpenWith(path, OpenOptions{Now: opts.Now})
 	if err != nil {
@@ -289,6 +292,48 @@ func Init(root string, opts InitOptions) (*Store, error) {
 		return nil, &Error{Code: CodeValidationFailed, Message: err.Error(), Err: err}
 	}
 	return s, nil
+}
+
+// Local checkout bindings belong to the machine, not to a portable store.
+// Preserve an adopted store's existing ignore rules and append only our line.
+func ensureLocalReferenceIgnore(storePath string) error {
+	file := filepath.Join(storePath, ".gitignore")
+	info, statErr := os.Lstat(file)
+	if statErr == nil && !info.Mode().IsRegular() {
+		return errors.New("store .gitignore is not a regular file")
+	}
+	if statErr != nil && !os.IsNotExist(statErr) {
+		return statErr
+	}
+	data, err := os.ReadFile(file)
+	if os.IsNotExist(err) {
+		return os.WriteFile(file, []byte("references.local.yml\n"), 0o644)
+	}
+	if err != nil {
+		return err
+	}
+	// Git uses the last matching pattern. An earlier positive rule can be
+	// cancelled by a later !*.yml, so only the final rule proves this file
+	// remains ignored after adoption.
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	last := lines[len(lines)-1]
+	if last == "references.local.yml" || last == "/references.local.yml" {
+		return nil
+	}
+	appendText := "references.local.yml\n"
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		appendText = "\n" + appendText
+	}
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	_, writeErr := f.WriteString(appendText)
+	closeErr := f.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	return closeErr
 }
 
 // Path is the store directory.

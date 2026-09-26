@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:55:03Z
+updated_at: 2026-09-26T02:57:45Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -74,3 +74,7 @@ PR #227 review 761 on c7a2eb0 (Actions run #605, id 11686) confirmed the identic
 **agent:codex/reference-lookup** at 2026-09-26T02:55:03Z
 
 PR #227 review 762 identified that ticket adoption could use a registry changed after planning even when no mapping write was requested. Accepted. ImportPlan now records the registry revision; ApplyImport checks it under a single store lock and holds the lock through ticket filing. The CLI checks that mapping and ticket plans used the same registry snapshot and advances the ticket plan only after its own accepted mapping write. Choosing only a mapping-write precondition was insufficient for ticket-only imports; re-reading without the lock would leave the same race. A regression test changes references.yml after planning and verifies stale_revision before any ticket lands; another files a ticket after adopting mappings. Full just ci passed, including the race suite and strict store check.
+
+**agent:codex/reference-lookup** at 2026-09-26T02:57:45Z
+
+PR #227 review 763 (head 38d6bac, base 3567f31; Actions run #610, id 11695) confirmed review 762's registry race resolved and raised a low finding: mapping-only adoption printed the pre-write receiver state as though it were current. Accepted. The mapping-only preview now labels the old state as before the mapping write and reports the installed namespace after the write. Replanning after an alias write was rejected because the selected alias would then collide with the newly installed namespace. A CLI regression test checks both before and after wording. Full just ci passed. Requesting fresh targeted review.

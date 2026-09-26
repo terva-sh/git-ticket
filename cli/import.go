@@ -253,11 +253,23 @@ func importPreview(ctx *cmdContext, s *ticket.Store, dir string, plan *ticket.Im
 	if mappings.HasSidecar {
 		fmt.Fprintln(ctx.out, "Reference lookup offered (destinations are claims by the sender):")
 		for _, offer := range mappings.Offers {
-			fmt.Fprintf(ctx.out, "  %s  %s -> %s\n    receiver: %s; choice: %s", offer.Namespace, offer.Example, offer.Destination, offer.Existing, offer.Action)
+			receiverLabel := "receiver"
+			if mappingsWritten {
+				receiverLabel = "receiver before mapping write"
+			}
+			fmt.Fprintf(ctx.out, "  %s  %s -> %s\n    %s: %s; choice: %s", offer.Namespace, offer.Example, offer.Destination, receiverLabel, offer.Existing, offer.Action)
 			if offer.Local != "" {
 				fmt.Fprintf(ctx.out, ":%s", offer.Local)
 			}
 			fmt.Fprintln(ctx.out)
+			if mappingsWritten {
+				switch offer.Action {
+				case "adopt":
+					fmt.Fprintf(ctx.out, "    receiver now: mapping installed as %s\n", offer.Namespace)
+				case "alias":
+					fmt.Fprintf(ctx.out, "    receiver now: mapping installed as %s\n", offer.Local)
+				}
+			}
 			if offer.Existing == "identical" && offer.Action == "decline" {
 				fmt.Fprintln(ctx.out, "    identical local mapping remains active; decline copies nothing")
 			}

@@ -108,7 +108,9 @@ func TestMappingsCanBeAcceptedBeforeGitAm(t *testing.T) {
 	dir, _ := mappedExport(t)
 	dest := newGitStore(t)
 	accepted := runCLI(t, dest, nil, "import", dir, "--adopt-mappings", "--map", "pr=adopt")
-	if accepted.code != exitOK || !strings.Contains(accepted.stdout, "No tickets written") {
+	if accepted.code != exitOK || !strings.Contains(accepted.stdout, "No tickets written") ||
+		!strings.Contains(accepted.stdout, "receiver before mapping write: absent") ||
+		!strings.Contains(accepted.stdout, "receiver now: mapping installed as pr") {
 		t.Fatalf("mapping-only adoption: %s%s", accepted.stdout, accepted.stderr)
 	}
 	if rows := crossRows(t, runCLI(t, dest, nil, "--json", "list", "--all")); len(rows) != 0 {

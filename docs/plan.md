@@ -2014,9 +2014,15 @@ A mutation result:
   "schemaVersion": 1,
   "kind": "mutation-result",
   "ticket": { "id": "TKT-…", "revision": "sha256:…" },
-  "pathsChanged": [".tickets/tickets/TKT-….md"]
+  "pathsChanged": [".tickets/tickets/TKT-….md"],
+  "affectedDependents": []
 }
 ```
+
+`affectedDependents` holds `{ "id": "...", "title": "..." }` rows for
+`move`, including the local tickets a person needs to inspect. Other mutations
+return `[]`. The title travels with the ID so a machine caller can present the
+same meaningful list as the terminal command.
 
 `remove` emits this kind too, carrying the id and the revision the ticket had
 and the path it no longer occupies. It is a write like any other and reports

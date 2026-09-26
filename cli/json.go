@@ -49,6 +49,14 @@ type mutationEnvelope struct {
 	Kind          string          `json:"kind"`
 	Ticket        *mutationTicket `json:"ticket"`
 	PathsChanged  []string        `json:"pathsChanged"`
+	// Move populates this with the local tickets that still depend on the
+	// original. Other mutations return [], per the absent-collection rule.
+	AffectedDependents []namedTicketJSON `json:"affectedDependents"`
+}
+
+type namedTicketJSON struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
 }
 
 // mutationTicket is the identity of what changed. A caller that wants the whole

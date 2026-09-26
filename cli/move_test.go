@@ -46,3 +46,28 @@ func TestMoveCommandsGateAndResolveALocalDependent(t *testing.T) {
 		t.Fatalf("resolved store should pass check: %s%s", got.stdout, got.stderr)
 	}
 }
+
+func TestMoveJSONNamesAffectedDependentsWithTitles(t *testing.T) {
+	dir := newStore(t)
+	source := makeTicket(t, dir, "Foreign prerequisite")
+	dependent := makeTicket(t, dir, "Local dependent")
+	if got := runCLI(t, dir, nil, "link", dependent, "--depends-on", source, "--actor", "human:sothr"); got.code != exitOK {
+		t.Fatal(got.stderr)
+	}
+	got := runCLI(t, dir, nil, "move", source, "--to-ref", "ledger-ticket:foreign-id", "--reason", "transferred", "--json", "--actor", "human:sothr")
+	if got.code != exitOK {
+		t.Fatalf("move --json: %s%s", got.stdout, got.stderr)
+	}
+	env := decode(t, got.stdout)
+	if env["kind"] != "mutation-result" {
+		t.Fatalf("kind = %v", env["kind"])
+	}
+	affected, ok := env["affectedDependents"].([]any)
+	if !ok || len(affected) != 1 {
+		t.Fatalf("affectedDependents = %v", env["affectedDependents"])
+	}
+	row := affected[0].(map[string]any)
+	if row["id"] != dependent || row["title"] != "Local dependent" {
+		t.Fatalf("affected dependent = %v", row)
+	}
+}

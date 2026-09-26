@@ -2222,12 +2222,21 @@ func describeAllowlist(a allowlistJSON) string {
 
 // writeMutation reports a mutation as the envelope or as one human line.
 func (ctx *cmdContext) writeMutation(s *ticket.Store, res *ticket.Result, human string) error {
+	return ctx.writeMutationWithDependents(s, res, human, nil)
+}
+
+func (ctx *cmdContext) writeMutationWithDependents(s *ticket.Store, res *ticket.Result, human string, dependents []*ticket.Ticket) error {
 	if ctx.g.json {
+		affected := make([]namedTicketJSON, 0, len(dependents))
+		for _, d := range dependents {
+			affected = append(affected, namedTicketJSON{ID: d.ID, Title: d.Title})
+		}
 		writeJSON(ctx.out, mutationEnvelope{
-			SchemaVersion: schemaVersion,
-			Kind:          "mutation-result",
-			Ticket:        &mutationTicket{ID: res.Ticket.ID, Revision: res.Ticket.Revision},
-			PathsChanged:  displayPaths(s, res.PathsChanged),
+			SchemaVersion:      schemaVersion,
+			Kind:               "mutation-result",
+			Ticket:             &mutationTicket{ID: res.Ticket.ID, Revision: res.Ticket.Revision},
+			PathsChanged:       displayPaths(s, res.PathsChanged),
+			AffectedDependents: affected,
 		})
 		return nil
 	}

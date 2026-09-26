@@ -29,15 +29,15 @@ func runMove(ctx *cmdContext, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := ctx.writeMutation(s, res, fmt.Sprintf("%s (%s) moved to %s", res.Ticket.ID, res.Ticket.Title, to)); err != nil {
+	dependents, err := s.Deps(context.Background(), res.Ticket.ID, ticket.DepsOptions{Dependents: true})
+	if err != nil {
+		return err
+	}
+	if err := ctx.writeMutationWithDependents(s, res, fmt.Sprintf("%s (%s) moved to %s", res.Ticket.ID, res.Ticket.Title, to), dependents); err != nil {
 		return err
 	}
 	if ctx.g.json {
 		return nil
-	}
-	dependents, err := s.Deps(context.Background(), res.Ticket.ID, ticket.DepsOptions{Dependents: true})
-	if err != nil {
-		return err
 	}
 	if len(dependents) == 0 {
 		fmt.Fprintln(ctx.out, "No local dependents need resolution.")

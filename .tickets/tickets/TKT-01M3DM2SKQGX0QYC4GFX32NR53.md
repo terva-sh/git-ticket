@@ -27,7 +27,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:01:33Z
+updated_at: 2026-09-26T02:03:20Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -69,3 +69,7 @@ Review references: PR https://git.local.sothr.com/terva-sh/git-ticket/pulls/225 
 **agent:codex/moved-dependent** at 2026-09-26T02:01:33Z
 
 PR #225 second targeted review: head e7885d800738c4184782e1d09468990872179e5e, base cb5c790079691414000261846dc4c504c5ce60cc; review 755 at https://git.local.sothr.com/api/v1/repos/terva-sh/git-ticket/pulls/225/reviews/755 and run #581 at https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/581 (request after-json-fix). It confirmed review 754 was resolved. Accepted its medium finding: a post-write dependent lookup could fail and make a committed move look failed. Commit ea65cba queries dependents before Apply, so a lookup failure leaves the marker untouched. The list is advisory if another writer changes edges after the snapshot; check remains authoritative. Full just ci passed after the fix.
+
+**agent:codex/moved-dependent** at 2026-09-26T02:03:20Z
+
+PR #225 clean targeted review: head 76a4d987b91c29d890a45d00284ff7de08cdff6b, base cb5c790079691414000261846dc4c504c5ce60cc; run 955a5943-7f3b-45e7-800f-0f80aa6e5f48, request before-write-fix, https://git.local.sothr.com/terva-sh/git-ticket/actions/runs/583 ; clean summary comment https://git.local.sothr.com/terva-sh/git-ticket/pulls/225#issuecomment-13879 . It marks review 755 finding resolved and reports no new concrete issue. Deterministic PR CI and local just ci passed. No merge has been performed.

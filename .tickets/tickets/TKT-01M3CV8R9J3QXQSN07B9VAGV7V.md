@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3CV8R9J3QXQSN07B9VAGV7V
 title: Decide how a store declares where each reference namespace resolves
 type: spike
-status: in-progress
+status: review
 status_reason: null
 priority: normal
 due_on: null
@@ -30,7 +30,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T01:07:30Z
+updated_at: 2026-09-26T01:10:53Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -77,11 +77,11 @@ Related: TKT-01M3CT0GV02WDW2W7B3EJSC6R1 (Default series stays TKT after a store 
 
 ## Acceptance criteria
 
-- [ ] The existing reference model, refs lookup, path validation, and real pr:/origin-ticket:/origin-store: examples are measured before a new declaration is specified.
-- [ ] One design specifies portable namespace declarations, identifier grammars, external URL templates and foreign-store bindings, including where machine-local overrides live.
-- [ ] Validation covers declared identifier syntax and configuration while check remains offline; unknown namespace policy, finding severity, and unavailable foreign stores are settled against existing tickets.
-- [ ] The design states what show, ui, JSON, import --from-store, and refs expose or preserve, with an end-to-end example for a PR and a foreign ticket.
-- [ ] Compatibility, schema impact, and the plan sections to change are recorded before implementation tasks are filed.
+- [x] The existing reference model, refs lookup, path validation, and real pr:/origin-ticket:/origin-store: examples are measured before a new declaration is specified.
+- [x] One design specifies portable namespace declarations, identifier grammars, external URL templates and foreign-store bindings, including where machine-local overrides live.
+- [x] Validation covers declared identifier syntax and configuration while check remains offline; unknown namespace policy, finding severity, and unavailable foreign stores are settled against existing tickets.
+- [x] The design states what show, ui, JSON, import --from-store, and refs expose or preserve, with an end-to-end example for a PR and a foreign ticket.
+- [x] Compatibility, schema impact, and the plan sections to change are recorded before implementation tasks are filed.
 - [ ] Export carries a versioned lookup table for the namespace declarations used by its tickets, excludes machine-local paths, and keeps the existing git am DIR/*.patch route usable.
 - [ ] Import previews the offered mappings and lets the receiver explicitly adopt, alias, or decline them; conflicts never silently overwrite a local namespace, and partial-failure behavior is defined.
 - [ ] The mapping is bound to the ticket artifact so a stale or substituted table cannot be accepted as the source declaration for a different export.
@@ -124,3 +124,15 @@ Evidence: this store has 82 references in ten namespaces, including ticket:repor
 Export offers a versioned references.json sidecar containing only declarations used by the ticket patch, their portable stores, undeclared namespace names, and SHA-256 of the exact 0001-tickets.patch bytes. It stays outside *.patch, preserving git am. Import verifies the digest before preview, displays each mapping, and requires adopt, alias, or decline choices; conflicts cannot take a local namespace silently. A conflicting declined reference must be rewritten to a free opaque namespace when tickets are adopted. The sidecar hash binds files within the artifact but is not an identity signature. Mapping adoption is a separate locked registry write, reported separately from partial ticket filing. Legacy origin-ticket: plus origin-store: remains opaque; a declared foreign-ticket namespace adds an independently resolvable reference for new imports.
 
 Alternatives rejected: config.yml loses unknown keys through old renderers; per-reference URLs duplicate destinations and do not bind a typed PR or foreign ID; embedding the map in the ticket patch would make git am write unapproved config; embedding it in the cover is hard to parse and bind; mandatory declarations would invalidate existing references. No built-in ticket grammar is safe against the measured ticket:report and abbreviated provenance. The plan now gives a PR and a foreign-ticket example through export, preview, adoption or decline, and reading. Implementation is separate work; this spike records its contract, not a shipped feature.
+
+**agent:codex/reference-design** at 2026-09-26T01:08:41Z
+
+Criteria 6-8 remain unticked because they describe shipping the sidecar, receiver mapping choices, and artifact binding. The design contract is in the plan; TKT-01M3DM2SHMH0KMP1Z0SZKPTCR8 (Carry reference lookup mappings through export and import) owns the runtime work. I will not mark a design as an implemented feature.
+
+**agent:codex/reference-design** at 2026-09-26T01:10:53Z
+
+The first full just ci run failed because section 11 listed four future check codes before any implementation fixtures existed. TestCorpusCoversEveryPlanCode intentionally requires the live table and fixture corpus to land together. I moved those codes to a planned-error paragraph in section 11; the implementation tasks must add each to the live table with fixtures. A second env -u NO_COLOR mise exec go@1.27.1 -- just ci run passed.
+
+## Summary
+
+The design contract is in docs/plan.md sections 5.1, 5.5, 11, and 12.8. It specifies a separate versioned references.yml, opt-in offline grammar validation, local overrides, safe URL and foreign-ticket resolution, an export lookup sidecar bound to the ticket patch, and explicit receiver adopt/alias/decline choices. Measured 82 existing refs in ten namespaces and tested the real PR/provenance shapes in a scratch store. Four implementation drafts now carry the runtime work: TKT-01M3DM2SGK9X1S1FN7RKPF02A1 (Implement portable reference registry and offline validation), TKT-01M3DM2SHMH0KMP1Z0SZKPTCR8 (Carry reference lookup mappings through export and import), and TKT-01M3DM2SJQSX7T51TX8WHK5ZGY (Show resolved reference targets across readers). Criteria 6-8 remain unticked until those features ship.

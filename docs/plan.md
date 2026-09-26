@@ -815,13 +815,17 @@ explicit contract, while the absence of a declaration says nothing. Both
 checks use only the tracked bytes and never contact a foreign store. An
 unavailable foreign store is not an error or warning.
 
-`refs` keeps its exact stored-value lookup. `show`, `ui`, and their JSON
-forms may add a resolved URL or local target beside a reference but must keep
-the original `ref` and `path` bytes. A missing local binding does not erase
-the portable URL. A repository-relative `path` remains governed by the
-existing path rule and takes precedence when it resolves. An `extensions`
-entry is ticket-specific integration data, not a store-wide namespace
-definition.
+`refs` keeps its exact stored-value lookup. `show` adds a target beside each
+resolvable reference, the UI detail view makes that target openable, and their
+JSON ticket reference objects add optional `resolvedUrl` and
+`resolvedLocalPath` fields without changing `ref` or `path`. The local
+path appears only in a local read, never in an export. `refs --resolve REF`
+uses the same matching rule as `refs REF` and prints the targets of the
+matching references; without the flag its output stays as it is. A missing
+local binding does not erase the portable URL. A repository-relative `path`
+remains governed by the existing path rule and takes precedence when it
+resolves. An `extensions` entry is ticket-specific integration data, not a
+store-wide namespace definition.
 
 `origin-ticket:TKT-...` plus `origin-store:ledger` remains legacy provenance:
 the pair does not establish an unambiguous per-reference store binding, so
@@ -2874,10 +2878,6 @@ Errors:
 | `title_too_long` | `title` is longer than 120 characters, per 5.1 |
 | `location_mismatch` | the status and the directory disagree, per section 4; the status wins |
 | `layout_invalid` | a file under `canvas/` that is not a board, per 12.10: its name is outside the board grammar, or it does not parse or validate. One finding per file, because everything downstream of a parse failure would be noise |
-| `reference_registry_invalid` | `.tickets/references.yml` has an unsupported version, duplicate namespace, invalid RE2 grammar, mismatched template placeholder, invalid URL, or invalid store binding, per 5.5; one finding for the file when it cannot be parsed |
-| `reference_identifier_invalid` | a ref's namespace is declared, but its identifier misses that declaration's grammar, per 5.5 |
-| `move_destination_invalid` | a schema-4 `moved_to` is untyped or has no identifier, per 6.3 |
-| `dependency_moved` | an open ticket still depends on a ticket carrying `moved_to`; one finding per dependent edge, per 6.3 |
 
 Warnings:
 
@@ -2897,6 +2897,15 @@ Warnings:
 | `section_heading_demoted` | a body section carries a `###` sub-heading whose name is one of the sections 5.2 owns, so what reads as that section is prose no mutation can reach |
 | `layout_ticket_missing` | a board's card or frame member names a ticket the store does not have, per 12.10. `field` is the record, `cards.ID` or `frames.ID.members` |
 | `layout_not_canonical` | a board file is valid but its bytes are not what a save writes, per 12.10: an older schema, a comment, unsorted records, or float noise |
+
+The reference and move designs reserve four future **error** codes:
+`reference_registry_invalid` for a malformed or unsupported tracked registry,
+`reference_identifier_invalid` for a ref that misses its declared grammar,
+`move_destination_invalid` for an untyped or empty schema-4 `moved_to`, and
+`dependency_moved` for each open dependent still pointing at a moved
+original. Add each to the error table, schema vocabulary, and fixture corpus
+in the implementation change that first emits it. The corpus test requires
+those to land together, so design alone must not advertise a code as live.
 
 A finding names the file, and the ticket ID and field where they apply. A file
 that fails to parse yields exactly one finding, because everything downstream of
@@ -3916,9 +3925,9 @@ ticket that landed, and the accepted registry remains. Preflight catches
 mapping collisions before either write. The CLI prints an explicit recovery
 command and the mapping outcome on an error. The library exposes the
 mapping preview and write separately from `PlanImport`/`ApplyImport`, so a
-host can take the `git am` route without a ticket adoption. `--if-revision`
-for the registry uses the hash of its current bytes; ticket revisions keep
-their existing meaning.
+host can take the `git am` route without a ticket adoption.
+`--if-map-revision` uses the hash of the registry's current bytes; the
+existing `--if-revision` keeps its ticket meaning.
 
 `--from-store NAME` remains a provenance string for old exports. When NAME
 is a declared store key and a foreign-ticket namespace is bound to it, import

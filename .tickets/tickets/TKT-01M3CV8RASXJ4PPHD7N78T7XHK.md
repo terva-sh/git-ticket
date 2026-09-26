@@ -3,7 +3,7 @@ schema: 2
 id: TKT-01M3CV8RASXJ4PPHD7N78T7XHK
 title: Decide what a move does to dependents left in the sending store
 type: spike
-status: in-progress
+status: review
 status_reason: null
 priority: normal
 due_on: null
@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-25T17:54:32Z
-updated_at: 2026-09-26T01:07:47Z
+updated_at: 2026-09-26T01:09:51Z
 created_by:
   id: agent:claude-code/opus
   name: ""
@@ -67,7 +67,7 @@ Related: TKT-01M3CV8R9J3QXQSN07B9VAGV7V (Decide how a store declares where each 
 - [ ] A move records a machine-readable destination on the original ticket through a source-side action; the receiving import does not write the sending store.
 - [ ] The sending store identifies each open dependent of a moved ticket and gives it a distinct finding; readiness does not treat the moved original as satisfying that dependency before manual resolution.
 - [ ] A person can resolve each dependent after checking the receiving work, with the destination and the reason preserved in the record.
-- [ ] The design uses existing deps --dependents where it fits and specifies the marker, finding severity, readiness rule, and valid lifecycle commands for draft, ready, and in-progress origins.
+- [x] The design uses existing deps --dependents where it fits and specifies the marker, finding severity, readiness rule, and valid lifecycle commands for draft, ready, and in-progress origins.
 - [ ] Plan sections 6.3 and 12.8 record the offline source-side workflow; a two-store run proves no premature ready result and check reports unresolved dependents.
 
 ## Implementation plan
@@ -95,3 +95,15 @@ Design decision for plan 6.3, 11, 12.5, and 12.8: schema 4 adds moved_to as a co
 Scratch evidence in two stores: source TKT-01M3DKYVKAPMSR1H1WF9WJ9WWS (Remote prerequisite) had dependent TKT-01M3DKYVKV6TY379E5C9G27835 (Local dependent). It was exported and adopted in the receiver as TKT-01M3DKYV4G4ZKCKRC8RYEP42JY (Remote prerequisite). deps --dependents named the local dependent. The current import advice printed status SOURCE done, which failed from ready with invalid_transition. After a valid ready -> in-progress -> done path, ready incorrectly listed Local dependent. Reopening with a reason, blocking the origin, and adding a destination-ticket: reference removed that premature ready result; check --strict still said No problems found. Manually unlinking the old edge, adding the destination reference on the dependent, and writing a reason restored ready and left check --strict clean. These are baseline and interim-behavior measurements; the new dependency_moved finding needs an implementation test.
 
 Alternatives rejected: advice alone names the problem but cannot gate readiness; automatic remote status polling conflicts with offline check and needs a trust and availability model; a bare reference has no safety meaning to old readers. A blocked status alone works as an interim hold but does not say which dependent requires resolution, and a later done transition can release it early. The new source-side command replaces the invalid universal close-at-origin advice. The plan states the lifecycle, finding, and manual resolution contract. Implementation is separate work.
+
+**agent:codex/reference-design** at 2026-09-26T01:08:41Z
+
+Criterion 5 remains unticked: the two-store run proved the current premature-ready failure and the blocked interim path, but the new dependency_moved finding cannot be observed before implementation. TKT-01M3DM2SKQGX0QYC4GFX32NR53 (Gate dependents when a prerequisite moves to another store) owns that run and check assertion.
+
+**agent:codex/reference-design** at 2026-09-26T01:08:48Z
+
+Correction to the checklist progress: criteria 1-3 state implemented behavior, so I left them unticked with criterion 5. Only criterion 4 is a design deliverable. The implementation task carries the remaining acceptance checks.
+
+## Summary
+
+The source-side move contract is in docs/plan.md sections 6.3, 11, 12.5, and 12.8: schema-4 moved_to, an offline readiness gate, one dependency_moved error per open dependent, and explicit manual resolution. A two-store scratch run reproduced the invalid ready-to-done advice and premature ready result; blocked plus a destination reference held the dependent back but did not give check a finding. TKT-01M3DM2SKQGX0QYC4GFX32NR53 (Gate dependents when a prerequisite moves to another store) carries implementation and the future two-store assertion. Runtime criteria remain unticked until it ships.

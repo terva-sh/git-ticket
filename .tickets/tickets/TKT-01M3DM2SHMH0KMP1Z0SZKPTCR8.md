@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:42:23Z
+updated_at: 2026-09-26T02:49:33Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -66,3 +66,7 @@ PR #227 is open against feat/reference-registry (PR #226), head 4f74fb0223c9c84e
 **agent:codex/reference-lookup** at 2026-09-26T02:42:23Z
 
 PR #227 review 759 (head 4e94a2238bf48ef38370546c5387ddb09dcf09cc, base 3567f3197260cb0dc9e413b0e990e56e67e7e8ad; Actions run #602, id 11683) raised a medium finding that explicit decline of an identical mapping still resolves. Disposition: the design record in plan 12.8 explicitly requires that behavior, because decline copies no mapping and cannot disable an identical local declaration. Follow-up review 760 (discussion comment 13912; Actions run #604, id 11685) agreed the finding does not apply. Commit ae35f84 adds a regression test and preview wording to make that consequence visible. Targeted tests passed; requesting a fresh full review of the clarification.
+
+**agent:codex/reference-lookup** at 2026-09-26T02:49:33Z
+
+PR #227 review 761 on c7a2eb0 (Actions run #605, id 11686) confirmed the identical-decline finding resolved and identified a high race: the mapping planner parsed references.yml, then read its revision from a second file snapshot. Accepted. Commit 48aa497 makes ReadReferenceRegistry and planning share readReferenceRegistrySnapshot, parsing and hashing the same bytes; a concurrent atomic-replacement test checks that declarations and revision always pair. Full just ci passed after the code fix; the targeted concurrency test passed under the race detector. Requesting a fresh targeted review.

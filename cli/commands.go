@@ -1216,8 +1216,13 @@ func runRefs(ctx *cmdContext, args []string) error {
 			fmt.Fprintln(ctx.out, "No ticket carries that reference.")
 			return nil
 		}
+		short := storeAbbreviations(s, tickets, ids.mode)
 		for _, match := range matches {
-			fmt.Fprintf(ctx.out, "%s  %s\n  %s", match.Ticket.ID, match.Ticket.Title, match.Reference.Ref)
+			id := short[match.Ticket.ID]
+			if id == "" {
+				id = match.Ticket.ID
+			}
+			fmt.Fprintf(ctx.out, "%s  %s\n  %s", id, match.Ticket.Title, match.Reference.Ref)
 			if match.Target != nil {
 				if match.Target.LocalPath != "" {
 					fmt.Fprintf(ctx.out, " -> %s", match.Target.LocalPath)

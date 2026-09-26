@@ -78,6 +78,10 @@ func TestShowAndRefsExposeResolvedTargetsWithoutChangingStoredRefs(t *testing.T)
 	if plain.code != exitOK || resolved.code != exitOK || strings.Contains(plain.stdout, prURL) || !strings.Contains(resolved.stdout, prURL) || strings.Contains(resolved.stdout, foreignURL) {
 		t.Fatalf("refs lookup changed: plain=%s resolved=%s", plain.stdout, resolved.stdout)
 	}
+	fullIDs := runCLI(t, dir, nil, "refs", "pr:", "--resolve", "--ids", "full")
+	if fullIDs.code != exitOK || !strings.HasPrefix(fullIDs.stdout, id+"  ") || strings.HasPrefix(resolved.stdout, id+"  ") {
+		t.Fatalf("resolved refs did not honor --ids: default=%s full=%s", resolved.stdout, fullIDs.stdout)
+	}
 	jsonRefs := runCLI(t, dir, nil, "--json", "refs", "pr:", "--resolve")
 	if jsonRefs.code != exitOK {
 		t.Fatalf("JSON refs resolution: %s%s", jsonRefs.stdout, jsonRefs.stderr)

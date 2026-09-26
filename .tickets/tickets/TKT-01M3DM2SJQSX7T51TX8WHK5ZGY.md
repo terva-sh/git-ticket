@@ -28,7 +28,7 @@ claim:
   expires_at: null
 archive: null
 created_at: 2026-09-26T01:08:11Z
-updated_at: 2026-09-26T02:57:50Z
+updated_at: 2026-09-26T02:59:31Z
 created_by:
   id: agent:codex/reference-design
   name: ""
@@ -65,3 +65,7 @@ PR #228 is open against feat/reference-registry (PR #226) at implementation head
 **agent:codex/reference-readers** at 2026-09-26T02:57:50Z
 
 PR #228 review 764 (head ce1105c, base 3567f31; Actions run #613, id 11698) raised a medium finding: the TUI opener returned success on process start and released the child without waiting. Accepted. The opener now waits and propagates the desktop command's exit error, so the TUI reports success only when that command succeeds. A Linux regression test installs a failing fake xdg-open and checks error propagation. Full just ci passed. Requesting fresh targeted review.
+
+**agent:codex/reference-readers** at 2026-09-26T02:59:31Z
+
+PR #228 review 765 (head 91ac609, base 3567f31; Actions run #617, id 11702) confirmed review 764's opener finding resolved and raised a medium finding: refs --resolve ignored --ids. Accepted. The resolved human listing now uses the same storeAbbreviations helper as ordinary refs listings; JSON still carries full IDs. A regression test checks default abbreviated and explicit full output. Full just ci passed. Requesting fresh targeted review.
